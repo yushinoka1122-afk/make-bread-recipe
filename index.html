@@ -232,6 +232,29 @@
     </div>
     <button type="button" class="add-btn" onclick="addStepBlock()">＋ 新しい手順ブロックを追加</button>
 
+    <!-- スタンバイ -->
+    <h2>スタンバイ</h2>
+    <div id="standbyContainer">
+      <!-- 1つのスタンバイブロック（画像1つ + 複数テキスト行） -->
+      <div class="step-block standby-block" data-block-id="s1">
+        <div class="step-block-header">
+          <div style="display:flex; align-items:center; gap:5px; flex:1;">
+            <span class="s-block-title" style="color:#2196f3;">スタンバイ①</span>
+            画像: <input type="file" class="block-img" accept="image/*" style="width:180px;">
+          </div>
+          <button type="button" class="del-btn" style="width:auto; padding:2px 5px;" onclick="removeStandbyBlock(this)">ブロック削除</button>
+        </div>
+        <div class="step-text-rows">
+          <div class="step-input-row step-row">
+            <input type="text" class="step-text" placeholder="スタンバイ手順のテキストを入力">
+            <button type="button" class="del-btn" onclick="removeRow(this, 'step')">🗑️</button>
+          </div>
+        </div>
+        <button type="button" class="add-btn" style="background:#8bc34a; margin-top:0;" onclick="addStepRow(this)">＋ このスタンバイに行を追加</button>
+      </div>
+    </div>
+    <button type="button" class="add-btn" onclick="addStandbyBlock()">＋ 新しいスタンバイブロックを追加</button>
+
     <div class="action-buttons">
       <button type="button" onclick="generateManual()">プレビュー表示</button>
       <button type="button" class="print-btn" onclick="printManual()">PDF保存・印刷</button>
@@ -299,6 +322,15 @@
   </div>
   <div id="outStepsFull" class="steps-full"></div>
 
+  <!-- スタンバイの2カラム化コンテナ -->
+  <div id="standbySection" style="display:none; margin-top: 10px;">
+    <div class="steps-grid">
+      <div id="outStandbyLeft" class="steps-col"></div>
+      <div id="outStandbyRight" class="steps-col"></div>
+    </div>
+    <div id="outStandbyFull" class="steps-full"></div>
+  </div>
+
 </div>
 
 <script>
@@ -318,11 +350,21 @@
 
   // 手順ブロックのヘッダー「手順①」の更新
   function updateBlockNumbers() {
-    const blocks = document.querySelectorAll('.step-block');
+    const blocks = document.getElementById('stepsContainer').querySelectorAll('.step-block');
     blocks.forEach((block, index) => {
       const titleSpan = block.querySelector('.block-title');
       const numStr = index < circleNums.length ? circleNums[index] : `(${index + 1})`;
       if(titleSpan) titleSpan.innerText = `手順${numStr}`;
+    });
+  }
+
+  // スタンバイブロックのヘッダー「スタンバイ①」の更新
+  function updateStandbyBlockNumbers() {
+    const blocks = document.getElementById('standbyContainer').querySelectorAll('.standby-block');
+    blocks.forEach((block, index) => {
+      const titleSpan = block.querySelector('.s-block-title');
+      const numStr = index < circleNums.length ? circleNums[index] : `(${index + 1})`;
+      if(titleSpan) titleSpan.innerText = `スタンバイ${numStr}`;
     });
   }
 
@@ -341,6 +383,12 @@
     const block = btn.closest('.step-block');
     block.remove();
     updateBlockNumbers();
+  }
+
+  function removeStandbyBlock(btn) {
+    const block = btn.closest('.standby-block');
+    block.remove();
+    updateStandbyBlockNumbers();
   }
 
   function addIngredient() {
@@ -404,12 +452,38 @@
     updateBlockNumbers();
   }
 
+  function addStandbyBlock() {
+    const container = document.getElementById('standbyContainer');
+    const blockId = Date.now();
+    const div = document.createElement('div');
+    div.className = 'step-block standby-block';
+    div.setAttribute('data-block-id', 's' + blockId);
+    div.innerHTML = `
+      <div class="step-block-header">
+        <div style="display:flex; align-items:center; gap:5px; flex:1;">
+          <span class="s-block-title" style="color:#2196f3;">スタンバイ</span>
+          画像: <input type="file" class="block-img" accept="image/*" style="width:180px;">
+        </div>
+        <button type="button" class="del-btn" style="width:auto; padding:2px 5px;" onclick="removeStandbyBlock(this)">ブロック削除</button>
+      </div>
+      <div class="step-text-rows">
+        <div class="step-input-row step-row">
+          <input type="text" class="step-text" placeholder="スタンバイ手順のテキストを入力">
+          <button type="button" class="del-btn" onclick="removeRow(this, 'step')">🗑️</button>
+        </div>
+      </div>
+      <button type="button" class="add-btn" style="background:#8bc34a; margin-top:0;" onclick="addStepRow(this)">＋ このスタンバイに行を追加</button>
+    `;
+    container.appendChild(div);
+    updateStandbyBlockNumbers();
+  }
+
   function addStepRow(btn) {
     const textRowsContainer = btn.previousElementSibling;
     const div = document.createElement('div');
     div.className = 'step-input-row step-row';
     div.innerHTML = `
-      <input type="text" class="step-text" placeholder="作業手順のテキストを入力">
+      <input type="text" class="step-text" placeholder="テキストを入力">
       <button type="button" class="del-btn" onclick="removeRow(this, 'step')">🗑️</button>`;
     textRowsContainer.appendChild(div);
   }
@@ -499,13 +573,9 @@
     const outLeft = document.getElementById('outStepsLeft');
     const outRight = document.getElementById('outStepsRight');
     const outFull = document.getElementById('outStepsFull');
-    
-    outLeft.innerHTML = '';
-    outRight.innerHTML = '';
-    outFull.innerHTML = '';
+    outLeft.innerHTML = ''; outRight.innerHTML = ''; outFull.innerHTML = '';
 
-    const blocks = document.querySelectorAll('.step-block');
-    
+    const blocks = document.getElementById('stepsContainer').querySelectorAll('.step-block');
     blocks.forEach((block, index) => {
       const fileInput = block.querySelector('.block-img');
       const hasImg = fileInput && fileInput.files && fileInput.files[0];
@@ -517,7 +587,6 @@
         const textVal = row.querySelector('.step-text').value.trim();
         if(textVal) {
           hasText = true;
-          // 丸数字なし、行頭に・などを付けるかそのまま
           textsHtml += `<div style="margin-bottom:2px;">・${textVal}</div>`;
         }
       });
@@ -539,16 +608,64 @@
             <div class="step-texts-out" style="padding-top:14px;">${textsHtml}</div>
           </div>`;
         
-        // 振り分け (0~3:左, 4~7:右, 8以降:全幅)
-        if (index < 4) {
-          outLeft.innerHTML += blockHtml;
-        } else if (index < 8) {
-          outRight.innerHTML += blockHtml;
-        } else {
-          outFull.innerHTML += blockHtml;
-        }
+        if (index < 4) { outLeft.innerHTML += blockHtml; } 
+        else if (index < 8) { outRight.innerHTML += blockHtml; } 
+        else { outFull.innerHTML += blockHtml; }
       }
     });
+
+    // スタンバイの反映（2カラム化）
+    const outSLeft = document.getElementById('outStandbyLeft');
+    const outSRight = document.getElementById('outStandbyRight');
+    const outSFull = document.getElementById('outStandbyFull');
+    outSLeft.innerHTML = ''; outSRight.innerHTML = ''; outSFull.innerHTML = '';
+
+    const sBlocks = document.getElementById('standbyContainer').querySelectorAll('.standby-block');
+    let hasStandby = false;
+    sBlocks.forEach((block, index) => {
+      const fileInput = block.querySelector('.block-img');
+      const hasImg = fileInput && fileInput.files && fileInput.files[0];
+      const textRows = block.querySelectorAll('.step-row');
+      
+      let textsHtml = '';
+      let hasText = false;
+      textRows.forEach((row) => {
+        const textVal = row.querySelector('.step-text').value.trim();
+        if(textVal) {
+          hasText = true;
+          textsHtml += `<div style="margin-bottom:2px;">・${textVal}</div>`;
+        }
+      });
+
+      if(hasText || hasImg) {
+        hasStandby = true;
+        let imgHtml = '';
+        if (hasImg) {
+           const imgUrl = URL.createObjectURL(fileInput.files[0]);
+           imgHtml = `<img src="${imgUrl}">`;
+        }
+        
+        const numStr = index < circleNums.length ? circleNums[index] : `(${index + 1})`;
+        const blockHtml = `
+          <div class="step-preview-block">
+            <div class="step-img-out">
+              <div style="font-weight:bold; margin-bottom:2px; text-align:left; background-color: #e3f2fd; padding: 2px;">スタンバイ${numStr}</div>
+              ${imgHtml}
+            </div>
+            <div class="step-texts-out" style="padding-top:14px;">${textsHtml}</div>
+          </div>`;
+        
+        if (index < 4) { outSLeft.innerHTML += blockHtml; } 
+        else if (index < 8) { outSRight.innerHTML += blockHtml; } 
+        else { outSFull.innerHTML += blockHtml; }
+      }
+    });
+
+    if (hasStandby) {
+      document.getElementById('standbySection').style.display = 'block';
+    } else {
+      document.getElementById('standbySection').style.display = 'none';
+    }
   }
 
   function printManual() {
@@ -614,7 +731,7 @@
     }
 
     // 手順
-    const blocks = document.querySelectorAll('.step-block');
+    const blocks = document.getElementById('stepsContainer').querySelectorAll('.step-block');
     blocks.forEach((block, index) => {
       const numStr = index < circleNums.length ? circleNums[index] : `(${index + 1})`;
       data.push([`手順${numStr}`]);
@@ -629,6 +746,30 @@
       data.push([]);
     });
 
+    // スタンバイ
+    const sBlocks = document.getElementById('standbyContainer').querySelectorAll('.standby-block');
+    let hasStandbyData = false;
+    const sData = [];
+    sBlocks.forEach((block, index) => {
+      const numStr = index < circleNums.length ? circleNums[index] : `(${index + 1})`;
+      sData.push([`スタンバイ${numStr}`]);
+      
+      let hasText = false;
+      const textRows = block.querySelectorAll('.step-row');
+      textRows.forEach((row) => {
+        const textVal = row.querySelector('.step-text').value.trim();
+        if(textVal) {
+          sData.push(["・", textVal]);
+          hasText = true;
+          hasStandbyData = true;
+        }
+      });
+      if(hasText) sData.push([]);
+    });
+    if (hasStandbyData) {
+      sData.forEach(r => data.push(r));
+    }
+
     const ws = XLSX.utils.aoa_to_sheet(data);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "手順書");
@@ -639,6 +780,7 @@
   
   // 初期化時の番号付け
   updateBlockNumbers();
+  updateStandbyBlockNumbers();
 </script>
 </body>
 </html>
