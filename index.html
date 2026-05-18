@@ -322,13 +322,9 @@
   </div>
   <div id="outStepsFull" class="steps-full"></div>
 
-  <!-- スタンバイの2カラム化コンテナ -->
+  <!-- スタンバイの全幅コンテナ -->
   <div id="standbySection" style="display:none; margin-top: 10px;">
-    <div class="steps-grid">
-      <div id="outStandbyLeft" class="steps-col"></div>
-      <div id="outStandbyRight" class="steps-col"></div>
-    </div>
-    <div id="outStandbyFull" class="steps-full"></div>
+    <div id="outStandbyArea" class="steps-full"></div>
   </div>
 
 </div>
@@ -358,13 +354,12 @@
     });
   }
 
-  // スタンバイブロックのヘッダー「スタンバイ①」の更新
+  // スタンバイブロックのヘッダー「スタンバイ」の更新（番号なし）
   function updateStandbyBlockNumbers() {
     const blocks = document.getElementById('standbyContainer').querySelectorAll('.standby-block');
-    blocks.forEach((block, index) => {
+    blocks.forEach((block) => {
       const titleSpan = block.querySelector('.s-block-title');
-      const numStr = index < circleNums.length ? circleNums[index] : `(${index + 1})`;
-      if(titleSpan) titleSpan.innerText = `スタンバイ${numStr}`;
+      if(titleSpan) titleSpan.innerText = `スタンバイ`;
     });
   }
 
@@ -614,15 +609,13 @@
       }
     });
 
-    // スタンバイの反映（2カラム化）
-    const outSLeft = document.getElementById('outStandbyLeft');
-    const outSRight = document.getElementById('outStandbyRight');
-    const outSFull = document.getElementById('outStandbyFull');
-    outSLeft.innerHTML = ''; outSRight.innerHTML = ''; outSFull.innerHTML = '';
+    // スタンバイの反映（全幅）
+    const outStandbyArea = document.getElementById('outStandbyArea');
+    outStandbyArea.innerHTML = '';
 
     const sBlocks = document.getElementById('standbyContainer').querySelectorAll('.standby-block');
     let hasStandby = false;
-    sBlocks.forEach((block, index) => {
+    sBlocks.forEach((block) => {
       const fileInput = block.querySelector('.block-img');
       const hasImg = fileInput && fileInput.files && fileInput.files[0];
       const textRows = block.querySelectorAll('.step-row');
@@ -645,19 +638,16 @@
            imgHtml = `<img src="${imgUrl}">`;
         }
         
-        const numStr = index < circleNums.length ? circleNums[index] : `(${index + 1})`;
         const blockHtml = `
           <div class="step-preview-block">
             <div class="step-img-out">
-              <div style="font-weight:bold; margin-bottom:2px; text-align:left; background-color: #e3f2fd; padding: 2px;">スタンバイ${numStr}</div>
+              <div style="font-weight:bold; margin-bottom:2px; text-align:left; background-color: #e3f2fd; padding: 2px;">スタンバイ</div>
               ${imgHtml}
             </div>
             <div class="step-texts-out" style="padding-top:14px;">${textsHtml}</div>
           </div>`;
         
-        if (index < 4) { outSLeft.innerHTML += blockHtml; } 
-        else if (index < 8) { outSRight.innerHTML += blockHtml; } 
-        else { outSFull.innerHTML += blockHtml; }
+        outStandbyArea.innerHTML += blockHtml;
       }
     });
 
@@ -750,9 +740,8 @@
     const sBlocks = document.getElementById('standbyContainer').querySelectorAll('.standby-block');
     let hasStandbyData = false;
     const sData = [];
-    sBlocks.forEach((block, index) => {
-      const numStr = index < circleNums.length ? circleNums[index] : `(${index + 1})`;
-      sData.push([`スタンバイ${numStr}`]);
+    sBlocks.forEach((block) => {
+      sData.push([`スタンバイ`]);
       
       let hasText = false;
       const textRows = block.querySelectorAll('.step-row');
