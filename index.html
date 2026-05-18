@@ -74,6 +74,24 @@
   .steps-col { flex: 1; display: flex; flex-direction: column; }
   .steps-full { display: flex; flex-direction: column; }
 
+  /* スマホ向けレスポンシブ対応 */
+  @media (max-width: 600px) {
+    .row { flex-direction: column; align-items: stretch; margin-bottom: 10px; }
+    .row > div { width: 100%; margin-bottom: 5px; }
+    .ing-row { flex-direction: row; flex-wrap: wrap; }
+    .action-buttons { flex-direction: column; }
+    
+    /* プレビュー側もスマホサイズでは縦並びに */
+    .preview-header { flex-direction: column; align-items: center; }
+    .preview-left { width: 100%; }
+    .preview-right { width: 100%; margin-top: 10px; }
+    .specs-container { flex-direction: column; }
+    .steps-grid { flex-direction: column; gap: 5px; }
+    .step-preview-block { flex-direction: column; align-items: flex-start; }
+    .step-img-out { width: 100%; flex: 1; text-align: left; margin-bottom: 5px; }
+    .step-img-out img { max-width: 100%; max-height: 150px; }
+  }
+
   /* 印刷用スタイル */
   @media print {
     body { background: #fff; margin: 0; padding: 0; font-family: "Meiryo", sans-serif; }
