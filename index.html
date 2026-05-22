@@ -334,8 +334,11 @@
     </div>
   </div>
 
-  <div id="dispatchSection" style="display:none; margin-bottom: 6px; padding: 6px; border: 1px solid #b0bec5; border-radius: 4px; background-color: #fafafa;">
-    <div style="font-weight:bold; font-size:0.8rem; margin-bottom:4px; color:#444; border-bottom: 1px solid #ccc; padding-bottom: 2px;">生地出庫</div>
+  <div id="dispatchSection" style="display:none; margin-bottom: 4px; padding: 4px; border: 1px solid #b0bec5; border-radius: 4px; background-color: #fafafa;">
+    <div style="font-weight:bold; font-size:0.8rem; margin-bottom:3px; color:#444; border-bottom: 1px solid #ccc; padding-bottom: 2px; display: flex; justify-content: space-between; align-items: center;">
+      <span>■ 生地出庫</span>
+      <span id="outDispatchTitle" style="font-weight: bold; color: #1565c0; font-size: 0.75rem;"></span>
+    </div>
     <div id="outDispatchArea"></div>
   </div>
 
@@ -567,12 +570,17 @@
     // 生地出庫の反映
     const dispatchTitleVal = document.getElementById('dispatchTitle').value.trim();
     const dispatchOutArea = document.getElementById('outDispatchArea');
+    const outDispatchTitle = document.getElementById('outDispatchTitle');
     dispatchOutArea.innerHTML = '';
-    let dispatchHtml = '';
+    
     if(dispatchTitleVal) {
-      dispatchHtml += `<div style="margin-bottom:4px;"><strong>${dispatchTitleVal}</strong></div>`;
+      outDispatchTitle.innerText = `【生地名】 ${dispatchTitleVal}`;
+      outDispatchTitle.style.display = 'inline';
+    } else {
+      outDispatchTitle.innerText = '';
     }
     
+    let dispatchHtml = '';
     const dispatchRows = document.querySelectorAll('.dispatch-step-row');
     let hasDispatchSteps = false;
     dispatchRows.forEach((row) => {
@@ -581,7 +589,7 @@
       if(textVal) {
         hasDispatchSteps = true;
         dispatchHtml += `
-          <div style="display:flex; gap:5px; margin-bottom:2px; font-size:0.75rem;">
+          <div style="display:flex; gap:5px; margin-bottom:1px; font-size:0.75rem;">
             <div style="font-weight:bold;">${numLabel}</div>
             <div>${textVal}</div>
           </div>`;
