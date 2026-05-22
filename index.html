@@ -114,13 +114,20 @@
 
 <div class="container">
   <h1>パン手順書作成フォーム</h1>
+  <div id="masterStatus" style="font-size: 0.8rem; color: #1565c0; margin-bottom: 10px; padding: 6px; background: #e3f2fd; border-radius: 4px; font-weight:bold; text-align: center;">マスタデータを読み込んでいます...</div>
   
   <form id="recipeForm">
+    <datalist id="menuCodes"></datalist>
+    <datalist id="menuNames"></datalist>
     <!-- 基本情報 -->
     <div class="row">
-      <div style="flex: 2;">
+      <div style="flex: 1.2;">
+        <label>メニューコード</label>
+        <input type="text" id="menuCode" list="menuCodes" placeholder="例: 1001">
+      </div>
+      <div style="flex: 2.3;">
         <label>商品名称</label>
-        <input type="text" id="productName" placeholder="例: ざくざく枝豆チーズスティック">
+        <input type="text" id="productName" list="menuNames" placeholder="例: ざくざく枝豆チーズスティック">
       </div>
       <div style="flex: 2;">
         <label>実施期間</label>
@@ -140,7 +147,7 @@
       <div class="row ing-row">
         <div style="flex: 1;"><input type="text" class="ing-code" placeholder="コード"></div>
         <div style="flex: 2;"><input type="text" class="ing-name" placeholder="品名"></div>
-        <div style="flex: 1;"><input type="number" class="ing-amount" placeholder="使用量"></div>
+        <div style="flex: 1;"><input type="number" class="ing-amount" step="any" placeholder="使用量"></div>
         <div style="flex: 0.8;">
           <select class="ing-unit">
             <option value="g">g</option>
@@ -151,6 +158,10 @@
             <option value="枚">枚</option>
             <option value="適量">適量</option>
           </select>
+        </div>
+        <div style="flex: 0.6; text-align: center; display: flex; align-items: center; justify-content: center; gap: 2px;">
+          <input type="checkbox" class="ing-standby" style="width: auto; margin: 0;">
+          <span style="font-size: 0.7rem; font-weight: bold;">スタ</span>
         </div>
         <button type="button" class="del-btn" onclick="removeRow(this, 'ing')">🗑️</button>
       </div>
@@ -273,7 +284,14 @@
       </div>
       
       <table class="output-table">
-        <thead><tr><th style="width: 20%;">コード</th><th style="width: 50%;">品名</th><th style="width: 30%;">使用量</th></tr></thead>
+        <thead>
+          <tr>
+            <th style="width: 18%;">コード</th>
+            <th style="width: 44%;">品名</th>
+            <th style="width: 23%;">使用量</th>
+            <th style="width: 15%; text-align: center;">スタンバイ</th>
+          </tr>
+        </thead>
         <tbody id="outIngredients"></tbody>
       </table>
     </div>
@@ -393,7 +411,7 @@
     div.innerHTML = `
       <div style="flex: 1;"><input type="text" class="ing-code" placeholder="コード"></div>
       <div style="flex: 2;"><input type="text" class="ing-name" placeholder="品名"></div>
-      <div style="flex: 1;"><input type="number" class="ing-amount" placeholder="使用量"></div>
+      <div style="flex: 1;"><input type="number" class="ing-amount" step="any" placeholder="使用量"></div>
       <div style="flex: 0.8;">
         <select class="ing-unit">
           <option value="g">g</option>
@@ -404,6 +422,10 @@
           <option value="枚">枚</option>
           <option value="適量">適量</option>
         </select>
+      </div>
+      <div style="flex: 0.6; text-align: center; display: flex; align-items: center; justify-content: center; gap: 2px;">
+        <input type="checkbox" class="ing-standby" style="width: auto; margin: 0;">
+        <span style="font-size: 0.7rem; font-weight: bold;">スタ</span>
       </div>
       <button type="button" class="del-btn" onclick="removeRow(this, 'ing')">🗑️</button>`;
     container.appendChild(div);
@@ -513,8 +535,11 @@
       const name = row.querySelector('.ing-name').value;
       const amount = row.querySelector('.ing-amount').value;
       const unit = row.querySelector('.ing-unit').value;
+      const standby = row.querySelector('.ing-standby').checked;
       if(code || name || amount) {
-        ingBody.innerHTML += `<tr><td>${code}</td><td>${name}</td><td>${amount}${unit}</td></tr>`;
+        const standbyHtml = standby ? '<span style="color: #1565c0; font-weight: bold; display: block; text-align: center;">✔</span>' : '';
+        const rowBg = standby ? ' style="background-color: #e3f2fd;"' : '';
+        ingBody.innerHTML += `<tr${rowBg}><td>${code}</td><td>${name}</td><td>${amount}${unit}</td><td>${standbyHtml}</td></tr>`;
       }
     });
 
@@ -675,14 +700,15 @@
     data.push([]);
     
     // 食材
-    data.push(["コード", "品名", "使用量"]);
+    data.push(["コード", "品名", "使用量", "スタンバイ"]);
     document.querySelectorAll('#ingredientsContainer .ing-row').forEach(row => {
       const code = row.querySelector('.ing-code').value;
       const name = row.querySelector('.ing-name').value;
       const amount = row.querySelector('.ing-amount').value;
       const unit = row.querySelector('.ing-unit').value;
+      const standby = row.querySelector('.ing-standby').checked;
       if(code || name || amount) {
-        data.push([code, name, `${amount}${unit}`]);
+        data.push([code, name, `${amount}${unit}`, standby ? "〇" : ""]);
       }
     });
     data.push([]);
@@ -770,6 +796,173 @@
   // 初期化時の番号付け
   updateBlockNumbers();
   updateStandbyBlockNumbers();
+
+  // --- 以下、マスタデータ連携＆予測変換＆自動入力ロジック ---
+  let menuMaster = {};
+
+  async function loadMasterData() {
+    const statusDiv = document.getElementById('masterStatus');
+    statusDiv.innerText = "マスタデータを読み込んでいます...";
+    statusDiv.style.backgroundColor = "#ffe0b2";
+    statusDiv.style.color = "#e65100";
+
+    const url = "https://docs.google.com/spreadsheets/d/1FUpFIMRcoOf-f5xDkcJGNparud13cgINV7JQehHznZ8/export?format=csv&gid=0";
+    try {
+      const response = await fetch(url);
+      if (!response.ok) throw new Error("ネットワークエラーが発生しました。");
+      const arrayBuffer = await response.arrayBuffer();
+      const decoder = new TextDecoder('utf-8');
+      const csvText = decoder.decode(arrayBuffer);
+      
+      const lines = csvText.split(/\r?\n/);
+      menuMaster = {};
+      
+      for (let i = 5; i < lines.length; i++) {
+        const line = lines[i];
+        if (!line.trim()) continue;
+        const cols = parseCSVLine(line);
+        
+        const menuCode = cols[3];
+        const menuName = cols[4];
+        const ingCode = cols[10];
+        const ingName = cols[11];
+        const ingAmount = cols[12];
+        const ingUnit = cols[13];
+        
+        if (!menuCode) continue;
+        
+        if (!menuMaster[menuCode]) {
+          menuMaster[menuCode] = {
+            name: menuName,
+            ingredients: []
+          };
+        }
+        
+        if (ingCode || ingName) {
+          menuMaster[menuCode].ingredients.push({
+            code: ingCode || "",
+            name: ingName || "",
+            amount: ingAmount || "",
+            unit: ingUnit || "g"
+          });
+        }
+      }
+      
+      const menuCount = Object.keys(menuMaster).length;
+      statusDiv.innerText = `マスタデータ読込完了 (${menuCount}件のメニュー)`;
+      statusDiv.style.backgroundColor = "#e8f5e9";
+      statusDiv.style.color = "#2e7d32";
+      
+      updateDatalists();
+    } catch (error) {
+      console.error(error);
+      statusDiv.innerText = "マスタデータの読み込みに失敗しました。マスタの共有設定またはネットワーク環境を確認してください。";
+      statusDiv.style.backgroundColor = "#ffebee";
+      statusDiv.style.color = "#c62828";
+    }
+  }
+
+  function parseCSVLine(text) {
+    const result = [];
+    let cur = '';
+    let inQuote = false;
+    for (let i = 0; i < text.length; i++) {
+      const c = text[i];
+      if (c === '"') {
+        inQuote = !inQuote;
+      } else if (c === ',' && !inQuote) {
+        result.push(cur.trim());
+        cur = '';
+      } else {
+        cur += c;
+      }
+    }
+    result.push(cur.trim());
+    return result;
+  }
+
+  function updateDatalists() {
+    const codesDatalist = document.getElementById('menuCodes');
+    const namesDatalist = document.getElementById('menuNames');
+    codesDatalist.innerHTML = '';
+    namesDatalist.innerHTML = '';
+    
+    for (const [code, menu] of Object.entries(menuMaster)) {
+      const optCode = document.createElement('option');
+      optCode.value = code;
+      optCode.innerText = menu.name;
+      codesDatalist.appendChild(optCode);
+      
+      const optName = document.createElement('option');
+      optName.value = menu.name;
+      optName.innerText = code;
+      namesDatalist.appendChild(optName);
+    }
+  }
+
+  function populateIngredients(ingredients) {
+    const container = document.getElementById('ingredientsContainer');
+    container.innerHTML = '';
+    
+    if (ingredients.length === 0) {
+      addIngredient();
+      return;
+    }
+    
+    ingredients.forEach(ing => {
+      const div = document.createElement('div');
+      div.className = 'row ing-row';
+      
+      const units = ["g", "kg", "ml", "L", "個", "枚", "適量"];
+      let unitOptions = "";
+      units.forEach(u => {
+        const selected = u === ing.unit ? " selected" : "";
+        unitOptions += `<option value="${u}"${selected}>${u}</option>`;
+      });
+      
+      div.innerHTML = `
+        <div style="flex: 1;"><input type="text" class="ing-code" value="${ing.code}" placeholder="コード"></div>
+        <div style="flex: 2;"><input type="text" class="ing-name" value="${ing.name}" placeholder="品名"></div>
+        <div style="flex: 1;"><input type="number" class="ing-amount" step="any" value="${ing.amount}" placeholder="使用量"></div>
+        <div style="flex: 0.8;">
+          <select class="ing-unit">
+            ${unitOptions}
+          </select>
+        </div>
+        <div style="flex: 0.6; text-align: center; display: flex; align-items: center; justify-content: center; gap: 2px;">
+          <input type="checkbox" class="ing-standby" style="width: auto; margin: 0;">
+          <span style="font-size: 0.7rem; font-weight: bold;">スタ</span>
+        </div>
+        <button type="button" class="del-btn" onclick="removeRow(this, 'ing')">🗑️</button>
+      `;
+      container.appendChild(div);
+    });
+  }
+
+  // 初期ロードとイベント登録
+  document.addEventListener('DOMContentLoaded', () => {
+    loadMasterData();
+    
+    const menuCodeInput = document.getElementById('menuCode');
+    const productNameInput = document.getElementById('productName');
+    
+    menuCodeInput.addEventListener('input', (e) => {
+      const code = e.target.value.trim();
+      if (menuMaster[code]) {
+        productNameInput.value = menuMaster[code].name;
+        populateIngredients(menuMaster[code].ingredients);
+      }
+    });
+    
+    productNameInput.addEventListener('input', (e) => {
+      const name = e.target.value.trim();
+      const foundCode = Object.keys(menuMaster).find(code => menuMaster[code].name === name);
+      if (foundCode) {
+        menuCodeInput.value = foundCode;
+        populateIngredients(menuMaster[foundCode].ingredients);
+      }
+    });
+  });
 </script>
 </body>
 </html>
