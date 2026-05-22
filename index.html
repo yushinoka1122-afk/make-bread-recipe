@@ -44,13 +44,19 @@
   .preview-left { flex: 2; display: flex; flex-direction: column; }
   .preview-right.main-image-container { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; }
   .preview-right img { max-width: 100%; max-height: 160px; object-fit: contain; border: 1px solid #000; margin-top: 2px; }
+  .preview-right img { max-width: 100%; max-height: 200px; object-fit: contain; border: 1px solid #000; margin-top: 2px; }
   
   .preview-title-area { margin-bottom: 5px; display: flex; align-items: baseline; gap: 10px; font-size: 0.85rem;}
   .preview-title-area h2 { border: none; background: transparent; padding: 0; margin: 0; font-size: 0.95rem; font-weight: bold; }
   
   /* プレビューテーブル */
-  .output-table { width: 100%; border-collapse: collapse; margin-bottom: 4px; font-size: 0.7rem; }
-  .output-table th, .output-table td { border: 1px solid #333; padding: 1px 3px; text-align: left; }
+  .output-table { width: 100%; border-collapse: collapse; margin-bottom: 4px; font-size: 0.65rem; }
+  .output-table th, .output-table td {
+    border: 1px solid #ccc;
+    padding: 2px 4px;
+    text-align: left;
+    font-size: 0.65rem;
+  }
   .output-table th { background-color: #f2f2f2; }
   
   /* 横並び規格表示 */
@@ -286,10 +292,10 @@
       <table class="output-table">
         <thead>
           <tr>
-            <th style="width: 18%;">コード</th>
-            <th style="width: 44%;">品名</th>
-            <th style="width: 23%;">使用量</th>
-            <th style="width: 15%; text-align: center;">スタンバイ</th>
+            <th style="width: 15%;">コード</th>
+            <th style="width: 55%;">品名</th>
+            <th style="width: 18%;">使用量</th>
+            <th style="width: 12%; text-align: center;">スタンバイ</th>
           </tr>
         </thead>
         <tbody id="outIngredients"></tbody>
@@ -817,7 +823,7 @@
       const lines = csvText.split(/\r?\n/);
       menuMaster = {};
       
-      for (let i = 5; i < lines.length; i++) {
+      for (let i = 1; i < lines.length; i++) {
         const line = lines[i];
         if (!line.trim()) continue;
         const cols = parseCSVLine(line);
