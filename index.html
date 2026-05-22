@@ -43,8 +43,7 @@
   .preview-header { display: flex; gap: 15px; align-items: stretch; margin-bottom: 5px; border-bottom: 1px solid #333; padding-bottom: 5px; }
   .preview-left { flex: 2; display: flex; flex-direction: column; }
   .preview-right.main-image-container { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; }
-  .preview-right img { max-width: 100%; max-height: 160px; object-fit: contain; border: 1px solid #000; margin-top: 2px; }
-  .preview-right img { max-width: 100%; max-height: 200px; object-fit: contain; border: 1px solid #000; margin-top: 2px; }
+  .preview-right img { max-width: 100%; max-height: 140px; object-fit: contain; border: 1px solid #000; margin-top: 2px; }
   
   .preview-title-area { margin-bottom: 5px; display: flex; align-items: baseline; gap: 10px; font-size: 0.85rem;}
   .preview-title-area h2 { border: none; background: transparent; padding: 0; margin: 0; font-size: 0.95rem; font-weight: bold; }
@@ -66,12 +65,12 @@
   .spec-info { margin-bottom: 3px; }
   .spec-info div { margin-bottom: 1px; }
   .spec-img-preview { margin-top: auto; text-align: center; }
-  .spec-img-preview img { max-width: 100%; max-height: 150px; object-fit: contain; border: 1px solid #000; }
+  .spec-img-preview img { max-width: 100%; max-height: 110px; object-fit: contain; border: 1px solid #000; }
 
   /* 手順プレビュー（画像左・テキスト右） */
   .step-preview-block { display: flex; gap: 8px; margin-bottom: 6px; padding-bottom: 4px; border-bottom: 1px dashed #ccc; font-size: 0.7rem; align-items: flex-start; }
   .step-img-out { flex: 0 0 140px; text-align: center; }
-  .step-img-out img { max-width: 100%; max-height: 130px; object-fit: contain; border: 1px solid #000; }
+  .step-img-out img { max-width: 100%; max-height: 100px; object-fit: contain; border: 1px solid #000; }
   .step-texts-out { flex: 1; }
   .step-texts-out div { margin-bottom: 2px; }
   
@@ -107,12 +106,12 @@
     
     #outputArea { font-size: 7.5pt; }
     .preview-header { margin-bottom: 3px; padding-bottom: 3px; }
-    .preview-right img { max-height: 130px; }
+    .preview-right img { max-height: 100px; }
     .specs-container { gap: 4px; margin-bottom: 4px; }
-    .spec-img-preview img { max-height: 120px; }
+    .spec-img-preview img { max-height: 85px; }
     .step-preview-block { margin-bottom: 2px; padding-bottom: 2px; }
     .step-img-out { flex: 0 0 120px; }
-    .step-img-out img { max-height: 110px; }
+    .step-img-out img { max-height: 85px; }
   }
 </style>
 </head>
@@ -335,9 +334,9 @@
   </div>
 
   <div id="dispatchSection" style="display:none; margin-bottom: 4px; padding: 4px; border: 1px solid #b0bec5; border-radius: 4px; background-color: #fafafa;">
-    <div style="font-weight:bold; font-size:0.8rem; margin-bottom:3px; color:#444; border-bottom: 1px solid #ccc; padding-bottom: 2px; display: flex; justify-content: space-between; align-items: center;">
-      <span>■ 生地出庫</span>
-      <span id="outDispatchTitle" style="font-weight: bold; color: #1565c0; font-size: 0.75rem;"></span>
+    <div style="font-weight:bold; font-size:0.8rem; margin-bottom:3px; color:#444; border-bottom: 1px solid #ccc; padding-bottom: 2px;">
+      <span>■ 生地出庫：</span>
+      <span id="outDispatchTitle" style="font-weight: normal; color: #1565c0; font-size: 0.75rem;"></span>
     </div>
     <div id="outDispatchArea"></div>
   </div>
@@ -574,7 +573,7 @@
     dispatchOutArea.innerHTML = '';
     
     if(dispatchTitleVal) {
-      outDispatchTitle.innerText = `【生地名】 ${dispatchTitleVal}`;
+      outDispatchTitle.innerText = dispatchTitleVal;
       outDispatchTitle.style.display = 'inline';
     } else {
       outDispatchTitle.innerText = '';
