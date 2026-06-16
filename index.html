@@ -103,31 +103,6 @@
   .steps-col { flex: 1; display: flex; flex-direction: column; }
   .steps-full { display: flex; flex-direction: column; }
 
-  /* オートコンプリート（サジェスト）用UI */
-  .suggest-list {
-    position: absolute;
-    background: #fff;
-    border: 1px solid #ccc;
-    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-    z-index: 1000;
-    max-height: 200px;
-    overflow-y: auto;
-    border-radius: 4px;
-    font-size: 0.8rem;
-    width: auto;
-  }
-  .suggest-item {
-    padding: 8px 10px;
-    cursor: pointer;
-    border-bottom: 1px solid #eee;
-  }
-  .suggest-item:hover {
-    background: #e3f2fd;
-  }
-  .suggest-item:last-child {
-    border-bottom: none;
-  }
-
   /* スマホ向けレスポンシブ対応 */
   @media (max-width: 600px) {
     .row { flex-direction: column; align-items: stretch; margin-bottom: 10px; }
@@ -187,15 +162,19 @@
   <div id="masterStatus" style="font-size: 0.8rem; color: #1565c0; margin-bottom: 10px; padding: 6px; background: #e3f2fd; border-radius: 4px; font-weight:bold; text-align: center;">マスタデータを読み込んでいます...</div>
   
   <form id="recipeForm">
+    <datalist id="menuCodes"></datalist>
+    <datalist id="menuNames"></datalist>
+    <datalist id="ingCodes"></datalist>
+    <datalist id="ingNames"></datalist>
     <!-- 基本情報 -->
     <div class="row">
-      <div style="flex: 1.2; position: relative;">
+      <div style="flex: 1.2;">
         <label>メニューコード</label>
-        <input type="text" id="menuCode" autocomplete="off" placeholder="例: 1001">
+        <input type="text" id="menuCode" list="menuCodes" placeholder="例: 1001">
       </div>
-      <div style="flex: 2.3; position: relative;">
+      <div style="flex: 2.3;">
         <label>商品名称</label>
-        <input type="text" id="productName" autocomplete="off" placeholder="例: ざくざく枝豆チーズスティック">
+        <input type="text" id="productName" list="menuNames" placeholder="例: ざくざく枝豆チーズスティック">
       </div>
       <div style="flex: 2;">
         <label>実施期間</label>
@@ -213,8 +192,8 @@
     <h2>使用食材</h2>
     <div id="ingredientsContainer">
       <div class="row ing-row">
-        <div style="flex: 1; position: relative;"><input type="text" class="ing-code" autocomplete="off" placeholder="コード"></div>
-        <div style="flex: 2; position: relative;"><input type="text" class="ing-name" autocomplete="off" placeholder="品名"></div>
+        <div style="flex: 1;"><input type="text" class="ing-code" list="ingCodes" placeholder="コード"></div>
+        <div style="flex: 2;"><input type="text" class="ing-name" list="ingNames" placeholder="品名"></div>
         <div style="flex: 1;"><input type="number" class="ing-amount" step="any" placeholder="使用量"></div>
         <div style="flex: 0.8;">
           <select class="ing-unit">
@@ -500,8 +479,8 @@
     const div = document.createElement('div');
     div.className = 'row ing-row';
     div.innerHTML = `
-      <div style="flex: 1;"><input type="text" class="ing-code" placeholder="コード"></div>
-      <div style="flex: 2;"><input type="text" class="ing-name" placeholder="品名"></div>
+      <div style="flex: 1;"><input type="text" class="ing-code" list="ingCodes" placeholder="コード"></div>
+      <div style="flex: 2;"><input type="text" class="ing-name" list="ingNames" placeholder="品名"></div>
       <div style="flex: 1;"><input type="number" class="ing-amount" step="any" placeholder="使用量"></div>
       <div style="flex: 0.8;">
         <select class="ing-unit">
@@ -1061,10 +1040,10 @@
   updateBlockNumbers();
   updateStandbyBlockNumbers();
 
-  // === マスタデータ連携＆カスタムサジェスト＆自動入力ロジック ===
+  // === マスタデータ連携＆自動入力ロジック ===
   const MASTER_URL = "https://docs.google.com/spreadsheets/d/1FUpFIMRcoOf-f5xDkcJGNparud13cgINV7JQehHznZ8/export?format=xlsx";
   let menuMaster = {};
-  let masterData = []; // サジェスト用フラット配列
+  let ingSuggestData = [];
 
   async function loadMasterData() {
     const statusDiv = document.getElementById('masterStatus');
@@ -1078,15 +1057,14 @@
       if (!response.ok) throw new Error("ネットワークエラー");
       const arrayBuffer = await response.arrayBuffer();
       
-      // XLSXで読み込み (文字化け・CORS対策)
       const workbook = XLSX.read(arrayBuffer, { type: 'array' });
       const firstSheetName = workbook.SheetNames[0];
       const worksheet = workbook.Sheets[firstSheetName];
       const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
 
       menuMaster = {};
-      masterData = [];
-      const seenSuggests = new Set();
+      ingSuggestData = [];
+      const seenIngs = new Set();
       
       // 過去の列構成：メニューコード[3], メニュー名[4], 食材コード[10], 食材名[11], 使用量[12], 単位[13]
       for (let i = 1; i < rows.length; i++) {
@@ -1104,13 +1082,6 @@
         if (menuCode) {
           if (!menuMaster[menuCode]) {
             menuMaster[menuCode] = { name: menuName, ingredients: [] };
-            
-            // メニュー用のサジェストデータ
-            const menuKey = `M:${menuCode}:${menuName}`;
-            if (!seenSuggests.has(menuKey)) {
-              seenSuggests.add(menuKey);
-              masterData.push({ code: menuCode, name: menuName, isMenu: true });
-            }
           }
           if (ingCode || ingName) {
             menuMaster[menuCode].ingredients.push({
@@ -1122,9 +1093,9 @@
         // 食材用のサジェストデータ
         if (ingCode || ingName) {
           const ingKey = `I:${ingCode}:${ingName}`;
-          if (!seenSuggests.has(ingKey)) {
-            seenSuggests.add(ingKey);
-            masterData.push({ code: ingCode, name: ingName, amount: ingAmount, unit: ingUnit, isMenu: false });
+          if (!seenIngs.has(ingKey)) {
+            seenIngs.add(ingKey);
+            ingSuggestData.push({ code: ingCode, name: ingName });
           }
         }
       }
@@ -1135,6 +1106,7 @@
       statusDiv.style.color = "#2e7d32";
       setTimeout(() => statusDiv.style.display = 'none', 3000);
       
+      updateDatalists();
     } catch (e) {
       console.error(e);
       statusDiv.innerText = "マスタデータの読み込みに失敗しました。マスタの共有設定またはネットワーク環境を確認してください。";
@@ -1143,93 +1115,49 @@
     }
   }
 
-  window.addEventListener('DOMContentLoaded', loadMasterData);
-
-  // カスタム・サジェスト表示ロジック
-  document.addEventListener('input', function(e) {
-    if (e.target.classList.contains('ing-code') || e.target.classList.contains('ing-name') || e.target.id === 'menuCode' || e.target.id === 'productName') {
-      showSuggestions(e.target);
-    }
-  });
-
-  document.addEventListener('click', function(e) {
-    if (!e.target.classList.contains('suggest-list') && !e.target.classList.contains('ing-code') && !e.target.classList.contains('ing-name') && e.target.id !== 'menuCode' && e.target.id !== 'productName') {
-      closeAllSuggestions();
-    }
-  });
-
-  function closeAllSuggestions() {
-    document.querySelectorAll('.suggest-list').forEach(el => el.remove());
-  }
-
-  function showSuggestions(inputEl) {
-    closeAllSuggestions();
-    const val = inputEl.value.trim();
-    if (!val) return;
-
-    let isMenuField = (inputEl.id === 'menuCode' || inputEl.id === 'productName');
-    let isCodeField = (inputEl.classList.contains('ing-code') || inputEl.id === 'menuCode');
+  function updateDatalists() {
+    const codesDatalist = document.getElementById('menuCodes');
+    const namesDatalist = document.getElementById('menuNames');
+    const ingCodesDatalist = document.getElementById('ingCodes');
+    const ingNamesDatalist = document.getElementById('ingNames');
     
-    // メニュー入力欄なら isMenu === true のみを対象。食材入力欄なら isMenu === false のみを対象。
-    let matches = masterData.filter(item => {
-      if (isMenuField && !item.isMenu) return false;
-      if (!isMenuField && item.isMenu) return false;
+    if(codesDatalist) codesDatalist.innerHTML = '';
+    if(namesDatalist) namesDatalist.innerHTML = '';
+    if(ingCodesDatalist) ingCodesDatalist.innerHTML = '';
+    if(ingNamesDatalist) ingNamesDatalist.innerHTML = '';
+    
+    // メニュー用のdatalist
+    for (const [code, menu] of Object.entries(menuMaster)) {
+      if (codesDatalist) {
+        const optCode = document.createElement('option');
+        optCode.value = code;
+        optCode.innerText = menu.name;
+        codesDatalist.appendChild(optCode);
+      }
       
-      if (isCodeField) return item.code.includes(val);
-      return item.name.includes(val);
-    });
+      if (namesDatalist) {
+        const optName = document.createElement('option');
+        optName.value = menu.name;
+        optName.innerText = code;
+        namesDatalist.appendChild(optName);
+      }
+    }
 
-    if (matches.length === 0) return;
-
-    // 最大10件まで
-    matches = matches.slice(0, 10);
-
-    const suggestDiv = document.createElement('div');
-    suggestDiv.className = 'suggest-list';
-    
-    matches.forEach(item => {
-      const itemDiv = document.createElement('div');
-      itemDiv.className = 'suggest-item';
-      itemDiv.innerText = `${item.code} : ${item.name}`;
-      itemDiv.addEventListener('click', () => {
-        // 反映処理
-        if (inputEl.id === 'menuCode') {
-          inputEl.value = item.code;
-          document.getElementById('productName').value = item.name;
-          populateIngredients(menuMaster[item.code].ingredients);
-        } else if (inputEl.id === 'productName') {
-          inputEl.value = item.name;
-          document.getElementById('menuCode').value = item.code;
-          populateIngredients(menuMaster[item.code].ingredients);
-        } else {
-          // 食材行
-          const row = inputEl.closest('.row');
-          if (row) {
-            const codeInput = row.querySelector('.ing-code');
-            const nameInput = row.querySelector('.ing-name');
-            const amountInput = row.querySelector('.ing-amount');
-            const unitSelect = row.querySelector('.ing-unit');
-            if (codeInput) codeInput.value = item.code;
-            if (nameInput) nameInput.value = item.name;
-            if (amountInput && item.amount) amountInput.value = item.amount;
-            if (unitSelect && item.unit) {
-              const options = Array.from(unitSelect.options);
-              const targetOpt = options.find(o => o.value === item.unit);
-              if (targetOpt) unitSelect.value = item.unit;
-            }
-          }
-        }
-        closeAllSuggestions();
-      });
-      suggestDiv.appendChild(itemDiv);
-    });
-
-    const rect = inputEl.getBoundingClientRect();
-    suggestDiv.style.top = (rect.bottom + window.scrollY) + 'px';
-    suggestDiv.style.left = (rect.left + window.scrollX) + 'px';
-    suggestDiv.style.width = inputEl.offsetWidth + 'px';
-    
-    document.body.appendChild(suggestDiv);
+    // 食材用のdatalist
+    for (const ing of ingSuggestData) {
+      if (ingCodesDatalist && ing.code) {
+        const opt = document.createElement('option');
+        opt.value = ing.code;
+        opt.innerText = ing.name;
+        ingCodesDatalist.appendChild(opt);
+      }
+      if (ingNamesDatalist && ing.name) {
+        const opt = document.createElement('option');
+        opt.value = ing.name;
+        opt.innerText = ing.code;
+        ingNamesDatalist.appendChild(opt);
+      }
+    }
   }
 
   // メニュー選択時に食材リストを自動生成
@@ -1254,8 +1182,8 @@
       });
       
       div.innerHTML = `
-        <div style="flex: 1; position: relative;"><input type="text" class="ing-code" value="${ing.code}" placeholder="コード" autocomplete="off"></div>
-        <div style="flex: 2; position: relative;"><input type="text" class="ing-name" value="${ing.name}" placeholder="品名" autocomplete="off"></div>
+        <div style="flex: 1;"><input type="text" class="ing-code" value="${ing.code}" list="ingCodes" placeholder="コード"></div>
+        <div style="flex: 2;"><input type="text" class="ing-name" value="${ing.name}" list="ingNames" placeholder="品名"></div>
         <div style="flex: 1;"><input type="number" class="ing-amount" step="any" value="${ing.amount}" placeholder="使用量"></div>
         <div style="flex: 0.8;">
           <select class="ing-unit">
@@ -1271,6 +1199,33 @@
       container.appendChild(div);
     });
   }
+
+  // イベント登録
+  window.addEventListener('DOMContentLoaded', () => {
+    loadMasterData();
+    
+    // イベントデリゲーションで、入力されたら連動させる処理
+    document.addEventListener('input', (e) => {
+      // メニューコード入力時
+      if (e.target.id === 'menuCode') {
+        const code = e.target.value.trim();
+        if (menuMaster[code]) {
+          document.getElementById('productName').value = menuMaster[code].name;
+          populateIngredients(menuMaster[code].ingredients);
+        }
+      }
+      // 商品名入力時
+      else if (e.target.id === 'productName') {
+        const name = e.target.value.trim();
+        const foundCode = Object.keys(menuMaster).find(code => menuMaster[code].name === name);
+        if (foundCode) {
+          document.getElementById('menuCode').value = foundCode;
+          populateIngredients(menuMaster[foundCode].ingredients);
+        }
+      }
+      // 食材行の連動は以前のバージョンでも自動補完のみだったため省略
+    });
+  });
 </script>
 </div>
 </div>
