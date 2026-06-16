@@ -28,12 +28,14 @@
   .spec-input-group { background: #fafafa; border: 1px solid #eee; padding: 6px; margin-top: 5px; border-radius: 4px; }
   .spec-dimension-row { display: flex; gap: 5px; align-items: center; font-size: 0.75rem; }
   .spec-dimension-row input { width: 50px; }
+
   /* 手順入力行レイアウト */
   .step-block { border: 1px dashed #ccc; padding: 8px; margin-bottom: 8px; background: #fff; }
   .step-block-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; font-size: 0.8rem; font-weight: bold; }
   .step-input-row { display: flex; gap: 5px; align-items: center; margin-bottom: 3px; background: #fafafa; padding: 2px; border: 1px solid #eee; border-radius: 3px; }
   .step-num-label { font-weight: bold; width: 20px; text-align: center; font-size: 0.75rem;}
   .step-input-row input.step-text { flex: 1; font-size: 0.75rem; padding: 2px; }
+
   /* プレビューエリア */
   #outputArea { margin-top: 20px; display: none; padding: 15px; background: #fff; border: 1px solid #ddd; font-size: 0.75rem; }
   
@@ -64,6 +66,7 @@
   .spec-info div { margin-bottom: 1px; }
   .spec-img-preview { margin-top: auto; text-align: center; }
   .spec-img-preview img { max-width: 100%; max-height: 110px; object-fit: contain; border: 1px solid #000; }
+
   /* 手順プレビュー（画像左・テキスト右） */
   .step-preview-block { display: flex; gap: 8px; margin-bottom: 6px; padding-bottom: 4px; border-bottom: 1px dashed #ccc; font-size: 0.7rem; align-items: flex-start; }
   .step-img-out { flex: 0 0 140px; text-align: center; }
@@ -75,6 +78,7 @@
   .steps-grid { display: flex; gap: 15px; margin-bottom: 5px; }
   .steps-col { flex: 1; display: flex; flex-direction: column; }
   .steps-full { display: flex; flex-direction: column; }
+
   /* スマホ向けレスポンシブ対応 */
   @media (max-width: 600px) {
     .row { flex-direction: column; align-items: stretch; margin-bottom: 10px; }
@@ -92,6 +96,7 @@
     .step-img-out { width: 100%; flex: 1; text-align: left; margin-bottom: 5px; }
     .step-img-out img { max-width: 100%; max-height: 150px; }
   }
+
   /* 印刷用スタイル */
   @media print {
     body { background: #fff; margin: 0; padding: 0; font-family: "Meiryo", sans-serif; }
@@ -111,6 +116,7 @@
 </style>
 </head>
 <body>
+
 <div class="container">
   <h1>パン手順書作成フォーム</h1>
   <div id="masterStatus" style="font-size: 0.8rem; color: #1565c0; margin-bottom: 10px; padding: 6px; background: #e3f2fd; border-radius: 4px; font-weight:bold; text-align: center;">マスタデータを読み込んでいます...</div>
@@ -139,6 +145,7 @@
         <input type="file" id="mainImage" accept="image/*">
       </div>
     </div>
+
     <!-- 使用食材 -->
     <h2>使用食材</h2>
     <div id="ingredientsContainer">
@@ -165,6 +172,7 @@
       </div>
     </div>
     <button type="button" class="add-btn" onclick="addIngredient()">＋ 食材の行を追加</button>
+
     <!-- 各種規格・工程条件 -->
     <h2>規格・工程条件</h2>
     <div class="spec-input-group">
@@ -177,6 +185,7 @@
         写真: <input type="file" id="moldImg" accept="image/*" style="width:160px;">
       </div>
     </div>
+
     <div class="spec-input-group">
       <div style="font-weight:bold; font-size:0.8rem; border-bottom:1px solid #ccc; margin-bottom:3px; background:#e8f5e9;">ホイロ</div>
       <div class="spec-dimension-row">
@@ -187,6 +196,7 @@
         写真: <input type="file" id="proofImg" accept="image/*" style="width:160px;">
       </div>
     </div>
+
     <div class="spec-input-group">
       <div style="font-weight:bold; font-size:0.8rem; border-bottom:1px solid #ccc; margin-bottom:3px; background:#e8f5e9;">焼成</div>
       <div class="spec-dimension-row">
@@ -197,8 +207,8 @@
         写真: <input type="file" id="bakeImg" accept="image/*" style="width:160px;">
       </div>
     </div>
+
     <!-- 生地出庫 -->
-    <h2>生地出庫</h2>
     <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom: 5px;">
       <h2 style="margin:0;">生地出庫</h2>
       <div style="display:flex; gap:5px; align-items:center;">
@@ -215,6 +225,24 @@
     <div class="row">
       <div style="flex: 1;">
         <label>生地名・条件等</label>
+        <input type="text" id="dispatchTitle" placeholder="例: スティッククロワッサン生地　HT：24ｈ">
+      </div>
+    </div>
+    <div id="dispatchStepsContainer">
+      <div class="step-input-row dispatch-step-row">
+        <span class="step-num-label">①</span>
+        <input type="text" class="step-text" placeholder="出庫手順を入力">
+        <button type="button" class="del-btn" onclick="removeRow(this, 'dispatch')">🗑️</button>
+      </div>
+    </div>
+    <button type="button" class="add-btn" onclick="addDispatchStep()">＋ 出庫手順に行を追加</button>
+
+    <!-- 作業手順 -->
+    <h2>作業手順</h2>
+    <div id="stepsContainer">
+      <!-- 1つの手順ブロック（画像1つ + 複数テキスト行） -->
+      <div class="step-block" data-block-id="1">
+        <div class="step-block-header">
           <div style="display:flex; align-items:center; gap:5px; flex:1;">
             <span class="block-title" style="color:#e91e63;">手順①</span>
             画像: <input type="file" class="block-img" accept="image/*" style="width:180px;">
@@ -229,6 +257,228 @@
           </div>
           <button type="button" class="del-btn" style="width:auto; padding:2px 5px;" onclick="removeStepBlock(this)">ブロック削除</button>
         </div>
+        <div class="step-text-rows">
+          <div class="step-input-row step-row">
+            <input type="text" class="step-text" placeholder="作業手順のテキストを入力">
+            <button type="button" class="del-btn" onclick="removeRow(this, 'step')">🗑️</button>
+          </div>
+        </div>
+        <button type="button" class="add-btn" style="background:#8bc34a; margin-top:0;" onclick="addStepRow(this)">＋ この手順に行を追加</button>
+      </div>
+    </div>
+    <button type="button" class="add-btn" onclick="addStepBlock()">＋ 新しい手順ブロックを追加</button>
+
+    <!-- スタンバイ -->
+    <h2>スタンバイ</h2>
+    <div id="standbyContainer">
+      <!-- 1つのスタンバイブロック（画像1つ + 複数テキスト行） -->
+      <div class="step-block standby-block" data-block-id="s1">
+        <div class="step-block-header">
+          <div style="display:flex; align-items:center; gap:5px; flex:1;">
+            <span class="s-block-title" style="color:#2196f3;">スタンバイ①</span>
+            画像: <input type="file" class="block-img" accept="image/*" style="width:180px;">
+          </div>
+          <button type="button" class="del-btn" style="width:auto; padding:2px 5px;" onclick="removeStandbyBlock(this)">ブロック削除</button>
+        </div>
+        <div class="step-text-rows">
+          <div class="step-input-row step-row">
+            <input type="text" class="step-text" placeholder="スタンバイ手順のテキストを入力">
+            <button type="button" class="del-btn" onclick="removeRow(this, 'step')">🗑️</button>
+          </div>
+        </div>
+        <button type="button" class="add-btn" style="background:#8bc34a; margin-top:0;" onclick="addStepRow(this)">＋ このスタンバイに行を追加</button>
+      </div>
+    </div>
+    <button type="button" class="add-btn" onclick="addStandbyBlock()">＋ 新しいスタンバイブロックを追加</button>
+
+    <div class="action-buttons">
+      <button type="button" onclick="generateManual()">プレビュー表示</button>
+      <button type="button" class="print-btn" onclick="printManual()">PDF保存・印刷</button>
+      <button type="button" class="excel-btn" onclick="downloadExcel()">ExcelでDL</button>
+    </div>
+  </form>
+</div>
+
+<!-- 出力エリア -->
+<div id="outputArea">
+  <div class="preview-header">
+    <div class="preview-left">
+      <div class="preview-title-area">
+        <div><strong>実施期間:</strong> <span id="outPeriod"></span></div>
+        <h2 id="outTitle">商品名称: </h2>
+      </div>
+      
+      <table class="output-table">
+        <thead>
+          <tr>
+            <th style="width: 15%;">コード</th>
+            <th style="width: 53%;">品名</th>
+            <th style="width: 14%;">使用量</th>
+            <th style="width: 18%; text-align: center;">スタンバイ</th>
+          </tr>
+        </thead>
+        <tbody id="outIngredients"></tbody>
+      </table>
+    </div>
+    <div class="preview-right main-image-container">
+      <div style="font-weight:bold; font-size:0.8rem; margin-bottom:2px; background:#e8f5e9; width:100%; text-align:center;">完成写真</div>
+      <div id="outMainImage" style="width:100%; text-align:center;"></div>
+    </div>
+  </div>
+
+  <div class="specs-container">
+    <div class="spec-box">
+      <h4>成型</h4>
+      <div class="spec-info">
+        <div id="outMoldDim"></div>
+        <div><strong>1鉄板最大載せ数:</strong> <span id="outMaxLoad"></span></div>
+      </div>
+      <div class="spec-img-preview" id="outMoldImg"></div>
+    </div>
+    <div class="spec-box">
+      <h4>ホイロ</h4>
+      <div class="spec-info">
+        <div id="outProofDim"></div>
+        <div><strong>ホイロ時間目安:</strong> <span id="outProofTime"></span></div>
+      </div>
+      <div class="spec-img-preview" id="outProofImg"></div>
+    </div>
+    <div class="spec-box">
+      <h4>焼成</h4>
+      <div class="spec-info">
+        <div id="outBakeDim"></div>
+        <div><strong>焼成時間目安:</strong> <span id="outBakeTime"></span></div>
+      </div>
+      <div class="spec-img-preview" id="outBakeImg"></div>
+    </div>
+  </div>
+
+  <div id="dispatchSection" style="display:none; margin-bottom: 4px; padding: 4px; border: 1px solid #b0bec5; border-radius: 4px; background-color: #fafafa;">
+    <div style="font-weight:bold; font-size:0.8rem; margin-bottom:3px; color:#444; border-bottom: 1px solid #ccc; padding-bottom: 2px;">
+      <span>■ 生地出庫：</span>
+      <span id="outDispatchTitle" style="font-weight: normal; color: #1565c0; font-size: 0.75rem;"></span>
+    </div>
+    <div id="outDispatchArea"></div>
+  </div>
+
+  <!-- 手順の2カラム化コンテナ -->
+  <div class="steps-grid">
+    <div id="outStepsLeft" class="steps-col"></div>
+    <div id="outStepsRight" class="steps-col"></div>
+  </div>
+  <div id="outStepsFull" class="steps-full"></div>
+
+  <!-- スタンバイの全幅コンテナ -->
+  <div id="standbySection" style="display:none; margin-top: 10px;">
+    <div id="outStandbyArea" class="steps-full"></div>
+  </div>
+
+</div>
+
+<script>
+  const circleNums = ["①","②","③","④","⑤","⑥","⑦","⑧","⑨","⑩","⑪","⑫","⑬","⑭","⑮","⑯","⑰","⑱","⑲","⑳"];
+
+  // 生地出庫などの丸数字更新
+  function updateNumbers(containerId, rowClass) {
+    const container = document.getElementById(containerId);
+    const rows = container.querySelectorAll('.' + rowClass);
+    rows.forEach((row, index) => {
+      const numLabel = row.querySelector('.step-num-label');
+      if(numLabel) {
+        numLabel.innerText = index < circleNums.length ? circleNums[index] : `(${index + 1})`;
+      }
+    });
+  }
+
+  // 手順ブロックのヘッダー「手順①」の更新
+  function updateBlockNumbers() {
+    const blocks = document.getElementById('stepsContainer').querySelectorAll('.step-block');
+    blocks.forEach((block, index) => {
+      const titleSpan = block.querySelector('.block-title');
+      const numStr = index < circleNums.length ? circleNums[index] : `(${index + 1})`;
+      if(titleSpan) titleSpan.innerText = `手順${numStr}`;
+    });
+  }
+
+  // スタンバイブロックのヘッダー「スタンバイ」の更新（番号なし）
+  function updateStandbyBlockNumbers() {
+    const blocks = document.getElementById('standbyContainer').querySelectorAll('.standby-block');
+    blocks.forEach((block) => {
+      const titleSpan = block.querySelector('.s-block-title');
+      if(titleSpan) titleSpan.innerText = `スタンバイ`;
+    });
+  }
+
+  function removeRow(btn, type) {
+    const row = btn.closest('.row, .step-input-row');
+    const container = row.parentElement;
+    row.remove();
+    
+    if (type === 'dispatch') {
+      updateNumbers('dispatchStepsContainer', 'dispatch-step-row');
+    }
+    // stepの行は番号付けがないので何もしない
+  }
+
+  function removeStepBlock(btn) {
+    const block = btn.closest('.step-block');
+    block.remove();
+    updateBlockNumbers();
+  }
+
+  function removeStandbyBlock(btn) {
+    const block = btn.closest('.standby-block');
+    block.remove();
+    updateStandbyBlockNumbers();
+  }
+
+  function addIngredient() {
+    const container = document.getElementById('ingredientsContainer');
+    const div = document.createElement('div');
+    div.className = 'row ing-row';
+    div.innerHTML = `
+      <div style="flex: 1;"><input type="text" class="ing-code" placeholder="コード"></div>
+      <div style="flex: 2;"><input type="text" class="ing-name" placeholder="品名"></div>
+      <div style="flex: 1;"><input type="number" class="ing-amount" step="any" placeholder="使用量"></div>
+      <div style="flex: 0.8;">
+        <select class="ing-unit">
+          <option value="g">g</option>
+          <option value="kg">kg</option>
+          <option value="ml">ml</option>
+          <option value="L">L</option>
+          <option value="個">個</option>
+          <option value="枚">枚</option>
+          <option value="適量">適量</option>
+        </select>
+      </div>
+      <div style="flex: 0.6; text-align: center; display: flex; align-items: center; justify-content: center; gap: 2px;">
+        <input type="checkbox" class="ing-standby" style="width: auto; margin: 0;">
+        <span style="font-size: 0.7rem; font-weight: bold;">スタ</span>
+      </div>
+      <button type="button" class="del-btn" onclick="removeRow(this, 'ing')">🗑️</button>`;
+    container.appendChild(div);
+  }
+
+  function addDispatchStep() {
+    const container = document.getElementById('dispatchStepsContainer');
+    const div = document.createElement('div');
+    div.className = 'step-input-row dispatch-step-row';
+    div.innerHTML = `
+      <span class="step-num-label"></span>
+      <input type="text" class="step-text" placeholder="出庫手順を入力">
+      <button type="button" class="del-btn" onclick="removeRow(this, 'dispatch')">🗑️</button>`;
+    container.appendChild(div);
+    updateNumbers('dispatchStepsContainer', 'dispatch-step-row');
+  }
+
+  function addStepBlock() {
+    const container = document.getElementById('stepsContainer');
+    const blockId = Date.now();
+    const div = document.createElement('div');
+    div.className = 'step-block';
+    div.setAttribute('data-block-id', blockId);
+    div.innerHTML = `
+      <div class="step-block-header">
         <div style="display:flex; align-items:center; gap:5px; flex:1;">
           <span class="block-title" style="color:#e91e63;">手順</span>
           画像: <input type="file" class="block-img" accept="image/*" style="width:180px;">
@@ -243,6 +493,344 @@
         </div>
         <button type="button" class="del-btn" style="width:auto; padding:2px 5px;" onclick="removeStepBlock(this)">ブロック削除</button>
       </div>
+      <div class="step-text-rows">
+        <div class="step-input-row step-row">
+          <input type="text" class="step-text" placeholder="作業手順のテキストを入力">
+          <button type="button" class="del-btn" onclick="removeRow(this, 'step')">🗑️</button>
+        </div>
+      </div>
+      <button type="button" class="add-btn" style="background:#8bc34a; margin-top:0;" onclick="addStepRow(this)">＋ この手順に行を追加</button>
+    `;
+    container.appendChild(div);
+    updateBlockNumbers();
+  }
+
+  function addStandbyBlock() {
+    const container = document.getElementById('standbyContainer');
+    const blockId = Date.now();
+    const div = document.createElement('div');
+    div.className = 'step-block standby-block';
+    div.setAttribute('data-block-id', 's' + blockId);
+    div.innerHTML = `
+      <div class="step-block-header">
+        <div style="display:flex; align-items:center; gap:5px; flex:1;">
+          <span class="s-block-title" style="color:#2196f3;">スタンバイ</span>
+          画像: <input type="file" class="block-img" accept="image/*" style="width:180px;">
+        </div>
+        <button type="button" class="del-btn" style="width:auto; padding:2px 5px;" onclick="removeStandbyBlock(this)">ブロック削除</button>
+      </div>
+      <div class="step-text-rows">
+        <div class="step-input-row step-row">
+          <input type="text" class="step-text" placeholder="スタンバイ手順のテキストを入力">
+          <button type="button" class="del-btn" onclick="removeRow(this, 'step')">🗑️</button>
+        </div>
+      </div>
+      <button type="button" class="add-btn" style="background:#8bc34a; margin-top:0;" onclick="addStepRow(this)">＋ このスタンバイに行を追加</button>
+    `;
+    container.appendChild(div);
+    updateStandbyBlockNumbers();
+  }
+
+  function addStepRow(btn) {
+    const textRowsContainer = btn.previousElementSibling;
+    const div = document.createElement('div');
+    div.className = 'step-input-row step-row';
+    div.innerHTML = `
+      <input type="text" class="step-text" placeholder="テキストを入力">
+      <button type="button" class="del-btn" onclick="removeRow(this, 'step')">🗑️</button>`;
+    textRowsContainer.appendChild(div);
+  }
+
+  function renderImage(fileInputId, outputContainerId) {
+    const input = typeof fileInputId === 'string' ? document.getElementById(fileInputId) : fileInputId;
+    const container = typeof outputContainerId === 'string' ? document.getElementById(outputContainerId) : outputContainerId;
+    container.innerHTML = '';
+    if (input && input.files && input.files[0]) {
+      const imgUrl = URL.createObjectURL(input.files[0]);
+      container.innerHTML = `<img src="${imgUrl}">`;
+    }
+  }
+
+  function generateManual() {
+    document.getElementById('outputArea').style.display = 'block';
+    
+    // 基本情報の反映
+    document.getElementById('outTitle').innerText = document.getElementById('productName').value || "商品名未設定";
+    const pStart = document.getElementById('periodStart').value;
+    const pEnd = document.getElementById('periodEnd').value;
+    document.getElementById('outPeriod').innerText = (pStart || pEnd) ? `${pStart} ～ ${pEnd}` : "-";
+
+    // 完成写真の反映
+    renderImage('mainImage', 'outMainImage');
+
+    // 食材の反映
+    const ingBody = document.getElementById('outIngredients');
+    ingBody.innerHTML = '';
+    document.querySelectorAll('#ingredientsContainer .ing-row').forEach(row => {
+      const code = row.querySelector('.ing-code').value;
+      const name = row.querySelector('.ing-name').value;
+      const amount = row.querySelector('.ing-amount').value;
+      const unit = row.querySelector('.ing-unit').value;
+      const standby = row.querySelector('.ing-standby').checked;
+      if(code || name || amount) {
+        const standbyHtml = standby ? '<span style="color: #1565c0; font-weight: bold; display: block; text-align: center;">✔</span>' : '';
+        const rowBg = standby ? ' style="background-color: #e3f2fd;"' : '';
+        ingBody.innerHTML += `<tr${rowBg}><td>${code}</td><td>${name}</td><td>${amount}${unit}</td><td>${standbyHtml}</td></tr>`;
+      }
+    });
+
+    // 規格寸法の反映
+    document.getElementById('outMoldDim').innerHTML = `<strong>寸法:</strong> 縦${document.getElementById('moldL').value}×横${document.getElementById('moldW').value}×高さ${document.getElementById('moldH').value} mm`;
+    document.getElementById('outProofDim').innerHTML = `<strong>寸法:</strong> 縦${document.getElementById('proofL').value}×横${document.getElementById('proofW').value}×高さ${document.getElementById('proofH').value} mm`;
+    document.getElementById('outBakeDim').innerHTML = `<strong>寸法:</strong> 縦${document.getElementById('bakeL').value}×横${document.getElementById('bakeW').value}×高さ${document.getElementById('bakeH').value} mm`;
+
+    // 規格条件の反映
+    document.getElementById('outMaxLoad').innerText = document.getElementById('maxLoad').value;
+    document.getElementById('outProofTime').innerText = document.getElementById('proofTime').value;
+    document.getElementById('outBakeTime').innerText = document.getElementById('bakeTime').value;
+
+    // 規格画像の反映
+    renderImage('moldImg', 'outMoldImg');
+    renderImage('proofImg', 'outProofImg');
+    renderImage('bakeImg', 'outBakeImg');
+    
+    // 生地出庫の反映
+    const dispatchTitleVal = document.getElementById('dispatchTitle').value.trim();
+    const dispatchOutArea = document.getElementById('outDispatchArea');
+    const outDispatchTitle = document.getElementById('outDispatchTitle');
+    dispatchOutArea.innerHTML = '';
+    
+    if(dispatchTitleVal) {
+      outDispatchTitle.innerText = dispatchTitleVal;
+      outDispatchTitle.style.display = 'inline';
+    } else {
+      outDispatchTitle.innerText = '';
+    }
+    
+    let dispatchHtml = '';
+    const dispatchRows = document.querySelectorAll('.dispatch-step-row');
+    let hasDispatchSteps = false;
+    dispatchRows.forEach((row) => {
+      const numLabel = row.querySelector('.step-num-label').innerText;
+      const textVal = row.querySelector('.step-text').value.trim();
+      if(textVal) {
+        hasDispatchSteps = true;
+        dispatchHtml += `
+          <div style="display:flex; gap:5px; margin-bottom:1px; font-size:0.75rem;">
+            <div style="font-weight:bold;">${numLabel}</div>
+            <div>${textVal}</div>
+          </div>`;
+      }
+    });
+
+    if (dispatchTitleVal || hasDispatchSteps) {
+      dispatchOutArea.innerHTML = dispatchHtml;
+      document.getElementById('dispatchSection').style.display = 'block';
+    } else {
+      document.getElementById('dispatchSection').style.display = 'none';
+    }
+
+    // 作業手順の反映（2カラム化）
+    const outLeft = document.getElementById('outStepsLeft');
+    const outRight = document.getElementById('outStepsRight');
+    const outFull = document.getElementById('outStepsFull');
+    outLeft.innerHTML = ''; outRight.innerHTML = ''; outFull.innerHTML = '';
+
+    const blocks = document.getElementById('stepsContainer').querySelectorAll('.step-block');
+    blocks.forEach((block, index) => {
+      const fileInput = block.querySelector('.block-img');
+      const hasImg = fileInput && fileInput.files && fileInput.files[0];
+      const textRows = block.querySelectorAll('.step-row');
+      
+      let textsHtml = '';
+      let hasText = false;
+      textRows.forEach((row) => {
+        const textVal = row.querySelector('.step-text').value.trim();
+        if(textVal) {
+          hasText = true;
+          textsHtml += `<div style="margin-bottom:2px;">・${textVal}</div>`;
+        }
+      });
+
+      if(hasText || hasImg) {
+        let imgHtml = '';
+        if (hasImg) {
+           const imgUrl = URL.createObjectURL(fileInput.files[0]);
+           imgHtml = `<img src="${imgUrl}">`;
+        }
+        
+        const numStr = index < circleNums.length ? circleNums[index] : `(${index + 1})`;
+        const blockHtml = `
+          <div class="step-preview-block">
+            <div class="step-img-out">
+              <div style="font-weight:bold; margin-bottom:2px; text-align:left;">手順${numStr}</div>
+              ${imgHtml}
+            </div>
+            <div class="step-texts-out" style="padding-top:14px;">${textsHtml}</div>
+          </div>`;
+        
+        if (index < 4) { outLeft.innerHTML += blockHtml; } 
+        else if (index < 8) { outRight.innerHTML += blockHtml; } 
+        else { outFull.innerHTML += blockHtml; }
+      }
+    });
+
+    // スタンバイの反映（全幅）
+    const outStandbyArea = document.getElementById('outStandbyArea');
+    outStandbyArea.innerHTML = '';
+
+    const sBlocks = document.getElementById('standbyContainer').querySelectorAll('.standby-block');
+    let hasStandby = false;
+    sBlocks.forEach((block) => {
+      const fileInput = block.querySelector('.block-img');
+      const hasImg = fileInput && fileInput.files && fileInput.files[0];
+      const textRows = block.querySelectorAll('.step-row');
+      
+      let textsHtml = '';
+      let hasText = false;
+      textRows.forEach((row) => {
+        const textVal = row.querySelector('.step-text').value.trim();
+        if(textVal) {
+          hasText = true;
+          textsHtml += `<div style="margin-bottom:2px;">・${textVal}</div>`;
+        }
+      });
+
+      if(hasText || hasImg) {
+        hasStandby = true;
+        let imgHtml = '';
+        if (hasImg) {
+           const imgUrl = URL.createObjectURL(fileInput.files[0]);
+           imgHtml = `<img src="${imgUrl}">`;
+        }
+        
+        const blockHtml = `
+          <div class="step-preview-block">
+            <div class="step-img-out">
+              <div style="font-weight:bold; margin-bottom:2px; text-align:left; background-color: #e3f2fd; padding: 2px;">スタンバイ</div>
+              ${imgHtml}
+            </div>
+            <div class="step-texts-out" style="padding-top:14px;">${textsHtml}</div>
+          </div>`;
+        
+        outStandbyArea.innerHTML += blockHtml;
+      }
+    });
+
+    if (hasStandby) {
+      document.getElementById('standbySection').style.display = 'block';
+    } else {
+      document.getElementById('standbySection').style.display = 'none';
+    }
+  }
+
+  function printManual() {
+    generateManual(); // 最新をプレビュー
+    setTimeout(() => {
+      window.print();
+    }, 500);
+  }
+
+  function downloadExcel() {
+    const data = [];
+    
+    // 基本情報
+    const pStart = document.getElementById('periodStart').value;
+    const pEnd = document.getElementById('periodEnd').value;
+    data.push(["実施期間", `${pStart} ～ ${pEnd}`, "商品名称", document.getElementById('productName').value]);
+    data.push([]);
+    
+    // 食材
+    data.push(["コード", "品名", "使用量", "スタンバイ"]);
+    document.querySelectorAll('#ingredientsContainer .ing-row').forEach(row => {
+      const code = row.querySelector('.ing-code').value;
+      const name = row.querySelector('.ing-name').value;
+      const amount = row.querySelector('.ing-amount').value;
+      const unit = row.querySelector('.ing-unit').value;
+      const standby = row.querySelector('.ing-standby').checked;
+      if(code || name || amount) {
+        data.push([code, name, `${amount}${unit}`, standby ? "〇" : ""]);
+      }
+    });
+    data.push([]);
+
+    // 規格と工程条件
+    data.push(["項目", "成型", "ホイロ", "焼成"]);
+    const moldD = `縦${document.getElementById('moldL').value}×横${document.getElementById('moldW').value}×高さ${document.getElementById('moldH').value} mm`;
+    const proofD = `縦${document.getElementById('proofL').value}×横${document.getElementById('proofW').value}×高さ${document.getElementById('proofH').value} mm`;
+    const bakeD = `縦${document.getElementById('bakeL').value}×横${document.getElementById('bakeW').value}×高さ${document.getElementById('bakeH').value} mm`;
+    data.push(["寸法", moldD, proofD, bakeD]);
+    data.push([
+      "条件", 
+      `1鉄板最大載せ数: ${document.getElementById('maxLoad').value}`, 
+      `ホイロ時間: ${document.getElementById('proofTime').value}`, 
+      `焼成時間: ${document.getElementById('bakeTime').value}`
+    ]);
+    data.push([]);
+
+    // 生地出庫
+    const dispatchTitleVal = document.getElementById('dispatchTitle').value.trim();
+    const dRows = document.querySelectorAll('.dispatch-step-row');
+    let hasD = false;
+    const dData = [];
+    dRows.forEach((row) => {
+      const numLabel = row.querySelector('.step-num-label').innerText;
+      const textVal = row.querySelector('.step-text').value.trim();
+      if(textVal) {
+        dData.push([numLabel, textVal]);
+        hasD = true;
+      }
+    });
+    if(dispatchTitleVal || hasD) {
+      if(dispatchTitleVal) data.push([dispatchTitleVal]);
+      dData.forEach(r => data.push(r));
+      data.push([]);
+    }
+
+    // 手順
+    const blocks = document.getElementById('stepsContainer').querySelectorAll('.step-block');
+    blocks.forEach((block, index) => {
+      const numStr = index < circleNums.length ? circleNums[index] : `(${index + 1})`;
+      data.push([`手順${numStr}`]);
+      
+      const textRows = block.querySelectorAll('.step-row');
+      textRows.forEach((row) => {
+        const textVal = row.querySelector('.step-text').value.trim();
+        if(textVal) {
+          data.push(["・", textVal]);
+        }
+      });
+      data.push([]);
+    });
+
+    // スタンバイ
+    const sBlocks = document.getElementById('standbyContainer').querySelectorAll('.standby-block');
+    let hasStandbyData = false;
+    const sData = [];
+    sBlocks.forEach((block) => {
+      sData.push([`スタンバイ`]);
+      
+      let hasText = false;
+      const textRows = block.querySelectorAll('.step-row');
+      textRows.forEach((row) => {
+        const textVal = row.querySelector('.step-text').value.trim();
+        if(textVal) {
+          sData.push(["・", textVal]);
+          hasText = true;
+          hasStandbyData = true;
+        }
+      });
+      if(hasText) sData.push([]);
+    });
+    if (hasStandbyData) {
+      sData.forEach(r => data.push(r));
+    }
+
+    const ws = XLSX.utils.aoa_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "手順書");
+
+    const filename = document.getElementById('productName').value || 'recipe';
     XLSX.writeFile(wb, `${filename}.xlsx`);
   }
   
@@ -273,16 +861,20 @@
       "③もう一枚の鉄板を被せ、冷蔵庫で解凍します。　※生地が乾燥しないように注意。"
     ]
   };
+
   function applyDispatchTemplate() {
     const select = document.getElementById('dispatchTemplate');
     const tempKey = select.value;
     if (!tempKey) return;
+
     if (!confirm("現在の出庫手順をクリアしてテンプレートを反映します。よろしいですか？")) {
       select.value = "";
       return;
     }
+
     const container = document.getElementById('dispatchStepsContainer');
     container.innerHTML = ''; // クリア
+
     const lines = dispatchTemplates[tempKey];
     lines.forEach((lineText) => {
       const div = document.createElement('div');
@@ -300,9 +892,11 @@
     updatePreview();
     select.value = ""; // リセット
   }
+
   function applyStepTemplate(selectObj) {
     const tempKey = selectObj.value;
     if (!tempKey) return;
+
     let proofTimeVal = document.getElementById('proofTime').value.trim();
     let bakeTimeVal = document.getElementById('bakeTime').value.trim();
     
@@ -322,6 +916,7 @@
       }
       if (!bakeTimeVal.includes('分')) bakeTimeVal += '分';
     }
+
     let lines = [];
     if (tempKey === "proof") {
       lines = [
@@ -354,12 +949,14 @@
         "生地の状態やオーブンによっても時間は変化しますので、焼き色を基準をしてください。"
       ];
     }
+
     const block = selectObj.closest('.step-block');
     const textRowsContainer = block.querySelector('.step-text-rows');
     
     // 現在のテキストボックスを取得
     const existingInputs = textRowsContainer.querySelectorAll('.step-text');
     let lastInput = existingInputs[existingInputs.length - 1];
+
     lines.forEach((lineText, idx) => {
       // 最初の行は、もし最後のテキストボックスが空ならそこに入れる
       if (idx === 0 && lastInput && lastInput.value.trim() === "") {
@@ -374,19 +971,24 @@
         div.querySelector('input').addEventListener('input', updatePreview);
       }
     });
+
     updatePreview();
     selectObj.value = ""; // リセット
   }
+
   // 初期化時の番号付け
   updateBlockNumbers();
   updateStandbyBlockNumbers();
+
   // --- 以下、マスタデータ連携＆予測変換＆自動入力ロジック ---
   let menuMaster = {};
+
   async function loadMasterData() {
     const statusDiv = document.getElementById('masterStatus');
     statusDiv.innerText = "マスタデータを読み込んでいます...";
     statusDiv.style.backgroundColor = "#ffe0b2";
     statusDiv.style.color = "#e65100";
+
     const url = "https://docs.google.com/spreadsheets/d/1FUpFIMRcoOf-f5xDkcJGNparud13cgINV7JQehHznZ8/export?format=csv&gid=0";
     try {
       const response = await fetch(url);
@@ -442,6 +1044,7 @@
       statusDiv.style.color = "#c62828";
     }
   }
+
   function parseCSVLine(text) {
     const result = [];
     let cur = '';
@@ -460,6 +1063,7 @@
     result.push(cur.trim());
     return result;
   }
+
   function updateDatalists() {
     const codesDatalist = document.getElementById('menuCodes');
     const namesDatalist = document.getElementById('menuNames');
@@ -478,6 +1082,7 @@
       namesDatalist.appendChild(optName);
     }
   }
+
   function populateIngredients(ingredients) {
     const container = document.getElementById('ingredientsContainer');
     container.innerHTML = '';
@@ -516,6 +1121,7 @@
       container.appendChild(div);
     });
   }
+
   // 初期ロードとイベント登録
   document.addEventListener('DOMContentLoaded', () => {
     loadMasterData();
