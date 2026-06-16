@@ -36,8 +36,32 @@
   .step-num-label { font-weight: bold; width: 20px; text-align: center; font-size: 0.75rem;}
   .step-input-row input.step-text { flex: 1; font-size: 0.75rem; padding: 2px; }
 
-  /* プレビューエリア */
-  #outputArea { margin-top: 20px; display: none; padding: 15px; background: #fff; border: 1px solid #ddd; font-size: 0.75rem; }
+  /* A4プレビューラッパー */
+  #previewWrapper {
+    width: 100%;
+    overflow-x: hidden;
+    background: #cfd8dc;
+    padding: 20px 0;
+    margin-top: 20px;
+    border-radius: 8px;
+    display: none;
+    justify-content: center;
+  }
+  
+  /* プレビューエリア (A4用紙風) */
+  #outputArea { 
+    display: block; 
+    background: #fff; 
+    border: none; 
+    font-size: 0.75rem; 
+    width: 210mm;
+    min-height: 297mm;
+    padding: 10mm;
+    box-sizing: border-box;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+    margin: 0 auto;
+    transform-origin: top center;
+  }
   
   /* プレビュー上部 (左: 基本・食材, 右: 写真) */
   .preview-header { display: flex; gap: 15px; align-items: stretch; margin-bottom: 5px; border-bottom: 1px solid #333; padding-bottom: 5px; }
@@ -79,12 +103,52 @@
   .steps-col { flex: 1; display: flex; flex-direction: column; }
   .steps-full { display: flex; flex-direction: column; }
 
+  /* オートコンプリート（サジェスト）用UI */
+  .suggest-list {
+    position: absolute;
+    background: #fff;
+    border: 1px solid #ccc;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    z-index: 1000;
+    max-height: 200px;
+    overflow-y: auto;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    width: auto;
+  }
+  .suggest-item {
+    padding: 8px 10px;
+    cursor: pointer;
+    border-bottom: 1px solid #eee;
+  }
+  .suggest-item:hover {
+    background: #e3f2fd;
+  }
+  .suggest-item:last-child {
+    border-bottom: none;
+  }
+
   /* スマホ向けレスポンシブ対応 */
   @media (max-width: 600px) {
     .row { flex-direction: column; align-items: stretch; margin-bottom: 10px; }
     .row > div { width: 100%; margin-bottom: 5px; }
-    .ing-row { flex-direction: row; flex-wrap: wrap; }
+    
+    /* 食材行をグリッド等で綺麗に折り返し */
+    .ing-row { 
+      display: grid; 
+      grid-template-columns: 1fr 1fr 60px 50px 40px; 
+      gap: 5px; 
+      align-items: center; 
+    }
+    .ing-row > div { width: auto; margin-bottom: 0; }
+    .ing-row input.ing-code, .ing-row input.ing-name { width: 100%; }
+
     .action-buttons { flex-direction: column; }
+    .action-buttons button { margin-bottom: 5px; }
+    
+    /* ヘッダー部の重なり防止 */
+    .step-block-header { flex-direction: column; align-items: stretch; gap: 5px; }
+    .step-block-header > div { flex-wrap: wrap; justify-content: space-between; }
     
     /* プレビュー側もスマホサイズでは縦並びに */
     .preview-header { flex-direction: column; align-items: center; }
@@ -101,8 +165,9 @@
   @media print {
     body { background: #fff; margin: 0; padding: 0; font-family: "Meiryo", sans-serif; }
     .container { display: none !important; } /* フォームを非表示 */
-    #outputArea { display: block !important; border: none; padding: 8mm 10mm; margin: 0; width: 100%; box-sizing: border-box; }
-    @page { margin: 0; size: A4 portrait; }
+    #previewWrapper { display: block !important; padding: 0; background: none; overflow: visible; height: auto !important; }
+    #outputArea { display: block !important; border: none; padding: 0; margin: 0; width: 100%; box-sizing: border-box; box-shadow: none; transform: none !important; min-height: auto; }
+    @page { margin: 8mm 10mm; size: A4 portrait; }
     
     #outputArea { font-size: 7.5pt; }
     .preview-header { margin-bottom: 3px; padding-bottom: 3px; }
@@ -122,17 +187,15 @@
   <div id="masterStatus" style="font-size: 0.8rem; color: #1565c0; margin-bottom: 10px; padding: 6px; background: #e3f2fd; border-radius: 4px; font-weight:bold; text-align: center;">マスタデータを読み込んでいます...</div>
   
   <form id="recipeForm">
-    <datalist id="menuCodes"></datalist>
-    <datalist id="menuNames"></datalist>
     <!-- 基本情報 -->
     <div class="row">
-      <div style="flex: 1.2;">
+      <div style="flex: 1.2; position: relative;">
         <label>メニューコード</label>
-        <input type="text" id="menuCode" list="menuCodes" placeholder="例: 1001">
+        <input type="text" id="menuCode" autocomplete="off" placeholder="例: 1001">
       </div>
-      <div style="flex: 2.3;">
+      <div style="flex: 2.3; position: relative;">
         <label>商品名称</label>
-        <input type="text" id="productName" list="menuNames" placeholder="例: ざくざく枝豆チーズスティック">
+        <input type="text" id="productName" autocomplete="off" placeholder="例: ざくざく枝豆チーズスティック">
       </div>
       <div style="flex: 2;">
         <label>実施期間</label>
@@ -150,8 +213,8 @@
     <h2>使用食材</h2>
     <div id="ingredientsContainer">
       <div class="row ing-row">
-        <div style="flex: 1;"><input type="text" class="ing-code" placeholder="コード"></div>
-        <div style="flex: 2;"><input type="text" class="ing-name" placeholder="品名"></div>
+        <div style="flex: 1; position: relative;"><input type="text" class="ing-code" autocomplete="off" placeholder="コード"></div>
+        <div style="flex: 2; position: relative;"><input type="text" class="ing-name" autocomplete="off" placeholder="品名"></div>
         <div style="flex: 1;"><input type="number" class="ing-amount" step="any" placeholder="使用量"></div>
         <div style="flex: 0.8;">
           <select class="ing-unit">
@@ -299,6 +362,7 @@
 </div>
 
 <!-- 出力エリア -->
+<div id="previewWrapper">
 <div id="outputArea">
   <div class="preview-header">
     <div class="preview-left">
@@ -550,8 +614,32 @@
     }
   }
 
+  function adjustPreviewScale() {
+    const wrapper = document.getElementById('previewWrapper');
+    const outputArea = document.getElementById('outputArea');
+    if (wrapper.style.display !== 'none') {
+      const wrapperWidth = wrapper.clientWidth;
+      // A4の210mmは約794px。余白含めて820px程度を基準に縮小
+      const scale = Math.min(1, wrapperWidth / 820);
+      outputArea.style.transform = `scale(${scale})`;
+      if (scale < 1) {
+        // スケールされた後の高さを確保して親要素が潰れないようにする
+        const rect = outputArea.getBoundingClientRect();
+        wrapper.style.height = (rect.height + 40) + 'px';
+      } else {
+        wrapper.style.height = 'auto';
+      }
+    }
+  }
+
+  window.addEventListener('resize', adjustPreviewScale);
+
   function generateManual() {
-    document.getElementById('outputArea').style.display = 'block';
+    const wrapper = document.getElementById('previewWrapper');
+    wrapper.style.display = 'flex';
+    
+    // スケール調整
+    adjustPreviewScale();
     
     // 基本情報の反映
     document.getElementById('outTitle').innerText = document.getElementById('productName').value || "商品名未設定";
@@ -1140,5 +1228,7 @@
     });
   });
 </script>
+</div>
+</div>
 </body>
 </html>
