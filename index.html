@@ -212,14 +212,13 @@
     <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom: 5px;">
       <h2 style="margin:0;">生地出庫</h2>
       <div style="display:flex; gap:5px; align-items:center;">
-        <select id="dispatchTemplate" style="padding: 2px 5px; font-size: 0.8rem;">
+        <select id="dispatchTemplate" onchange="applyDispatchTemplate()" style="padding: 2px 5px; font-size: 0.8rem;">
           <option value="">-- 出庫手順テンプレートを選択 --</option>
           <option value="temp1">玉生地・棒生地</option>
           <option value="temp2">シート生地①（クロワッサン等）</option>
           <option value="temp3">シート生地②（チャバタ）</option>
           <option value="temp4">シート生地③（ロデヴ等）</option>
         </select>
-        <button type="button" style="padding: 3px 8px; font-size: 0.8rem; background: #0288d1; color: white; border: none; border-radius: 3px; cursor: pointer;" onclick="applyDispatchTemplate()">テンプレート反映</button>
       </div>
     </div>
     <div class="row">
@@ -835,30 +834,37 @@
   }
   
   // テンプレートデータ
+  const dispatchTitles = {
+    temp1: "玉生地（ホテル・イギリス・よもぎ・レーズン・バジル）棒生地（トースト・スティッククロワッサン）",
+    temp2: "シート生地①（クロワッサン・クロライト）",
+    temp3: "シート生地②（チャバタ）",
+    temp4: "シート生地③（多加水シート・ロデヴ）"
+  };
+
   const dispatchTemplates = {
     temp1: [
-      "①鉄板に汚れが無いことを確認します。",
-      "②鉄板にラップを敷き、生地が重ならないように並べます。ラップを上から重ねます。",
-      "③周り4辺を内側に折りたたみます。※生地が乾燥しないように密閉させる。",
-      "④手前に「命を守るシール」を貼ります。※ラップから生地を取る際に、生地にラップがついていないことを確認。異物混入注意。"
+      "鉄板に汚れが無いことを確認します。",
+      "鉄板にラップを敷き、生地が重ならないように並べます。ラップを上から重ねます。",
+      "周り4辺を内側に折りたたみます。※生地が乾燥しないように密閉させる。",
+      "手前に「命を守るシール」を貼ります。※ラップから生地を取る際に、生地にラップがついていないことを確認。異物混入注意。"
     ],
     temp2: [
-      "①鉄板に汚れが無いことを確認します。",
-      "②鉄板にラップを敷き、生地が重ならないように並べます。ラップを上から重ねます。",
-      "③②同様にラップの上に生地を並べます。（最大4段まで）",
-      "④周り4辺を内側に折りたたみます。※生地が乾燥しないように密閉させる。",
-      "⑤手前に「命を守るシール」を貼ります。※ラップから生地を取る際に、生地にラップがついていないことを確認。異物混入注意。"
+      "鉄板に汚れが無いことを確認します。",
+      "鉄板にラップを敷き、生地が重ならないように並べます。ラップを上から重ねます。",
+      "②同様にラップの上に生地を並べます。（最大4段まで）",
+      "周り4辺を内側に折りたたみます。※生地が乾燥しないように密閉させる。",
+      "手前に「命を守るシール」を貼ります。※ラップから生地を取る際に、生地にラップがついていないことを確認。異物混入注意。"
     ],
     temp3: [
-      "①鉄板に汚れが無いことを確認します。",
-      "②鉄板にラップを敷き、生地が重ならないように並べます。ラップを上から重ねます。",
-      "③周り4辺を内側に折りたたみます。※生地が乾燥しないように密閉させる。",
-      "④手前に「命を守るシール」を貼ります。※ラップから生地を取る際に、生地にラップがついていないことを確認。異物混入注意。"
+      "鉄板に汚れが無いことを確認します。",
+      "鉄板にラップを敷き、生地が重ならないように並べます。ラップを上から重ねます。",
+      "周り4辺を内側に折りたたみます。※生地が乾燥しないように密閉させる。",
+      "手前に「命を守るシール」を貼ります。※ラップから生地を取る際に、生地にラップがついていないことを確認。異物混入注意。"
     ],
     temp4: [
-      "①鉄板に汚れが無いことを確認します。",
-      "②鉄板にロデヴ生地を重ならないように並べます。（1鉄板最大4枚）※異物混入を防ぐため、ラップはしない。",
-      "③もう一枚の鉄板を被せ、冷蔵庫で解凍します。　※生地が乾燥しないように注意。"
+      "鉄板に汚れが無いことを確認します。",
+      "鉄板にロデヴ生地を重ならないように並べます。（1鉄板最大4枚）※異物混入を防ぐため、ラップはしない。",
+      "もう一枚の鉄板を被せ、冷蔵庫で解凍します。　※生地が乾燥しないように注意。"
     ]
   };
 
@@ -867,10 +873,8 @@
     const tempKey = select.value;
     if (!tempKey) return;
 
-    if (!confirm("現在の出庫手順をクリアしてテンプレートを反映します。よろしいですか？")) {
-      select.value = "";
-      return;
-    }
+    // 生地のタイトル（種類）を反映
+    document.getElementById('dispatchTitle').value = dispatchTitles[tempKey];
 
     const container = document.getElementById('dispatchStepsContainer');
     container.innerHTML = ''; // クリア
@@ -884,12 +888,9 @@
         <input type="text" class="step-text" value="${lineText}">
         <button type="button" class="del-btn" onclick="removeRow(this, 'dispatch')">🗑️</button>`;
       container.appendChild(div);
-      
-      div.querySelector('input').addEventListener('input', updatePreview);
     });
     
     updateNumbers('dispatchStepsContainer', 'dispatch-step-row');
-    updatePreview();
     select.value = ""; // リセット
   }
 
@@ -953,26 +954,18 @@
     const block = selectObj.closest('.step-block');
     const textRowsContainer = block.querySelector('.step-text-rows');
     
-    // 現在のテキストボックスを取得
-    const existingInputs = textRowsContainer.querySelectorAll('.step-text');
-    let lastInput = existingInputs[existingInputs.length - 1];
+    // 現在の手順をすべてクリア（上書き）
+    textRowsContainer.innerHTML = '';
 
-    lines.forEach((lineText, idx) => {
-      // 最初の行は、もし最後のテキストボックスが空ならそこに入れる
-      if (idx === 0 && lastInput && lastInput.value.trim() === "") {
-        lastInput.value = lineText;
-      } else {
-        const div = document.createElement('div');
-        div.className = 'step-input-row step-row';
-        div.innerHTML = `
-          <input type="text" class="step-text" value="${lineText}">
-          <button type="button" class="del-btn" onclick="removeRow(this, 'step')">🗑️</button>`;
-        textRowsContainer.appendChild(div);
-        div.querySelector('input').addEventListener('input', updatePreview);
-      }
+    lines.forEach((lineText) => {
+      const div = document.createElement('div');
+      div.className = 'step-input-row step-row';
+      div.innerHTML = `
+        <input type="text" class="step-text" value="${lineText}">
+        <button type="button" class="del-btn" onclick="removeRow(this, 'step')">🗑️</button>`;
+      textRowsContainer.appendChild(div);
     });
 
-    updatePreview();
     selectObj.value = ""; // リセット
   }
 
