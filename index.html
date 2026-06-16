@@ -1061,54 +1061,71 @@
   updateBlockNumbers();
   updateStandbyBlockNumbers();
 
-  // --- 以下、マスタデータ連携＆予測変換＆自動入力ロジック ---
+  // === マスタデータ連携＆カスタムサジェスト＆自動入力ロジック ===
+  const MASTER_URL = "https://docs.google.com/spreadsheets/d/1FUpFIMRcoOf-f5xDkcJGNparud13cgINV7JQehHznZ8/export?format=xlsx";
   let menuMaster = {};
+  let masterData = []; // サジェスト用フラット配列
 
   async function loadMasterData() {
     const statusDiv = document.getElementById('masterStatus');
     statusDiv.innerText = "マスタデータを読み込んでいます...";
     statusDiv.style.backgroundColor = "#ffe0b2";
     statusDiv.style.color = "#e65100";
+    statusDiv.style.display = "block";
 
-    const url = "https://docs.google.com/spreadsheets/d/1FUpFIMRcoOf-f5xDkcJGNparud13cgINV7JQehHznZ8/export?format=csv&gid=0";
     try {
-      const response = await fetch(url);
-      if (!response.ok) throw new Error("ネットワークエラーが発生しました。");
+      const response = await fetch(MASTER_URL);
+      if (!response.ok) throw new Error("ネットワークエラー");
       const arrayBuffer = await response.arrayBuffer();
-      const decoder = new TextDecoder('utf-8');
-      const csvText = decoder.decode(arrayBuffer);
       
-      const lines = csvText.split(/\r?\n/);
+      // XLSXで読み込み (文字化け・CORS対策)
+      const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+      const firstSheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[firstSheetName];
+      const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+
       menuMaster = {};
+      masterData = [];
+      const seenSuggests = new Set();
       
-      for (let i = 1; i < lines.length; i++) {
-        const line = lines[i];
-        if (!line.trim()) continue;
-        const cols = parseCSVLine(line);
+      // 過去の列構成：メニューコード[3], メニュー名[4], 食材コード[10], 食材名[11], 使用量[12], 単位[13]
+      for (let i = 1; i < rows.length; i++) {
+        const row = rows[i];
+        if (!row || row.length === 0) continue;
         
-        const menuCode = cols[3];
-        const menuName = cols[4];
-        const ingCode = cols[10];
-        const ingName = cols[11];
-        const ingAmount = cols[12];
-        const ingUnit = cols[13];
+        const menuCode = row[3] ? String(row[3]).trim() : '';
+        const menuName = row[4] ? String(row[4]).trim() : '';
+        const ingCode = row[10] ? String(row[10]).trim() : '';
+        const ingName = row[11] ? String(row[11]).trim() : '';
+        const ingAmount = row[12] ? String(row[12]).trim() : '';
+        const ingUnit = row[13] ? String(row[13]).trim() : 'g';
         
-        if (!menuCode) continue;
-        
-        if (!menuMaster[menuCode]) {
-          menuMaster[menuCode] = {
-            name: menuName,
-            ingredients: []
-          };
+        // メニュー一覧の構築
+        if (menuCode) {
+          if (!menuMaster[menuCode]) {
+            menuMaster[menuCode] = { name: menuName, ingredients: [] };
+            
+            // メニュー用のサジェストデータ
+            const menuKey = `M:${menuCode}:${menuName}`;
+            if (!seenSuggests.has(menuKey)) {
+              seenSuggests.add(menuKey);
+              masterData.push({ code: menuCode, name: menuName, isMenu: true });
+            }
+          }
+          if (ingCode || ingName) {
+            menuMaster[menuCode].ingredients.push({
+              code: ingCode, name: ingName, amount: ingAmount, unit: ingUnit
+            });
+          }
         }
-        
+
+        // 食材用のサジェストデータ
         if (ingCode || ingName) {
-          menuMaster[menuCode].ingredients.push({
-            code: ingCode || "",
-            name: ingName || "",
-            amount: ingAmount || "",
-            unit: ingUnit || "g"
-          });
+          const ingKey = `I:${ingCode}:${ingName}`;
+          if (!seenSuggests.has(ingKey)) {
+            seenSuggests.add(ingKey);
+            masterData.push({ code: ingCode, name: ingName, amount: ingAmount, unit: ingUnit, isMenu: false });
+          }
         }
       }
       
@@ -1116,59 +1133,111 @@
       statusDiv.innerText = `マスタデータ読込完了 (${menuCount}件のメニュー)`;
       statusDiv.style.backgroundColor = "#e8f5e9";
       statusDiv.style.color = "#2e7d32";
+      setTimeout(() => statusDiv.style.display = 'none', 3000);
       
-      updateDatalists();
-    } catch (error) {
-      console.error(error);
+    } catch (e) {
+      console.error(e);
       statusDiv.innerText = "マスタデータの読み込みに失敗しました。マスタの共有設定またはネットワーク環境を確認してください。";
       statusDiv.style.backgroundColor = "#ffebee";
       statusDiv.style.color = "#c62828";
     }
   }
 
-  function parseCSVLine(text) {
-    const result = [];
-    let cur = '';
-    let inQuote = false;
-    for (let i = 0; i < text.length; i++) {
-      const c = text[i];
-      if (c === '"') {
-        inQuote = !inQuote;
-      } else if (c === ',' && !inQuote) {
-        result.push(cur.trim());
-        cur = '';
-      } else {
-        cur += c;
-      }
+  window.addEventListener('DOMContentLoaded', loadMasterData);
+
+  // カスタム・サジェスト表示ロジック
+  document.addEventListener('input', function(e) {
+    if (e.target.classList.contains('ing-code') || e.target.classList.contains('ing-name') || e.target.id === 'menuCode' || e.target.id === 'productName') {
+      showSuggestions(e.target);
     }
-    result.push(cur.trim());
-    return result;
+  });
+
+  document.addEventListener('click', function(e) {
+    if (!e.target.classList.contains('suggest-list') && !e.target.classList.contains('ing-code') && !e.target.classList.contains('ing-name') && e.target.id !== 'menuCode' && e.target.id !== 'productName') {
+      closeAllSuggestions();
+    }
+  });
+
+  function closeAllSuggestions() {
+    document.querySelectorAll('.suggest-list').forEach(el => el.remove());
   }
 
-  function updateDatalists() {
-    const codesDatalist = document.getElementById('menuCodes');
-    const namesDatalist = document.getElementById('menuNames');
-    codesDatalist.innerHTML = '';
-    namesDatalist.innerHTML = '';
+  function showSuggestions(inputEl) {
+    closeAllSuggestions();
+    const val = inputEl.value.trim();
+    if (!val) return;
+
+    let isMenuField = (inputEl.id === 'menuCode' || inputEl.id === 'productName');
+    let isCodeField = (inputEl.classList.contains('ing-code') || inputEl.id === 'menuCode');
     
-    for (const [code, menu] of Object.entries(menuMaster)) {
-      const optCode = document.createElement('option');
-      optCode.value = code;
-      optCode.innerText = menu.name;
-      codesDatalist.appendChild(optCode);
+    // メニュー入力欄なら isMenu === true のみを対象。食材入力欄なら isMenu === false のみを対象。
+    let matches = masterData.filter(item => {
+      if (isMenuField && !item.isMenu) return false;
+      if (!isMenuField && item.isMenu) return false;
       
-      const optName = document.createElement('option');
-      optName.value = menu.name;
-      optName.innerText = code;
-      namesDatalist.appendChild(optName);
-    }
+      if (isCodeField) return item.code.includes(val);
+      return item.name.includes(val);
+    });
+
+    if (matches.length === 0) return;
+
+    // 最大10件まで
+    matches = matches.slice(0, 10);
+
+    const suggestDiv = document.createElement('div');
+    suggestDiv.className = 'suggest-list';
+    
+    matches.forEach(item => {
+      const itemDiv = document.createElement('div');
+      itemDiv.className = 'suggest-item';
+      itemDiv.innerText = `${item.code} : ${item.name}`;
+      itemDiv.addEventListener('click', () => {
+        // 反映処理
+        if (inputEl.id === 'menuCode') {
+          inputEl.value = item.code;
+          document.getElementById('productName').value = item.name;
+          populateIngredients(menuMaster[item.code].ingredients);
+        } else if (inputEl.id === 'productName') {
+          inputEl.value = item.name;
+          document.getElementById('menuCode').value = item.code;
+          populateIngredients(menuMaster[item.code].ingredients);
+        } else {
+          // 食材行
+          const row = inputEl.closest('.row');
+          if (row) {
+            const codeInput = row.querySelector('.ing-code');
+            const nameInput = row.querySelector('.ing-name');
+            const amountInput = row.querySelector('.ing-amount');
+            const unitSelect = row.querySelector('.ing-unit');
+            if (codeInput) codeInput.value = item.code;
+            if (nameInput) nameInput.value = item.name;
+            if (amountInput && item.amount) amountInput.value = item.amount;
+            if (unitSelect && item.unit) {
+              const options = Array.from(unitSelect.options);
+              const targetOpt = options.find(o => o.value === item.unit);
+              if (targetOpt) unitSelect.value = item.unit;
+            }
+          }
+        }
+        closeAllSuggestions();
+      });
+      suggestDiv.appendChild(itemDiv);
+    });
+
+    const rect = inputEl.getBoundingClientRect();
+    suggestDiv.style.top = (rect.bottom + window.scrollY) + 'px';
+    suggestDiv.style.left = (rect.left + window.scrollX) + 'px';
+    suggestDiv.style.width = inputEl.offsetWidth + 'px';
+    
+    document.body.appendChild(suggestDiv);
   }
 
+  // メニュー選択時に食材リストを自動生成
   function populateIngredients(ingredients) {
     const container = document.getElementById('ingredientsContainer');
     container.innerHTML = '';
     
-    if (ingredients.length === 0) {
+    if (!ingredients || ingredients.length === 0) {
       addIngredient();
       return;
     }
@@ -1185,8 +1254,8 @@
       });
       
       div.innerHTML = `
-        <div style="flex: 1;"><input type="text" class="ing-code" value="${ing.code}" placeholder="コード"></div>
-        <div style="flex: 2;"><input type="text" class="ing-name" value="${ing.name}" placeholder="品名"></div>
+        <div style="flex: 1; position: relative;"><input type="text" class="ing-code" value="${ing.code}" placeholder="コード" autocomplete="off"></div>
+        <div style="flex: 2; position: relative;"><input type="text" class="ing-name" value="${ing.name}" placeholder="品名" autocomplete="off"></div>
         <div style="flex: 1;"><input type="number" class="ing-amount" step="any" value="${ing.amount}" placeholder="使用量"></div>
         <div style="flex: 0.8;">
           <select class="ing-unit">
@@ -1202,31 +1271,6 @@
       container.appendChild(div);
     });
   }
-
-  // 初期ロードとイベント登録
-  document.addEventListener('DOMContentLoaded', () => {
-    loadMasterData();
-    
-    const menuCodeInput = document.getElementById('menuCode');
-    const productNameInput = document.getElementById('productName');
-    
-    menuCodeInput.addEventListener('input', (e) => {
-      const code = e.target.value.trim();
-      if (menuMaster[code]) {
-        productNameInput.value = menuMaster[code].name;
-        populateIngredients(menuMaster[code].ingredients);
-      }
-    });
-    
-    productNameInput.addEventListener('input', (e) => {
-      const name = e.target.value.trim();
-      const foundCode = Object.keys(menuMaster).find(code => menuMaster[code].name === name);
-      if (foundCode) {
-        menuCodeInput.value = foundCode;
-        populateIngredients(menuMaster[foundCode].ingredients);
-      }
-    });
-  });
 </script>
 </div>
 </div>
