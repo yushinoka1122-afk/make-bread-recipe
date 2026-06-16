@@ -136,6 +136,56 @@
     .step-img-out img { max-width: 100%; max-height: 150px; }
   }
 
+  /* オートコンプリート（サジェスト）用UI */
+  .autocomplete-wrapper {
+    position: relative;
+    width: 100%;
+    box-sizing: border-box;
+  }
+  .autocomplete-wrapper input {
+    padding-right: 20px !important;
+  }
+  .autocomplete-wrapper .dropdown-arrow {
+    position: absolute;
+    right: 8px;
+    top: 52%;
+    transform: translateY(-50%);
+    font-size: 0.6rem;
+    color: #777;
+    pointer-events: none;
+    user-select: none;
+  }
+  .suggest-list {
+    position: absolute;
+    background: #fff;
+    border: 1px solid #ccc;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+    z-index: 9999;
+    max-height: 250px;
+    overflow-y: auto;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    width: 100%;
+    box-sizing: border-box;
+    left: 0;
+    margin-top: 2px;
+  }
+  .suggest-item {
+    padding: 8px 10px;
+    cursor: pointer;
+    border-bottom: 1px solid #eee;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    text-align: left;
+  }
+  .suggest-item:hover {
+    background: #e3f2fd;
+  }
+  .suggest-item:last-child {
+    border-bottom: none;
+  }
+
   /* 印刷用スタイル */
   @media print {
     body { background: #fff; margin: 0; padding: 0; font-family: "Meiryo", sans-serif; }
@@ -162,19 +212,21 @@
   <div id="masterStatus" style="font-size: 0.8rem; color: #1565c0; margin-bottom: 10px; padding: 6px; background: #e3f2fd; border-radius: 4px; font-weight:bold; text-align: center;">マスタデータを読み込んでいます...</div>
   
   <form id="recipeForm">
-    <datalist id="menuCodes"></datalist>
-    <datalist id="menuNames"></datalist>
-    <datalist id="ingCodes"></datalist>
-    <datalist id="ingNames"></datalist>
     <!-- 基本情報 -->
     <div class="row">
       <div style="flex: 1.2;">
         <label>メニューコード</label>
-        <input type="text" id="menuCode" list="menuCodes" placeholder="例: 1001">
+        <div class="autocomplete-wrapper">
+          <input type="text" id="menuCode" placeholder="例: 1001">
+          <span class="dropdown-arrow">▼</span>
+        </div>
       </div>
       <div style="flex: 2.3;">
         <label>商品名称</label>
-        <input type="text" id="productName" list="menuNames" placeholder="例: ざくざく枝豆チーズスティック">
+        <div class="autocomplete-wrapper">
+          <input type="text" id="productName" placeholder="例: ざくざく枝豆チーズスティック">
+          <span class="dropdown-arrow">▼</span>
+        </div>
       </div>
       <div style="flex: 2;">
         <label>実施期間</label>
@@ -192,8 +244,18 @@
     <h2>使用食材</h2>
     <div id="ingredientsContainer">
       <div class="row ing-row">
-        <div style="flex: 1;"><input type="text" class="ing-code" list="ingCodes" placeholder="コード"></div>
-        <div style="flex: 2;"><input type="text" class="ing-name" list="ingNames" placeholder="品名"></div>
+        <div style="flex: 1;">
+          <div class="autocomplete-wrapper">
+            <input type="text" class="ing-code" placeholder="コード">
+            <span class="dropdown-arrow">▼</span>
+          </div>
+        </div>
+        <div style="flex: 2;">
+          <div class="autocomplete-wrapper">
+            <input type="text" class="ing-name" placeholder="品名">
+            <span class="dropdown-arrow">▼</span>
+          </div>
+        </div>
         <div style="flex: 1;"><input type="number" class="ing-amount" step="any" placeholder="使用量"></div>
         <div style="flex: 0.8;">
           <select class="ing-unit">
@@ -479,8 +541,18 @@
     const div = document.createElement('div');
     div.className = 'row ing-row';
     div.innerHTML = `
-      <div style="flex: 1;"><input type="text" class="ing-code" list="ingCodes" placeholder="コード"></div>
-      <div style="flex: 2;"><input type="text" class="ing-name" list="ingNames" placeholder="品名"></div>
+      <div style="flex: 1;">
+        <div class="autocomplete-wrapper">
+          <input type="text" class="ing-code" placeholder="コード">
+          <span class="dropdown-arrow">▼</span>
+        </div>
+      </div>
+      <div style="flex: 2;">
+        <div class="autocomplete-wrapper">
+          <input type="text" class="ing-name" placeholder="品名">
+          <span class="dropdown-arrow">▼</span>
+        </div>
+      </div>
       <div style="flex: 1;"><input type="number" class="ing-amount" step="any" placeholder="使用量"></div>
       <div style="flex: 0.8;">
         <select class="ing-unit">
@@ -1040,63 +1112,61 @@
   updateBlockNumbers();
   updateStandbyBlockNumbers();
 
-  // === マスタデータ連携＆自動入力ロジック ===
-  const MASTER_URL = "https://docs.google.com/spreadsheets/d/1FUpFIMRcoOf-f5xDkcJGNparud13cgINV7JQehHznZ8/export?format=xlsx";
+  // === マスタデータ連携＆予測変換＆自動入力ロジック ===
   let menuMaster = {};
-  let ingSuggestData = [];
 
   async function loadMasterData() {
     const statusDiv = document.getElementById('masterStatus');
     statusDiv.innerText = "マスタデータを読み込んでいます...";
     statusDiv.style.backgroundColor = "#ffe0b2";
     statusDiv.style.color = "#e65100";
-    statusDiv.style.display = "block";
 
+    const url = "https://docs.google.com/spreadsheets/d/1FUpFIMRcoOf-f5xDkcJGNparud13cgINV7JQehHznZ8/export?format=csv&gid=0";
     try {
-      const response = await fetch(MASTER_URL);
-      if (!response.ok) throw new Error("ネットワークエラー");
+      const response = await fetch(url);
+      if (!response.ok) throw new Error("ネットワークエラーが発生しました。");
       const arrayBuffer = await response.arrayBuffer();
+      const decoder = new TextDecoder('utf-8');
+      const csvText = decoder.decode(arrayBuffer);
       
-      const workbook = XLSX.read(arrayBuffer, { type: 'array' });
-      const firstSheetName = workbook.SheetNames[0];
-      const worksheet = workbook.Sheets[firstSheetName];
-      const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
-
+      const lines = csvText.split(/\r?\n/);
       menuMaster = {};
-      ingSuggestData = [];
-      const seenIngs = new Set();
       
-      // 過去の列構成：メニューコード[3], メニュー名[4], 食材コード[10], 食材名[11], 使用量[12], 単位[13]
-      for (let i = 1; i < rows.length; i++) {
-        const row = rows[i];
-        if (!row || row.length === 0) continue;
+      for (let i = 1; i < lines.length; i++) {
+        const line = lines[i];
+        if (!line.trim()) continue;
+        const cols = parseCSVLine(line);
         
-        const menuCode = row[3] ? String(row[3]).trim() : '';
-        const menuName = row[4] ? String(row[4]).trim() : '';
-        const ingCode = row[10] ? String(row[10]).trim() : '';
-        const ingName = row[11] ? String(row[11]).trim() : '';
-        const ingAmount = row[12] ? String(row[12]).trim() : '';
-        const ingUnit = row[13] ? String(row[13]).trim() : 'g';
+        let menuCode = cols[3];
+        let menuName = cols[4];
+        const ingCode = cols[10];
+        const ingName = cols[11];
+        const ingAmount = cols[12];
+        const ingUnit = cols[13];
         
-        // メニュー一覧の構築
-        if (menuCode) {
-          if (!menuMaster[menuCode]) {
-            menuMaster[menuCode] = { name: menuName, ingredients: [] };
-          }
-          if (ingCode || ingName) {
-            menuMaster[menuCode].ingredients.push({
-              code: ingCode, name: ingName, amount: ingAmount, unit: ingUnit
-            });
-          }
+        // Fallback for shifted columns (e.g. menu 1001 summary row)
+        if (!menuCode && cols[9]) {
+          menuCode = cols[9];
+          menuName = cols[10];
         }
-
-        // 食材用のサジェストデータ
-        if (ingCode || ingName) {
-          const ingKey = `I:${ingCode}:${ingName}`;
-          if (!seenIngs.has(ingKey)) {
-            seenIngs.add(ingKey);
-            ingSuggestData.push({ code: ingCode, name: ingName });
-          }
+        
+        if (!menuCode) continue;
+        
+        if (!menuMaster[menuCode]) {
+          menuMaster[menuCode] = {
+            name: menuName,
+            ingredients: []
+          };
+        }
+        
+        // Only load ingredients if it is a normal row (cols[3] is populated)
+        if (cols[3] && (ingCode || ingName)) {
+          menuMaster[menuCode].ingredients.push({
+            code: ingCode || "",
+            name: ingName || "",
+            amount: ingAmount || "",
+            unit: ingUnit || "g"
+          });
         }
       }
       
@@ -1104,68 +1174,39 @@
       statusDiv.innerText = `マスタデータ読込完了 (${menuCount}件のメニュー)`;
       statusDiv.style.backgroundColor = "#e8f5e9";
       statusDiv.style.color = "#2e7d32";
-      setTimeout(() => statusDiv.style.display = 'none', 3000);
       
-      updateDatalists();
-    } catch (e) {
-      console.error(e);
+    } catch (error) {
+      console.error(error);
       statusDiv.innerText = "マスタデータの読み込みに失敗しました。マスタの共有設定またはネットワーク環境を確認してください。";
       statusDiv.style.backgroundColor = "#ffebee";
       statusDiv.style.color = "#c62828";
     }
   }
 
-  function updateDatalists() {
-    const codesDatalist = document.getElementById('menuCodes');
-    const namesDatalist = document.getElementById('menuNames');
-    const ingCodesDatalist = document.getElementById('ingCodes');
-    const ingNamesDatalist = document.getElementById('ingNames');
-    
-    if(codesDatalist) codesDatalist.innerHTML = '';
-    if(namesDatalist) namesDatalist.innerHTML = '';
-    if(ingCodesDatalist) ingCodesDatalist.innerHTML = '';
-    if(ingNamesDatalist) ingNamesDatalist.innerHTML = '';
-    
-    // メニュー用のdatalist
-    for (const [code, menu] of Object.entries(menuMaster)) {
-      if (codesDatalist) {
-        const optCode = document.createElement('option');
-        optCode.value = code;
-        optCode.innerText = menu.name;
-        codesDatalist.appendChild(optCode);
-      }
-      
-      if (namesDatalist) {
-        const optName = document.createElement('option');
-        optName.value = menu.name;
-        optName.innerText = code;
-        namesDatalist.appendChild(optName);
+  function parseCSVLine(text) {
+    const result = [];
+    let cur = '';
+    let inQuote = false;
+    for (let i = 0; i < text.length; i++) {
+      const c = text[i];
+      if (c === '"') {
+        inQuote = !inQuote;
+      } else if (c === ',' && !inQuote) {
+        result.push(cur.trim());
+        cur = '';
+      } else {
+        cur += c;
       }
     }
-
-    // 食材用のdatalist
-    for (const ing of ingSuggestData) {
-      if (ingCodesDatalist && ing.code) {
-        const opt = document.createElement('option');
-        opt.value = ing.code;
-        opt.innerText = ing.name;
-        ingCodesDatalist.appendChild(opt);
-      }
-      if (ingNamesDatalist && ing.name) {
-        const opt = document.createElement('option');
-        opt.value = ing.name;
-        opt.innerText = ing.code;
-        ingNamesDatalist.appendChild(opt);
-      }
-    }
+    result.push(cur.trim());
+    return result;
   }
 
-  // メニュー選択時に食材リストを自動生成
   function populateIngredients(ingredients) {
     const container = document.getElementById('ingredientsContainer');
     container.innerHTML = '';
     
-    if (!ingredients || ingredients.length === 0) {
+    if (ingredients.length === 0) {
       addIngredient();
       return;
     }
@@ -1182,8 +1223,18 @@
       });
       
       div.innerHTML = `
-        <div style="flex: 1;"><input type="text" class="ing-code" value="${ing.code}" list="ingCodes" placeholder="コード"></div>
-        <div style="flex: 2;"><input type="text" class="ing-name" value="${ing.name}" list="ingNames" placeholder="品名"></div>
+        <div style="flex: 1;">
+          <div class="autocomplete-wrapper">
+            <input type="text" class="ing-code" value="${ing.code}" placeholder="コード">
+            <span class="dropdown-arrow">▼</span>
+          </div>
+        </div>
+        <div style="flex: 2;">
+          <div class="autocomplete-wrapper">
+            <input type="text" class="ing-name" value="${ing.name}" placeholder="品名">
+            <span class="dropdown-arrow">▼</span>
+          </div>
+        </div>
         <div style="flex: 1;"><input type="number" class="ing-amount" step="any" value="${ing.amount}" placeholder="使用量"></div>
         <div style="flex: 0.8;">
           <select class="ing-unit">
@@ -1200,31 +1251,157 @@
     });
   }
 
-  // イベント登録
-  window.addEventListener('DOMContentLoaded', () => {
+  // 初期ロードとイベント登録
+  document.addEventListener('DOMContentLoaded', () => {
     loadMasterData();
     
-    // イベントデリゲーションで、入力されたら連動させる処理
-    document.addEventListener('input', (e) => {
-      // メニューコード入力時
-      if (e.target.id === 'menuCode') {
+    const menuCodeInput = document.getElementById('menuCode');
+    const productNameInput = document.getElementById('productName');
+    
+    if (menuCodeInput) {
+      menuCodeInput.addEventListener('input', (e) => {
         const code = e.target.value.trim();
         if (menuMaster[code]) {
-          document.getElementById('productName').value = menuMaster[code].name;
+          productNameInput.value = menuMaster[code].name;
           populateIngredients(menuMaster[code].ingredients);
         }
-      }
-      // 商品名入力時
-      else if (e.target.id === 'productName') {
+      });
+    }
+    
+    if (productNameInput) {
+      productNameInput.addEventListener('input', (e) => {
         const name = e.target.value.trim();
         const foundCode = Object.keys(menuMaster).find(code => menuMaster[code].name === name);
         if (foundCode) {
-          document.getElementById('menuCode').value = foundCode;
+          menuCodeInput.value = foundCode;
           populateIngredients(menuMaster[foundCode].ingredients);
         }
+      });
+    }
+  });
+
+  // Custom Suggestion Autocomplete Logic
+  let activeSuggestTarget = null;
+  let activeSuggestValue = null;
+
+  function closeAllSuggestions() {
+    document.querySelectorAll('.suggest-list').forEach(el => el.remove());
+    activeSuggestTarget = null;
+    activeSuggestValue = null;
+  }
+
+  function showSuggestions(inputEl) {
+    const val = inputEl.value.trim();
+    if (activeSuggestTarget === inputEl && activeSuggestValue === val) {
+      if (inputEl.parentElement.querySelector('.suggest-list')) {
+        return;
       }
-      // 食材行の連動は以前のバージョンでも自動補完のみだったため省略
+    }
+
+    closeAllSuggestions();
+    activeSuggestTarget = inputEl;
+    activeSuggestValue = val;
+
+    const wrapper = inputEl.parentElement;
+    if (!wrapper.classList.contains('autocomplete-wrapper')) return;
+
+    let isMenuField = (inputEl.id === 'menuCode' || inputEl.id === 'productName');
+    let isCodeField = (inputEl.classList.contains('ing-code') || inputEl.id === 'menuCode');
+
+    let matches = [];
+
+    if (isMenuField) {
+      for (const [code, menu] of Object.entries(menuMaster)) {
+        const matchCode = code.includes(val);
+        const matchName = menu.name.includes(val);
+        if (!val || (isCodeField ? matchCode : matchName)) {
+          matches.push({
+            code: code,
+            name: menu.name
+          });
+        }
+      }
+    } else {
+      const seenIngs = new Set();
+      for (const menu of Object.values(menuMaster)) {
+        for (const ing of menu.ingredients) {
+          const key = `${ing.code}_${ing.name}`;
+          if (!seenIngs.has(key)) {
+            seenIngs.add(key);
+            const matchCode = ing.code.includes(val);
+            const matchName = ing.name.includes(val);
+            if (!val || (isCodeField ? matchCode : matchName)) {
+              matches.push({
+                code: ing.code,
+                name: ing.name,
+                amount: ing.amount,
+                unit: ing.unit
+              });
+            }
+          }
+        }
+      }
+    }
+
+    if (matches.length === 0) return;
+
+    matches = matches.slice(0, 50);
+
+    const listDiv = document.createElement('div');
+    listDiv.className = 'suggest-list';
+
+    matches.forEach(item => {
+      const itemDiv = document.createElement('div');
+      itemDiv.className = 'suggest-item';
+      itemDiv.innerText = `${item.code} : ${item.name}`;
+      
+      itemDiv.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        if (isMenuField) {
+          document.getElementById('menuCode').value = item.code;
+          document.getElementById('productName').value = item.name;
+          populateIngredients(menuMaster[item.code].ingredients);
+        } else {
+          const row = inputEl.closest('.ing-row');
+          if (row) {
+            row.querySelector('.ing-code').value = item.code;
+            row.querySelector('.ing-name').value = item.name;
+            if (item.amount) row.querySelector('.ing-amount').value = item.amount;
+            if (item.unit) row.querySelector('.ing-unit').value = item.unit;
+          }
+        }
+        closeAllSuggestions();
+      });
+      listDiv.appendChild(itemDiv);
     });
+
+    wrapper.appendChild(listDiv);
+  }
+
+  function handleInputEvent(e) {
+    if (e.target.classList.contains('ing-code') || e.target.classList.contains('ing-name') || e.target.id === 'menuCode' || e.target.id === 'productName') {
+      showSuggestions(e.target);
+    }
+  }
+
+  document.addEventListener('input', handleInputEvent);
+  document.addEventListener('focusin', handleInputEvent);
+  document.addEventListener('click', handleInputEvent);
+
+  document.addEventListener('click', function(e) {
+    if (!e.target.closest('.autocomplete-wrapper')) {
+      closeAllSuggestions();
+    }
+  });
+
+  document.addEventListener('focusout', function(e) {
+    setTimeout(() => {
+      if (document.activeElement !== e.target && (!document.activeElement || !document.activeElement.closest('.autocomplete-wrapper'))) {
+        closeAllSuggestions();
+      }
+    }, 150);
   });
 </script>
 </div>
