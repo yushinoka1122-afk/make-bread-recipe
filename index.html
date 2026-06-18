@@ -3,497 +3,862 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>パン手順書作成ツール（画像対応版）</title>
+<title>パン手順書作成ツール</title>
 <!-- SheetJS -->
 <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
 <style>
-  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background-color: #f9f9f9; margin: 0; padding: 10px; color: #333; }
-  .container { max-width: 800px; margin: 0 auto; background: #fff; padding: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-  h1 { font-size: 1.1rem; text-align: center; border-bottom: 2px solid #4CAF50; padding-bottom: 5px; margin-top: 0; }
-  h2 { font-size: 0.95rem; margin-top: 15px; margin-bottom: 5px; background: #f1f1f1; padding: 4px 8px; border-left: 4px solid #4CAF50; }
-  label { display: block; font-weight: bold; margin-top: 5px; font-size: 0.8rem; }
-  input[type="text"], input[type="number"], input[type="date"], select, input[type="file"] { width: 100%; padding: 4px; margin-top: 2px; border: 1px solid #ccc; border-radius: 3px; box-sizing: border-box; font-size: 0.85rem; }
-  .row { display: flex; gap: 5px; align-items: center; margin-bottom: 3px; }
-  .row > div { flex: 1; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background-color: #f1f5f9; margin: 0; padding: 0; color: #333; }
   
-  /* ボタン類 */
-  .action-buttons { display: flex; gap: 10px; margin-top: 15px; }
-  button { flex: 1; padding: 8px; background-color: #4CAF50; color: white; border: none; border-radius: 4px; font-size: 0.9rem; font-weight: bold; cursor: pointer; }
-  button.add-btn { background-color: #2196F3; margin-top: 5px; width: 100%; padding: 4px; font-size: 0.8rem; }
-  button.print-btn { background-color: #607D8B; }
-  button.excel-btn { background-color: #009688; }
-  button.del-btn { background-color: #f44336; padding: 4px; flex: 0 0 30px; font-size: 0.8rem; }
-  
-  /* 規格入力欄用レイアウト */
-  .spec-input-group { background: #fafafa; border: 1px solid #eee; padding: 6px; margin-top: 5px; border-radius: 4px; }
-  .spec-dimension-row { display: flex; gap: 5px; align-items: center; font-size: 0.75rem; }
-  .spec-dimension-row input { width: 50px; }
-
-  /* 手順入力行レイアウト */
-  .step-block { border: 1px dashed #ccc; padding: 8px; margin-bottom: 8px; background: #fff; }
-  .step-block-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; font-size: 0.8rem; font-weight: bold; }
-  .step-input-row { display: flex; gap: 5px; align-items: center; margin-bottom: 3px; background: #fafafa; padding: 2px; border: 1px solid #eee; border-radius: 3px; }
-  .step-num-label { font-weight: bold; width: 20px; text-align: center; font-size: 0.75rem;}
-  .step-input-row input.step-text { flex: 1; font-size: 0.75rem; padding: 2px; }
-
-  /* A4プレビューラッパー */
-  #previewWrapper {
-    width: 100%;
-    overflow-x: hidden;
-    background: #cfd8dc;
-    padding: 20px 0;
-    margin-top: 20px;
-    border-radius: 8px;
-    display: none;
-    justify-content: center;
+  /* ユーティリティ操作パネル */
+  .utility-bar {
+    position: sticky;
+    top: 0;
+    z-index: 10000;
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(8px);
+    border-bottom: 1px solid #cbd5e1;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+    padding: 8px 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 15px;
+    flex-wrap: wrap;
   }
+  .utility-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .utility-left h1 {
+    font-size: 1.05rem;
+    margin: 0;
+    color: #1e293b;
+    border: none;
+    padding: 0;
+    font-weight: bold;
+  }
+  .utility-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .file-input-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: #f8fafc;
+    border: 1px solid #cbd5e1;
+    padding: 4px 8px;
+    border-radius: 6px;
+    font-size: 0.75rem;
+  }
+  .file-input-wrapper input[type="file"] {
+    width: auto;
+    max-width: 180px;
+    padding: 0;
+    border: none;
+    background: transparent;
+  }
+
+  /* エディタ全体の背景 */
+  #editorWrapper {
+    width: 100%;
+    background-color: #f1f5f9;
+    padding: 15px;
+    box-sizing: border-box;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    min-height: calc(100vh - 60px);
+  }
+
+  /* ボタン類 */
+  button {
+    padding: 6px 12px;
+    background-color: #4CAF50;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    font-weight: bold;
+    cursor: pointer;
+    transition: background-color 0.15s ease;
+  }
+  button:hover { background-color: #45a049; }
+  button.add-btn { background-color: #2196F3; font-size: 0.75rem; padding: 4px 8px; width: auto; margin-top: 5px; }
+  button.add-btn:hover { background-color: #1e88e5; }
+  button.print-btn { background-color: #607D8B; }
+  button.print-btn:hover { background-color: #546e7a; }
+  button.excel-btn { background-color: #009688; }
+  button.excel-btn:hover { background-color: #00897b; }
+  button.del-btn { background-color: #ef4444; padding: 4px 8px; font-size: 0.75rem; font-weight: normal; border-radius: 3px; }
+  button.del-btn:hover { background-color: #dc2626; }
   
-  /* プレビューエリア (A4用紙風) */
+  /* A4用紙風レイアウト */
   #outputArea { 
     display: block; 
     background: #fff; 
-    border: none; 
-    font-size: 0.75rem; 
+    border: 1px solid #e2e8f0;
+    font-size: 11px; 
     width: 210mm;
     min-height: 297mm;
-    padding: 10mm;
+    padding: 5mm 8mm;
     box-sizing: border-box;
-    box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+    box-shadow: 0 10px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.1);
     margin: 0 auto;
-    transform-origin: top center;
+    position: relative;
   }
   
-  /* プレビュー上部 (左: 基本・食材, 右: 写真) */
-  .preview-header { display: flex; gap: 15px; align-items: stretch; margin-bottom: 5px; border-bottom: 1px solid #333; padding-bottom: 5px; }
+  /* ヘッダーレイアウト */
+  .preview-header { display: flex; gap: 10px; align-items: stretch; margin-bottom: 4px; border-bottom: 1px solid #333; padding-bottom: 3px; }
   .preview-left { flex: 2; display: flex; flex-direction: column; }
   .preview-right.main-image-container { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; }
-  .preview-right img { max-width: 100%; max-height: 140px; object-fit: contain; border: 1px solid #000; margin-top: 2px; }
   
-  .preview-title-area { margin-bottom: 5px; display: flex; align-items: baseline; gap: 10px; font-size: 0.85rem;}
-  .preview-title-area h2 { border: none; background: transparent; padding: 0; margin: 0; font-size: 0.95rem; font-weight: bold; }
+  .preview-title-area { margin-bottom: 3px; display: flex; flex-direction: column; gap: 3px; font-size: 10px;}
   
-  /* プレビューテーブル */
-  .output-table { width: 100%; border-collapse: collapse; margin-bottom: 4px; font-size: 0.65rem; }
+  .product-title-row {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    font-weight: bold;
+    width: 100%;
+  }
+  .product-title-row input {
+    font-size: 11px !important;
+  }
+  
+  /* 規格と工程条件 */
+  .specs-container { display: flex; gap: 4px; margin-bottom: 4px; }
+  .spec-box { flex: 1; border: 1px solid #333; padding: 2px; font-size: 10px; display: flex; flex-direction: column; background: #fff; }
+  .spec-box h4 { margin: 0 0 2px 0; background: #e8f5e9; padding: 1px 1px; text-align: center; font-size: 11px; font-weight: bold; border-bottom: 1px solid #333; display: flex; align-items: center; justify-content: center; gap: 2px; }
+  .spec-box h4 input, .spec-box h4 select { font-size: 11px !important; font-weight: bold !important; text-align: center; border: 1px dashed transparent; background: transparent; cursor: pointer; }
+  .spec-box h4 input { width: 35px; }
+  .spec-box h4 input:hover, .spec-box h4 select:hover { border-color: #94a3b8; background-color: #f8fafc; }
+  .spec-box h4 input:focus, .spec-box h4 select:focus { border-color: #2196F3; background-color: #fff; outline: none; }
+  .spec-info { margin-bottom: 2px; font-size: 9px; }
+  .spec-dimension-row { display: flex; align-items: center; gap: 2px; flex-wrap: wrap; margin-bottom: 1px; }
+  .spec-dimension-row input {
+    width: 32px; /* 幅を25pxから32pxに少し広げて数値が見えやすく調整 */
+    font-size: 9px;
+    text-align: center;
+  }
+  
+  /* 寸法等の数値スピンボタンを非表示化 */
+  .spec-dimension-row input[type="number"]::-webkit-outer-spin-button,
+  .spec-dimension-row input[type="number"]::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  .spec-dimension-row input[type="number"] {
+    -moz-appearance: textfield;
+  }
+  
+  /* テーブル */
+  .output-table { width: 100%; border-collapse: collapse; margin-bottom: 3px; font-size: 10px; }
   .output-table th, .output-table td {
     border: 1px solid #ccc;
-    padding: 2px 4px;
+    padding: 1px 3px;
     text-align: left;
-    font-size: 0.65rem;
+    font-size: 10px;
+    vertical-align: middle;
   }
-  .output-table th { background-color: #f2f2f2; }
+  .output-table th { background-color: #f2f2f2; font-weight: bold; }
+  .output-table input[type="text"],
+  .output-table input[type="number"],
+  .output-table select {
+    width: 100% !important;
+    box-sizing: border-box;
+    text-align: inherit;
+  }
   
-  /* 横並び規格表示 */
-  .specs-container { display: flex; gap: 6px; margin-bottom: 6px; }
-  .spec-box { flex: 1; border: 1px solid #333; padding: 3px; font-size: 0.7rem; display: flex; flex-direction: column; }
-  .spec-box h4 { margin: 0 0 3px 0; background: #e8f5e9; padding: 1px; text-align: center; font-size: 0.75rem; }
-  .spec-info { margin-bottom: 3px; }
-  .spec-info div { margin-bottom: 1px; }
-  .spec-img-preview { margin-top: auto; text-align: center; }
-  .spec-img-preview img { max-width: 100%; max-height: 110px; object-fit: contain; border: 1px solid #000; }
-
-  /* 手順プレビュー（画像左・テキスト右） */
-  .step-preview-block { display: flex; gap: 8px; margin-bottom: 6px; padding-bottom: 4px; border-bottom: 1px dashed #ccc; font-size: 0.7rem; align-items: flex-start; }
-  .step-img-out { flex: 0 0 140px; text-align: center; }
-  .step-img-out img { max-width: 100%; max-height: 100px; object-fit: contain; border: 1px solid #000; }
-  .step-texts-out { flex: 1; }
-  .step-texts-out div { margin-bottom: 2px; }
+  /* 生地出庫 */
+  #dispatchSection {
+    margin-bottom: 3px;
+    padding: 2px;
+    border: 1px solid #b0bec5;
+    border-radius: 4px;
+    background-color: #fafafa;
+    font-size: 10px;
+  }
+  #dispatchSection input, #dispatchSection select {
+    font-size: 10px !important;
+  }
+  #dispatchSection .step-num-label {
+    font-size: 10px !important;
+  }
+  #dispatchSection strong {
+    font-size: 10px !important;
+  }
+  #dispatchSection button {
+    font-size: 9px !important;
+    padding: 2px 4px !important;
+  }
   
-  /* 2カラムレイアウト用コンテナ */
-  .steps-grid { display: flex; gap: 15px; margin-bottom: 5px; }
-  .steps-col { flex: 1; display: flex; flex-direction: column; }
-  .steps-full { display: flex; flex-direction: column; }
-
-  /* スマホ向けレスポンシブ対応 */
-  @media (max-width: 600px) {
-    .row { flex-direction: column; align-items: stretch; margin-bottom: 10px; }
-    .row > div { width: 100%; margin-bottom: 5px; }
-    
-    /* 食材行をグリッド等で綺麗に折り返し */
-    .ing-row { 
-      display: grid; 
-      grid-template-columns: 1fr 1fr 60px 50px 40px; 
-      gap: 5px; 
-      align-items: center; 
-    }
-    .ing-row > div { width: auto; margin-bottom: 0; }
-    .ing-row input.ing-code, .ing-row input.ing-name { width: 100%; }
-
-    .action-buttons { flex-direction: column; }
-    .action-buttons button { margin-bottom: 5px; }
-    
-    /* ヘッダー部の重なり防止 */
-    .step-block-header { flex-direction: column; align-items: stretch; gap: 5px; }
-    .step-block-header > div { flex-wrap: wrap; justify-content: space-between; }
-    
-    /* プレビュー側もスマホサイズでは縦並びに */
-    .preview-header { flex-direction: column; align-items: center; }
-    .preview-left { width: 100%; }
-    .preview-right { width: 100%; margin-top: 10px; }
-    .specs-container { flex-direction: column; }
-    .steps-grid { flex-direction: column; gap: 5px; }
-    .step-preview-block { flex-direction: column; align-items: flex-start; }
-    .step-img-out { width: 100%; flex: 1; text-align: left; margin-bottom: 5px; }
-    .step-img-out img { max-width: 100%; max-height: 150px; }
+  /* 手順リストとグリッド */
+  .steps-grid { display: flex; gap: 8px; margin-bottom: 4px; }
+  .steps-col { flex: 1; display: flex; flex-direction: column; gap: 4px; }
+  .steps-full { display: flex; flex-direction: column; gap: 4px; }
+  
+  .step-block { border: 1px dashed #cbd5e1; padding: 4px; background: #fff; margin-bottom: 3px; border-radius: 4px; }
+  .step-block-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 3px; font-size: 11px; background: #f8fafc; padding: 1px 3px; border-radius: 3px; }
+  .step-preview-block { display: flex; gap: 6px; font-size: 10px; align-items: flex-start; }
+  .step-img-out { flex: 0 0 120px; text-align: center; display: flex; flex-direction: column; }
+  .step-texts-out { flex: 1; display: flex; flex-direction: column; }
+  
+  /* 手順テキストボックス */
+  .step-textarea {
+    width: 100%;
+    min-height: 60px;
+    border: 1px dashed transparent;
+    background: transparent;
+    font-family: inherit;
+    font-size: 10px;
+    line-height: 1.3;
+    padding: 2px;
+    box-sizing: border-box;
+    resize: none;
+    overflow-y: hidden;
+    transition: all 0.15s ease;
+  }
+  .step-textarea:hover {
+    border-color: #cbd5e1;
+    background-color: #f8fafc;
+  }
+  .step-textarea:focus {
+    border-color: #2196F3;
+    background-color: #fff;
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(33, 150, 243, 0.15);
   }
 
-  /* オートコンプリート（サジェスト）用UI */
+  .step-input-row { display: flex; gap: 4px; align-items: center; margin-bottom: 2px; background: #f8fafc; padding: 2px; border: 1px solid #e2e8f0; border-radius: 3px; }
+  .step-num-label { font-weight: bold; width: 15px; text-align: center; font-size: 10px; }
+  
+  /* スタンバイ */
+  #standbySection { margin-top: 6px; border-top: 1px solid #ccc; padding-top: 4px; }
+  
+  /* 画像アップローダーのスタイリング */
+  .image-upload-box {
+    position: relative;
+    border: 1px dashed #cbd5e1;
+    background-color: #f8fafc;
+    border-radius: 4px;
+    cursor: pointer;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s ease;
+    width: 100%;
+    box-sizing: border-box;
+  }
+  .image-upload-box:hover {
+    border-color: #2196F3;
+    background-color: #eff6ff;
+  }
+  .image-placeholder {
+    color: #64748b;
+    font-size: 0.7rem;
+    font-weight: bold;
+    text-align: center;
+    pointer-events: none;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+  }
+  .image-preview {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+  }
+  .image-preview img {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+  }
+  .del-image-btn {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    background-color: rgba(239, 68, 68, 0.9);
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 18px;
+    height: 18px;
+    font-size: 0.7rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    line-height: 1;
+    z-index: 10;
+  }
+  .del-image-btn:hover { background-color: #dc2626; }
+  
+  .spec-box .image-upload-box { height: 110px; margin-top: auto; }
+  .main-image-container .image-upload-box { height: 140px; margin-top: 5px; }
+  .step-img-out .image-upload-box { height: 100px; }
+  .image-file-input { display: none; }
+
+  /* WYSIWYG直接編集用インプットのブレンドスタイル */
+  #outputArea input, #outputArea select {
+    border: 1px dashed transparent;
+    background: transparent;
+    padding: 2px 4px;
+    font-family: inherit;
+    font-size: inherit;
+    color: inherit;
+    box-sizing: border-box;
+    transition: all 0.15s ease;
+  }
+  #outputArea input[type="checkbox"] {
+    width: auto;
+    border: none;
+  }
+  #outputArea input:hover, #outputArea select:hover {
+    border-color: #94a3b8;
+    background-color: #f8fafc;
+  }
+  #outputArea input:focus, #outputArea select:focus {
+    border-color: #2196F3;
+    background-color: #fff;
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(33, 150, 243, 0.15);
+  }
+  
+  /* オートコンプリート */
   .autocomplete-wrapper {
     position: relative;
     width: 100%;
     box-sizing: border-box;
+    display: flex;
+    align-items: center;
   }
   .autocomplete-wrapper input {
-    padding-right: 20px !important;
+    padding-right: 16px !important;
   }
   .autocomplete-wrapper .dropdown-arrow {
     position: absolute;
-    right: 8px;
-    top: 52%;
+    right: 4px;
+    top: 50%;
     transform: translateY(-50%);
-    font-size: 0.6rem;
-    color: #777;
-    pointer-events: none;
+    font-size: 0.5rem;
+    color: #64748b;
+    pointer-events: auto; /* クリックイベントを受け取るように変更 */
+    cursor: pointer; /* マウスホバーでポインターを表示 */
     user-select: none;
   }
   .suggest-list {
     position: absolute;
     background: #fff;
-    border: 1px solid #ccc;
-    box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+    border: 1px solid #cbd5e1;
+    box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1);
     z-index: 9999;
-    max-height: 250px;
+    max-height: 200px;
     overflow-y: auto;
     border-radius: 4px;
-    font-size: 0.8rem;
+    font-size: 0.75rem;
     width: 100%;
+    min-width: 260px; /* メニューコードなどの狭い入力欄でも商品名が見えるよう最低幅を確保 */
     box-sizing: border-box;
     left: 0;
+    top: 100%;
     margin-top: 2px;
   }
   .suggest-item {
-    padding: 8px 10px;
+    padding: 6px 8px;
     cursor: pointer;
-    border-bottom: 1px solid #eee;
+    border-bottom: 1px solid #f1f5f9;
+    text-align: left;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    text-align: left;
   }
-  .suggest-item:hover {
-    background: #e3f2fd;
-  }
-  .suggest-item:last-child {
-    border-bottom: none;
+  .suggest-item:hover { background: #eff6ff; color: #1d4ed8; }
+  .suggest-item:last-child { border-bottom: none; }
+
+  /* 印刷非表示クラス */
+  .print-hide { display: none !important; }
+  .print-only-block-title { display: none; }
+  .print-standby-check { display: none; }
+
+  /* スマホ向けレスポンシブ表示（編集画面時） */
+  @media (max-width: 600px) {
+    .utility-bar { padding: 8px; justify-content: center; flex-direction: column; gap: 8px; }
+    .utility-right { justify-content: center; }
+    #editorWrapper { padding: 5px; }
+    #outputArea { width: 100%; min-height: auto; padding: 8px; box-shadow: none; border: none; }
+    
+    .preview-header { flex-direction: column; align-items: stretch; gap: 10px; }
+    .preview-left { width: 100%; }
+    .preview-right { width: 100%; }
+    .specs-container { flex-direction: column; gap: 8px; }
+    .steps-grid { flex-direction: column; gap: 10px; }
+    .step-preview-block { flex-direction: column; align-items: stretch; gap: 8px; }
+    .step-img-out { width: 100%; flex: auto; }
+    
+    .output-table th, .output-table td { padding: 4px; }
+    .output-table th:nth-child(6), .output-table td:nth-child(6) { width: 30px; } /* del-btn col */
   }
 
-  /* 印刷用スタイル */
+  /* 印刷用スタイル設定 */
   @media print {
     body { background: #fff; margin: 0; padding: 0; font-family: "Meiryo", sans-serif; }
-    .container { display: none !important; } /* フォームを非表示 */
-    #previewWrapper { display: block !important; padding: 0; background: none; overflow: visible; height: auto !important; }
-    #outputArea { display: block !important; border: none; padding: 0; margin: 0; width: 100%; box-sizing: border-box; box-shadow: none; transform: none !important; min-height: auto; }
+    .utility-bar, .edit-only-btn, .edit-only-col, .dropdown-arrow, .image-placeholder, .del-image-btn, .step-block-header {
+      display: none !important;
+    }
+    #editorWrapper { background: none; padding: 0; margin: 0; display: block; }
+    #outputArea { 
+      display: block !important; 
+      border: none !important; 
+      padding: 0 !important; 
+      margin: 0 !important; 
+      width: 100% !important; 
+      box-sizing: border-box !important; 
+      box-shadow: none !important; 
+      transform: none !important; 
+      min-height: auto !important; 
+    }
     @page { margin: 8mm 10mm; size: A4 portrait; }
     
     #outputArea { font-size: 7.5pt; }
+    #outputArea input, #outputArea select {
+      border: none !important;
+      background: transparent !important;
+      box-shadow: none !important;
+      padding: 0 !important;
+      outline: none !important;
+      pointer-events: none;
+      -webkit-appearance: none;
+      -moz-appearance: none;
+      appearance: none;
+    }
+    
+    /* 日付ピッカーの矢印やカレンダーマークを非表示 */
+    input[type="date"]::-webkit-calendar-picker-indicator {
+      display: none !important;
+      -webkit-appearance: none;
+    }
+
+    /* 空の入力行を印刷時に隠す */
+    .ing-row:has(.ing-code:placeholder-shown):has(.ing-name:placeholder-shown):has(.ing-amount:placeholder-shown) {
+      display: none !important;
+    }
+    
+    /* スタンバイ選択時の印刷スタイル */
+    .ing-standby { display: none !important; }
+    .ing-row.is-standby .print-standby-check {
+      display: block !important;
+      color: #1565c0;
+      font-weight: bold;
+      text-align: center;
+    }
+    .ing-row.is-standby {
+      background-color: #e3f2fd !important;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    /* 印刷時のタイトルを出す */
+    .print-only-block-title {
+      display: block !important;
+    }
+
     .preview-header { margin-bottom: 3px; padding-bottom: 3px; }
-    .preview-right img { max-height: 100px; }
+    .main-image-container .image-upload-box { height: 120px; border: none !important; }
+    .spec-box .image-upload-box { height: 85px; border: none !important; }
+    .step-img-out .image-upload-box { height: 85px; border: none !important; }
+    
+    /* 画像がない枠自体を非表示 */
+    .image-upload-box:not(:has(img)) {
+      display: none !important;
+    }
+
+    /* 手順テキストボックスの印刷時スタイル */
+    .step-textarea {
+      border: none !important;
+      background: transparent !important;
+      padding: 0 !important;
+      outline: none !important;
+      box-shadow: none !important;
+      overflow: hidden !important;
+      resize: none !important;
+    }
+    
+    /* 空の手順ブロックを非表示 */
+    .step-block:has(.step-textarea:placeholder-shown):not(:has(img)) {
+      display: none !important;
+    }
+
     .specs-container { gap: 4px; margin-bottom: 4px; }
-    .spec-img-preview img { max-height: 85px; }
     .step-preview-block { margin-bottom: 2px; padding-bottom: 2px; }
     .step-img-out { flex: 0 0 120px; }
-    .step-img-out img { max-height: 85px; }
+    
+    /* 空のセクションを印刷時に隠す */
+    .print-empty-hide {
+      display: none !important;
+    }
   }
 </style>
 </head>
 <body>
 
-<div class="container">
-  <h1>パン手順書作成フォーム</h1>
-  <div style="background: #e3f2fd; border: 1px solid #90caf9; padding: 10px; border-radius: 6px; margin-bottom: 12px; font-size: 0.8rem;">
-    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
-      <div style="display: flex; align-items: center; gap: 8px;">
-        <span style="font-weight: bold; color: #0d47a1;">📁 ローカル連携:</span>
-        <input type="file" id="masterFileInput" accept=".xlsx, .xls, .csv" style="font-size: 0.75rem; width: auto; max-width: 220px; padding: 2px;">
-      </div>
-      <div>
-        <button type="button" id="syncSheetsBtn" style="background-color: #1976d2; color: #fff; border: none; border-radius: 4px; padding: 4px 10px; font-size: 0.75rem; font-weight: bold; cursor: pointer;" onclick="loadMasterData()">☁️ スプシから同期</button>
-      </div>
-    </div>
-    <div id="masterStatus" style="margin-top: 8px; font-size: 0.8rem; color: #1565c0; padding: 6px; background: #fff; border: 1px solid #bbdefb; border-radius: 4px; font-weight:bold; text-align: center;">マスタデータを読み込んでいます...</div>
+<div class="utility-bar">
+  <div class="utility-left">
+    <h1>🍞 パン手順書作成ツール</h1>
+    <div id="masterStatus">マスタデータを読み込んでいます...</div>
   </div>
-  
-  <form id="recipeForm">
-    <!-- 基本情報 -->
-    <div class="row">
-      <div style="flex: 1.2;">
-        <label>メニューコード</label>
-        <div class="autocomplete-wrapper">
-          <input type="text" id="menuCode" placeholder="例: 1001">
-          <span class="dropdown-arrow">▼</span>
-        </div>
-      </div>
-      <div style="flex: 2.3;">
-        <label>商品名称</label>
-        <div class="autocomplete-wrapper">
-          <input type="text" id="productName" placeholder="例: ざくざく枝豆チーズスティック">
-          <span class="dropdown-arrow">▼</span>
-        </div>
-      </div>
-      <div style="flex: 2;">
-        <label>実施期間</label>
-        <div style="display:flex; align-items:center; gap:2px;">
-          <input type="date" id="periodStart"> ～ <input type="date" id="periodEnd">
-        </div>
-      </div>
-      <div style="flex: 1.5;">
-        <label>完成写真</label>
-        <input type="file" id="mainImage" accept="image/*">
-      </div>
+  <div class="utility-right">
+    <div class="file-input-wrapper">
+      <span style="font-weight: bold; color: #1e293b;">📁 ローカル連携:</span>
+      <input type="file" id="masterFileInput" accept=".xlsx, .xls, .csv">
     </div>
+    <button type="button" style="background-color: #1976d2;" onclick="loadMasterData()">☁️ スプシから同期</button>
+    <button type="button" class="print-btn" onclick="window.print()">PDF保存・印刷</button>
+    <button type="button" class="excel-btn" onclick="downloadExcel()">ExcelでDL</button>
+  </div>
+</div>
 
-    <!-- 使用食材 -->
-    <h2>使用食材</h2>
-    <div id="ingredientsContainer">
-      <div class="row ing-row">
-        <div style="flex: 1;">
-          <div class="autocomplete-wrapper">
-            <input type="text" class="ing-code" placeholder="コード">
-            <span class="dropdown-arrow">▼</span>
+<div id="editorWrapper">
+  <div id="outputArea">
+    
+    <!-- ヘッダーエリア -->
+    <div class="preview-header">
+      <div class="preview-left">
+        <div class="preview-title-area">
+          <div style="display: flex; gap: 5px; align-items: center; font-size: 10px;">
+            <strong>実施期間:</strong>
+            <input type="date" id="periodStart" style="width: 105px; font-size: 10px; padding: 1px 2px;"> ～ 
+            <input type="date" id="periodEnd" style="width: 105px; font-size: 10px; padding: 1px 2px;">
+          </div>
+          <div class="product-title-row">
+            <span style="white-space: nowrap; font-size: 11px;">商品名称:</span>
+            <div class="autocomplete-wrapper" style="flex: 1; min-width: 0;">
+              <input type="text" id="productName" autocomplete="off" placeholder="例: ざくざく枝豆チーズスティック" style="font-size: 11px; font-weight: bold; width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 1px 2px;">
+              <span class="dropdown-arrow">▼</span>
+            </div>
+            <span style="white-space: nowrap; margin-left: 10px; font-size: 11px;">メニューコード:</span>
+            <div class="autocomplete-wrapper" style="width: 70px;">
+              <input type="text" id="menuCode" autocomplete="off" placeholder="例: 1001" style="font-size: 11px; font-weight: bold; text-align: center; width: 100%; padding: 1px 2px;">
+              <span class="dropdown-arrow">▼</span>
+            </div>
           </div>
         </div>
-        <div style="flex: 2;">
-          <div class="autocomplete-wrapper">
-            <input type="text" class="ing-name" placeholder="品名">
-            <span class="dropdown-arrow">▼</span>
+        
+        <!-- 使用食材テーブル -->
+        <table class="output-table">
+          <thead>
+            <tr>
+              <th style="width: 12%;">コード</th>
+              <th style="width: 60%;">品名</th>
+              <th style="width: 8%; text-align: center;">使用量</th>
+              <th style="width: 8%; text-align: center;">単位</th>
+              <th style="width: 8%; text-align: center;">スタ</th>
+              <th style="width: 4%; text-align: center;" class="edit-only-col"></th>
+            </tr>
+          </thead>
+          <tbody id="ingredientsContainer">
+            <tr class="ing-row">
+              <td><input type="text" class="ing-code" placeholder="コード"></td>
+              <td><input type="text" class="ing-name" placeholder="品名"></td>
+              <td><input type="number" class="ing-amount" step="any" placeholder="使用量"></td>
+              <td>
+                <select class="ing-unit">
+                  <option value="g">g</option>
+                  <option value="kg">kg</option>
+                  <option value="ml">ml</option>
+                  <option value="L">L</option>
+                  <option value="個">個</option>
+                  <option value="枚">枚</option>
+                  <option value="本">本</option>
+                  <option value="尾">尾</option>
+                  <option value="杯">杯</option>
+                  <option value="種">種</option>
+                  <option value="人前">人前</option>
+                  <option value="円">円</option>
+                  <option value="適量">適量</option>
+                </select>
+              </td>
+              <td style="text-align: center; position: relative;">
+                <select class="ing-standby">
+                  <option value=""></option>
+                  <option value="スタンバイ">スタンバイ</option>
+                </select>
+                <span class="print-standby-check">✔</span>
+              </td>
+              <td class="edit-only-col" style="text-align: center;">
+                <button type="button" class="del-btn edit-only-btn" onclick="removeRow(this, 'ing')">🗑️</button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        <button type="button" class="add-btn edit-only-btn" onclick="addIngredient()">＋ 食材の行を追加</button>
+      </div>
+      
+      <!-- 完成写真 -->
+      <div class="preview-right main-image-container">
+        <div style="font-weight:bold; font-size:0.8rem; margin-bottom:2px; background:#e8f5e9; width:100%; text-align:center; border: 1px solid #333;">完成写真</div>
+        <div class="image-upload-box" onclick="triggerFileInput(this)" style="flex: 1; min-height: 120px;">
+          <input type="file" id="mainImage" class="image-file-input" accept="image/*" onchange="previewImage(this)">
+          <div class="image-placeholder">
+            <span>📷 写真を選択</span>
+          </div>
+          <div class="image-preview" style="display: none;">
+            <img>
+            <button type="button" class="del-image-btn edit-only-btn" onclick="clearImage(event, this)">×</button>
           </div>
         </div>
-        <div style="flex: 1;"><input type="number" class="ing-amount" step="any" placeholder="使用量"></div>
-        <div style="flex: 0.8;">
-          <select class="ing-unit">
-            <option value="g">g</option>
-            <option value="kg">kg</option>
-            <option value="ml">ml</option>
-            <option value="L">L</option>
-            <option value="個">個</option>
-            <option value="枚">枚</option>
-            <option value="適量">適量</option>
-          </select>
+      </div>
+    </div>
+
+    <!-- 規格・工程条件 -->
+    <div class="specs-container">
+      <div class="spec-box">
+        <h4>成形：最大のせ数 
+          <select id="maxLoad" style="width: auto; padding: 1px; font-size: 11px;">
+            <option value="1">1</option>
+            <option value="2">2</option>
+            <option value="3">3</option>
+            <option value="4">4</option>
+            <option value="5">5</option>
+            <option value="6" selected>6</option>
+            <option value="7">7</option>
+            <option value="8">8</option>
+            <option value="9">9</option>
+            <option value="10">10</option>
+            <option value="12">12</option>
+            <option value="15">15</option>
+            <option value="18">18</option>
+            <option value="20">20</option>
+          </select> 個</h4>
+        <div class="spec-info">
+          <div class="spec-dimension-row">
+            寸法: 縦<input type="number" id="moldL" value="0" min="0">×横<input type="number" id="moldW" value="0" min="0">×高さ<input type="number" id="moldH" value="0" min="0">mm
+          </div>
         </div>
-        <div style="flex: 0.6; text-align: center; display: flex; align-items: center; justify-content: center; gap: 2px;">
-          <input type="checkbox" class="ing-standby" style="width: auto; margin: 0;">
-          <span style="font-size: 0.7rem; font-weight: bold;">スタ</span>
+        <div class="image-upload-box" onclick="triggerFileInput(this)">
+          <input type="file" id="moldImg" class="image-file-input" accept="image/*" onchange="previewImage(this)">
+          <div class="image-placeholder">
+            <span>📷 写真を選択</span>
+          </div>
+          <div class="image-preview" style="display: none;">
+            <img>
+            <button type="button" class="del-image-btn edit-only-btn" onclick="clearImage(event, this)">×</button>
+          </div>
         </div>
-        <button type="button" class="del-btn" onclick="removeRow(this, 'ing')">🗑️</button>
       </div>
-    </div>
-    <button type="button" class="add-btn" onclick="addIngredient()">＋ 食材の行を追加</button>
-
-    <!-- 各種規格・工程条件 -->
-    <h2>規格・工程条件</h2>
-    <div class="spec-input-group">
-      <div style="font-weight:bold; font-size:0.8rem; border-bottom:1px solid #ccc; margin-bottom:3px; background:#e8f5e9;">成型</div>
-      <div class="spec-dimension-row">
-        寸法: 縦<input type="number" id="moldL" value="0" min="0">mm × 横<input type="number" id="moldW" value="0" min="0">mm × 高さ<input type="number" id="moldH" value="0" min="0">mm
+      
+      <div class="spec-box">
+        <h4>ホイロ：
+          <select id="proofTime" style="width: auto; padding: 1px; font-size: 11px;">
+            <option value="5">5</option>
+            <option value="10">10</option>
+            <option value="15">15</option>
+            <option value="20">20</option>
+            <option value="25">25</option>
+            <option value="30">30</option>
+            <option value="35">35</option>
+            <option value="40" selected>40</option>
+            <option value="45">45</option>
+            <option value="50">50</option>
+            <option value="55">55</option>
+            <option value="60">60</option>
+            <option value="70">70</option>
+            <option value="80">80</option>
+            <option value="90">90</option>
+          </select> 分</h4>
+        <div class="spec-info">
+          <div class="spec-dimension-row">
+            寸法: 縦<input type="number" id="proofL" value="0" min="0">×横<input type="number" id="proofW" value="0" min="0">×高さ<input type="number" id="proofH" value="0" min="0">mm
+          </div>
+        </div>
+        <div class="image-upload-box" onclick="triggerFileInput(this)">
+          <input type="file" id="proofImg" class="image-file-input" accept="image/*" onchange="previewImage(this)">
+          <div class="image-placeholder">
+            <span>📷 写真を選択</span>
+          </div>
+          <div class="image-preview" style="display: none;">
+            <img>
+            <button type="button" class="del-image-btn edit-only-btn" onclick="clearImage(event, this)">×</button>
+          </div>
+        </div>
       </div>
-      <div class="spec-dimension-row" style="margin-top:2px;">
-        1鉄板最大載せ数: <input type="text" id="maxLoad" placeholder="例: 6個" style="width:80px;">
-        写真: <input type="file" id="moldImg" accept="image/*" style="width:160px;">
-      </div>
-    </div>
-
-    <div class="spec-input-group">
-      <div style="font-weight:bold; font-size:0.8rem; border-bottom:1px solid #ccc; margin-bottom:3px; background:#e8f5e9;">ホイロ</div>
-      <div class="spec-dimension-row">
-        寸法: 縦<input type="number" id="proofL" value="0" min="0">mm × 横<input type="number" id="proofW" value="0" min="0">mm × 高さ<input type="number" id="proofH" value="0" min="0">mm
-      </div>
-      <div class="spec-dimension-row" style="margin-top:2px;">
-        ホイロ時間目安: <input type="text" id="proofTime" placeholder="例: 40分" style="width:80px;">
-        写真: <input type="file" id="proofImg" accept="image/*" style="width:160px;">
-      </div>
-    </div>
-
-    <div class="spec-input-group">
-      <div style="font-weight:bold; font-size:0.8rem; border-bottom:1px solid #ccc; margin-bottom:3px; background:#e8f5e9;">焼成</div>
-      <div class="spec-dimension-row">
-        寸法: 縦<input type="number" id="bakeL" value="0" min="0">mm × 横<input type="number" id="bakeW" value="0" min="0">mm × 高さ<input type="number" id="bakeH" value="0" min="0">mm
-      </div>
-      <div class="spec-dimension-row" style="margin-top:2px;">
-        焼成時間目安: <input type="text" id="bakeTime" placeholder="例: 10分" style="width:80px;">
-        写真: <input type="file" id="bakeImg" accept="image/*" style="width:160px;">
+      
+      <div class="spec-box">
+        <h4>焼成：
+          <select id="bakeTime" style="width: auto; padding: 1px; font-size: 11px;">
+            <option value="1">1</option>
+            <option value="2">2</option>
+            <option value="3">3</option>
+            <option value="4">4</option>
+            <option value="5">5</option>
+            <option value="6">6</option>
+            <option value="7">7</option>
+            <option value="8">8</option>
+            <option value="9">9</option>
+            <option value="10" selected>10</option>
+            <option value="11">11</option>
+            <option value="12">12</option>
+            <option value="13">13</option>
+            <option value="14">14</option>
+            <option value="15">15</option>
+            <option value="16">16</option>
+            <option value="17">17</option>
+            <option value="18">18</option>
+            <option value="19">19</option>
+            <option value="20">20</option>
+            <option value="25">25</option>
+            <option value="30">30</option>
+            <option value="35">35</option>
+            <option value="40">40</option>
+            <option value="45">45</option>
+            <option value="50">50</option>
+            <option value="60">60</option>
+          </select> 分</h4>
+        <div class="spec-info">
+          <div class="spec-dimension-row">
+            寸法: 縦<input type="number" id="bakeL" value="0" min="0">×横<input type="number" id="bakeW" value="0" min="0">×高さ<input type="number" id="bakeH" value="0" min="0">mm
+          </div>
+        </div>
+        <div class="image-upload-box" onclick="triggerFileInput(this)">
+          <input type="file" id="bakeImg" class="image-file-input" accept="image/*" onchange="previewImage(this)">
+          <div class="image-placeholder">
+            <span>📷 写真を選択</span>
+          </div>
+          <div class="image-preview" style="display: none;">
+            <img>
+            <button type="button" class="del-image-btn edit-only-btn" onclick="clearImage(event, this)">×</button>
+          </div>
+        </div>
       </div>
     </div>
 
     <!-- 生地出庫 -->
-    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom: 5px;">
-      <h2 style="margin:0;">生地出庫</h2>
-      <div style="display:flex; gap:5px; align-items:center;">
-        <select id="dispatchTemplate" onchange="applyDispatchTemplate()" style="padding: 2px 5px; font-size: 0.8rem;">
-          <option value="">-- 出庫手順テンプレートを選択 --</option>
-          <option value="temp1">玉生地・棒生地</option>
-          <option value="temp2">シート生地①（クロワッサン等）</option>
-          <option value="temp3">シート生地②（チャバタ）</option>
-          <option value="temp4">シート生地③（ロデヴ等）</option>
-        </select>
-      </div>
-    </div>
-    <div class="row">
-      <div style="flex: 1;">
-        <label>生地名・条件等</label>
-        <input type="text" id="dispatchTitle" placeholder="例: スティッククロワッサン生地　HT：24ｈ">
-      </div>
-    </div>
-    <div id="dispatchStepsContainer">
-      <div class="step-input-row dispatch-step-row">
-        <span class="step-num-label">①</span>
-        <input type="text" class="step-text" placeholder="出庫手順を入力">
-        <button type="button" class="del-btn" onclick="removeRow(this, 'dispatch')">🗑️</button>
-      </div>
-    </div>
-    <button type="button" class="add-btn" onclick="addDispatchStep()">＋ 出庫手順に行を追加</button>
-
-    <!-- 作業手順 -->
-    <h2>作業手順</h2>
-    <div id="stepsContainer">
-      <!-- 1つの手順ブロック（画像1つ + 複数テキスト行） -->
-      <div class="step-block" data-block-id="1">
-        <div class="step-block-header">
-          <div style="display:flex; align-items:center; gap:5px; flex:1;">
-            <span class="block-title" style="color:#e91e63;">手順①</span>
-            画像: <input type="file" class="block-img" accept="image/*" style="width:180px;">
-            <select class="step-template-select" onchange="applyStepTemplate(this)" style="margin-left: 10px; font-size: 0.8rem; padding: 2px;">
-              <option value="">-- 定型文挿入 --</option>
-              <option value="proof">ホイロ</option>
-              <option value="bake1">焼成①</option>
-              <option value="bake2">焼成②（スチーム）</option>
-              <option value="bake3">焼成③（2重鉄板）</option>
-              <option value="bake4">焼成④（クッキングシート）</option>
-            </select>
-          </div>
-          <button type="button" class="del-btn" style="width:auto; padding:2px 5px;" onclick="removeStepBlock(this)">ブロック削除</button>
+    <div id="dispatchSection">
+      <div style="font-weight:bold; margin-bottom:3px; color:#444; border-bottom: 1px solid #ccc; padding-bottom: 2px; display: flex; align-items: center; justify-content: space-between;">
+        <div style="display: flex; align-items: center; gap: 5px; flex: 1;">
+          <strong>■ 生地出庫：</strong>
+          <input type="text" id="dispatchTitle" placeholder="例: スティッククロワッサン生地 HT: 24h" style="font-size: 10px; color: #1565c0; font-weight: normal; flex: 1;" oninput="updateDispatchVisibility()">
         </div>
-        <div class="step-text-rows">
-          <div class="step-input-row step-row">
-            <input type="text" class="step-text" placeholder="作業手順のテキストを入力">
-            <button type="button" class="del-btn" onclick="removeRow(this, 'step')">🗑️</button>
+        <div class="edit-only-btn" style="display: flex; gap: 5px; align-items: center;">
+          <select id="dispatchTemplate" onchange="applyDispatchTemplate()" style="padding: 1px 4px; font-size: 9px; width: auto;">
+            <option value="">-- テンプレート --</option>
+            <option value="temp1">玉生地・棒生地</option>
+            <option value="temp2">シート生地①</option>
+            <option value="temp3">シート生地②</option>
+            <option value="temp4">シート生地③</option>
+          </select>
+        </div>
+      </div>
+      <div id="dispatchStepsContainer">
+        <div class="step-input-row dispatch-step-row" style="align-items: stretch;">
+          <span class="step-num-label" style="display: flex; align-items: center; justify-content: center; height: auto;">①</span>
+          <textarea class="step-text step-textarea" placeholder="出庫手順を入力" rows="1" oninput="autoResizeTextarea(this); updateDispatchVisibility();" style="flex: 1; min-height: 18px; height: 18px; padding: 2px 4px; resize: none; overflow-y: hidden;"></textarea>
+          <div style="display: flex; align-items: center; padding-left: 2px;">
+            <button type="button" class="del-btn edit-only-btn" onclick="removeRow(this, 'dispatch')">🗑️</button>
           </div>
         </div>
-        <button type="button" class="add-btn" style="background:#8bc34a; margin-top:0;" onclick="addStepRow(this)">＋ この手順に行を追加</button>
+      </div>
+      <button type="button" class="add-btn edit-only-btn" style="margin-top: 2px;" onclick="addDispatchStep()">＋ 出庫手順に行を追加</button>
+    </div>
+
+    <!-- 作業手順の2カラム化コンテナ -->
+    <div class="steps-grid">
+      <div id="outStepsLeft" class="steps-col">
+        <!-- Steps 1-4 elements go here -->
+      </div>
+      <div id="outStepsRight" class="steps-col">
+        <!-- Steps 5-8 elements go here -->
       </div>
     </div>
-    <button type="button" class="add-btn" onclick="addStepBlock()">＋ 新しい手順ブロックを追加</button>
-
-    <!-- スタンバイ -->
-    <h2>スタンバイ</h2>
-    <div id="standbyContainer">
-      <!-- 1つのスタンバイブロック（画像1つ + 複数テキスト行） -->
-      <div class="step-block standby-block" data-block-id="s1">
-        <div class="step-block-header">
-          <div style="display:flex; align-items:center; gap:5px; flex:1;">
-            <span class="s-block-title" style="color:#2196f3;">スタンバイ①</span>
-            画像: <input type="file" class="block-img" accept="image/*" style="width:180px;">
-          </div>
-          <button type="button" class="del-btn" style="width:auto; padding:2px 5px;" onclick="removeStandbyBlock(this)">ブロック削除</button>
-        </div>
-        <div class="step-text-rows">
-          <div class="step-input-row step-row">
-            <input type="text" class="step-text" placeholder="スタンバイ手順のテキストを入力">
-            <button type="button" class="del-btn" onclick="removeRow(this, 'step')">🗑️</button>
-          </div>
-        </div>
-        <button type="button" class="add-btn" style="background:#8bc34a; margin-top:0;" onclick="addStepRow(this)">＋ このスタンバイに行を追加</button>
-      </div>
-    </div>
-    <button type="button" class="add-btn" onclick="addStandbyBlock()">＋ 新しいスタンバイブロックを追加</button>
-
-    <div class="action-buttons">
-      <button type="button" onclick="generateManual()">プレビュー表示</button>
-      <button type="button" class="print-btn" onclick="printManual()">PDF保存・印刷</button>
-      <button type="button" class="excel-btn" onclick="downloadExcel()">ExcelでDL</button>
-    </div>
-  </form>
-</div>
-
-<!-- 出力エリア -->
-<div id="previewWrapper">
-<div id="outputArea">
-  <div class="preview-header">
-    <div class="preview-left">
-      <div class="preview-title-area">
-        <div><strong>実施期間:</strong> <span id="outPeriod"></span></div>
-        <h2 id="outTitle">商品名称: </h2>
-      </div>
+    <div id="outStepsFull" class="steps-full">
+      <!-- Steps 9+ elements go here -->
       
-      <table class="output-table">
-        <thead>
-          <tr>
-            <th style="width: 15%;">コード</th>
-            <th style="width: 53%;">品名</th>
-            <th style="width: 14%;">使用量</th>
-            <th style="width: 18%; text-align: center;">スタンバイ</th>
-          </tr>
-        </thead>
-        <tbody id="outIngredients"></tbody>
-      </table>
-    </div>
-    <div class="preview-right main-image-container">
-      <div style="font-weight:bold; font-size:0.8rem; margin-bottom:2px; background:#e8f5e9; width:100%; text-align:center;">完成写真</div>
-      <div id="outMainImage" style="width:100%; text-align:center;"></div>
-    </div>
-  </div>
-
-  <div class="specs-container">
-    <div class="spec-box">
-      <h4>成型</h4>
-      <div class="spec-info">
-        <div id="outMoldDim"></div>
-        <div><strong>1鉄板最大載せ数:</strong> <span id="outMaxLoad"></span></div>
+      <!-- Initial block on load -->
+      <div class="step-block" data-block-type="step">
+        <div class="step-block-header edit-only-row">
+          <span class="block-title" style="color:#e91e63;">手順①</span>
+          <select class="step-template-select edit-only-btn" onchange="applyStepTemplate(this)" style="margin-left: 10px; font-size: 0.8rem; padding: 2px;">
+            <option value="">-- 定型文挿入 --</option>
+            <option value="proof">ホイロ</option>
+            <option value="bake1">焼成①</option>
+            <option value="bake2">焼成②（スチーム）</option>
+            <option value="bake3">焼成③（2重天板）</option>
+            <option value="bake4">焼成④（クッキングシート）</option>
+          </select>
+          <button type="button" class="del-btn edit-only-btn" style="width:auto; padding:2px 5px;" onclick="removeStepBlock(this)">ブロック削除</button>
+        </div>
+        <div class="step-preview-block">
+          <div class="step-img-out">
+            <div class="print-only-block-title" style="font-weight:bold; margin-bottom:2px; text-align:left;">手順①</div>
+            <div class="image-upload-box" onclick="triggerFileInput(this)">
+              <input type="file" class="image-file-input block-img" accept="image/*" onchange="previewImage(this)">
+              <div class="image-placeholder">
+                <span>📷 写真を選択</span>
+              </div>
+              <div class="image-preview" style="display: none;">
+                <img>
+                <button type="button" class="del-image-btn edit-only-btn" onclick="clearImage(event, this)">×</button>
+              </div>
+            </div>
+          </div>
+          <div class="step-texts-out">
+            <textarea class="step-textarea" placeholder="手順を自由に入力してください" oninput="autoResizeTextarea(this)"></textarea>
+          </div>
+        </div>
       </div>
-      <div class="spec-img-preview" id="outMoldImg"></div>
     </div>
-    <div class="spec-box">
-      <h4>ホイロ</h4>
-      <div class="spec-info">
-        <div id="outProofDim"></div>
-        <div><strong>ホイロ時間目安:</strong> <span id="outProofTime"></span></div>
+
+    <div style="margin-top: 10px; display: flex; gap: 10px;" class="edit-only-row">
+      <button type="button" class="add-btn" style="background:#e91e63;" onclick="addStepBlock()">＋ 手順ブロックを追加</button>
+      <button type="button" class="add-btn" style="background:#2196f3;" onclick="addStandbyBlock()">＋ スタンバイブロックを追加</button>
+    </div>
+
+    <!-- スタンバイセクション -->
+    <div id="standbySection">
+      <div style="font-weight:bold; font-size:0.8rem; margin-bottom:3px; color:#1565c0; border-bottom: 1px solid #1565c0; padding-bottom: 2px;">
+        ■ スタンバイ
       </div>
-      <div class="spec-img-preview" id="outProofImg"></div>
-    </div>
-    <div class="spec-box">
-      <h4>焼成</h4>
-      <div class="spec-info">
-        <div id="outBakeDim"></div>
-        <div><strong>焼成時間目安:</strong> <span id="outBakeTime"></span></div>
+      <div id="standbyContainer">
+        <!-- スタンバイブロックがここに追加される -->
       </div>
-      <div class="spec-img-preview" id="outBakeImg"></div>
     </div>
-  </div>
 
-  <div id="dispatchSection" style="display:none; margin-bottom: 4px; padding: 4px; border: 1px solid #b0bec5; border-radius: 4px; background-color: #fafafa;">
-    <div style="font-weight:bold; font-size:0.8rem; margin-bottom:3px; color:#444; border-bottom: 1px solid #ccc; padding-bottom: 2px;">
-      <span>■ 生地出庫：</span>
-      <span id="outDispatchTitle" style="font-weight: normal; color: #1565c0; font-size: 0.75rem;"></span>
-    </div>
-    <div id="outDispatchArea"></div>
   </div>
-
-  <!-- 手順の2カラム化コンテナ -->
-  <div class="steps-grid">
-    <div id="outStepsLeft" class="steps-col"></div>
-    <div id="outStepsRight" class="steps-col"></div>
-  </div>
-  <div id="outStepsFull" class="steps-full"></div>
-
-  <!-- スタンバイの全幅コンテナ -->
-  <div id="standbySection" style="display:none; margin-top: 10px;">
-    <div id="outStandbyArea" class="steps-full"></div>
-  </div>
-
 </div>
 
 <script>
   const circleNums = ["①","②","③","④","⑤","⑥","⑦","⑧","⑨","⑩","⑪","⑫","⑬","⑭","⑮","⑯","⑰","⑱","⑲","⑳"];
 
-  // 生地出庫などの丸数字更新
+  // 安全なlocalStorageアクセスラッパー (SecurityError等によるJSクラッシュの防止)
+  const safeStorage = {
+    getItem(key) {
+      try { return localStorage.getItem(key); } catch (e) { return null; }
+    },
+    setItem(key, value) {
+      try { localStorage.setItem(key, value); } catch (e) {}
+    },
+    removeItem(key) {
+      try { localStorage.removeItem(key); } catch (e) {}
+    }
+  };
+
+  // テキストエリアの高さ自動調整
+  function autoResizeTextarea(textarea) {
+    textarea.style.height = 'auto';
+    textarea.style.height = textarea.scrollHeight + 'px';
+  }
+
+  // 生地の連番などの更新
   function updateNumbers(containerId, rowClass) {
     const container = document.getElementById(containerId);
     const rows = container.querySelectorAll('.' + rowClass);
@@ -505,17 +870,44 @@
     });
   }
 
-  // 手順ブロックのヘッダー「手順①」の更新
+  // 手順ブロックの連番更新と自動レイアウト振り分け
+  function reorganizeStepBlocks() {
+    const blocks = Array.from(document.querySelectorAll('#outputArea .step-block[data-block-type="step"]'));
+    const outLeft = document.getElementById('outStepsLeft');
+    const outRight = document.getElementById('outStepsRight');
+    const outFull = document.getElementById('outStepsFull');
+
+    outLeft.innerHTML = '';
+    outRight.innerHTML = '';
+    outFull.innerHTML = '';
+
+    blocks.forEach((block, index) => {
+      if (index < 4) {
+        outLeft.appendChild(block);
+      } else if (index < 8) {
+        outRight.appendChild(block);
+      } else {
+        outFull.appendChild(block);
+      }
+    });
+
+    updateBlockNumbers();
+    adjustPreviewScale();
+  }
+
+  // 手順ブロックヘッダー「手順①」の連番更新
   function updateBlockNumbers() {
-    const blocks = document.getElementById('stepsContainer').querySelectorAll('.step-block');
+    const blocks = document.querySelectorAll('#outputArea .step-block[data-block-type="step"]');
     blocks.forEach((block, index) => {
       const titleSpan = block.querySelector('.block-title');
+      const printTitle = block.querySelector('.print-only-block-title');
       const numStr = index < circleNums.length ? circleNums[index] : `(${index + 1})`;
       if(titleSpan) titleSpan.innerText = `手順${numStr}`;
+      if(printTitle) printTitle.innerText = `手順${numStr}`;
     });
   }
 
-  // スタンバイブロックのヘッダー「スタンバイ」の更新（番号なし）
+  // スタンバイブロックのヘッダー「スタンバイ」の更新
   function updateStandbyBlockNumbers() {
     const blocks = document.getElementById('standbyContainer').querySelectorAll('.standby-block');
     blocks.forEach((block) => {
@@ -525,47 +917,39 @@
   }
 
   function removeRow(btn, type) {
-    const row = btn.closest('.row, .step-input-row');
-    const container = row.parentElement;
+    const row = btn.closest('.row, .step-input-row, .ing-row');
     row.remove();
     
     if (type === 'dispatch') {
       updateNumbers('dispatchStepsContainer', 'dispatch-step-row');
+      updateDispatchVisibility();
     }
-    // stepの行は番号付けがないので何もしない
+    adjustPreviewScale();
   }
 
   function removeStepBlock(btn) {
     const block = btn.closest('.step-block');
     block.remove();
-    updateBlockNumbers();
+    reorganizeStepBlocks();
   }
 
   function removeStandbyBlock(btn) {
     const block = btn.closest('.standby-block');
     block.remove();
     updateStandbyBlockNumbers();
+    updateStandbyVisibility();
+    adjustPreviewScale();
   }
 
   function addIngredient() {
     const container = document.getElementById('ingredientsContainer');
-    const div = document.createElement('div');
-    div.className = 'row ing-row';
-    div.innerHTML = `
-      <div style="flex: 1;">
-        <div class="autocomplete-wrapper">
-          <input type="text" class="ing-code" placeholder="コード">
-          <span class="dropdown-arrow">▼</span>
-        </div>
-      </div>
-      <div style="flex: 2;">
-        <div class="autocomplete-wrapper">
-          <input type="text" class="ing-name" placeholder="品名">
-          <span class="dropdown-arrow">▼</span>
-        </div>
-      </div>
-      <div style="flex: 1;"><input type="number" class="ing-amount" step="any" placeholder="使用量"></div>
-      <div style="flex: 0.8;">
+    const tr = document.createElement('tr');
+    tr.className = 'ing-row';
+    tr.innerHTML = `
+      <td><input type="text" class="ing-code" placeholder="コード"></td>
+      <td><input type="text" class="ing-name" placeholder="品名"></td>
+      <td><input type="number" class="ing-amount" step="any" placeholder="使用量"></td>
+      <td>
         <select class="ing-unit">
           <option value="g">g</option>
           <option value="kg">kg</option>
@@ -573,61 +957,90 @@
           <option value="L">L</option>
           <option value="個">個</option>
           <option value="枚">枚</option>
+          <option value="本">本</option>
+          <option value="尾">尾</option>
+          <option value="杯">杯</option>
+          <option value="種">種</option>
+          <option value="人前">人前</option>
+          <option value="円">円</option>
           <option value="適量">適量</option>
         </select>
-      </div>
-      <div style="flex: 0.6; text-align: center; display: flex; align-items: center; justify-content: center; gap: 2px;">
-        <input type="checkbox" class="ing-standby" style="width: auto; margin: 0;">
-        <span style="font-size: 0.7rem; font-weight: bold;">スタ</span>
-      </div>
-      <button type="button" class="del-btn" onclick="removeRow(this, 'ing')">🗑️</button>`;
-    container.appendChild(div);
+      </td>
+      <td style="text-align: center; position: relative;">
+        <select class="ing-standby">
+          <option value=""></option>
+          <option value="スタンバイ">スタンバイ</option>
+        </select>
+        <span class="print-standby-check">✔</span>
+      </td>
+      <td class="edit-only-col" style="text-align: center;">
+        <button type="button" class="del-btn edit-only-btn" onclick="removeRow(this, 'ing')">🗑️</button>
+      </td>`;
+    container.appendChild(tr);
+    adjustPreviewScale();
   }
 
   function addDispatchStep() {
     const container = document.getElementById('dispatchStepsContainer');
     const div = document.createElement('div');
     div.className = 'step-input-row dispatch-step-row';
+    div.style.alignItems = 'stretch';
     div.innerHTML = `
-      <span class="step-num-label"></span>
-      <input type="text" class="step-text" placeholder="出庫手順を入力">
-      <button type="button" class="del-btn" onclick="removeRow(this, 'dispatch')">🗑️</button>`;
+      <span class="step-num-label" style="display: flex; align-items: center; justify-content: center; height: auto;"></span>
+      <textarea class="step-text step-textarea" placeholder="出庫手順を入力" rows="1" oninput="autoResizeTextarea(this); updateDispatchVisibility();" style="flex: 1; min-height: 18px; height: 18px; padding: 2px 4px; resize: none; overflow-y: hidden;"></textarea>
+      <div style="display: flex; align-items: center; padding-left: 2px;">
+        <button type="button" class="del-btn edit-only-btn" onclick="removeRow(this, 'dispatch')">🗑️</button>
+      </div>`;
     container.appendChild(div);
     updateNumbers('dispatchStepsContainer', 'dispatch-step-row');
+    updateDispatchVisibility();
+    adjustPreviewScale();
   }
 
   function addStepBlock() {
-    const container = document.getElementById('stepsContainer');
+    const container = document.getElementById('outStepsFull');
     const blockId = Date.now();
     const div = document.createElement('div');
     div.className = 'step-block';
     div.setAttribute('data-block-id', blockId);
+    div.setAttribute('data-block-type', 'step');
     div.innerHTML = `
-      <div class="step-block-header">
-        <div style="display:flex; align-items:center; gap:5px; flex:1;">
-          <span class="block-title" style="color:#e91e63;">手順</span>
-          画像: <input type="file" class="block-img" accept="image/*" style="width:180px;">
-          <select class="step-template-select" onchange="applyStepTemplate(this)" style="margin-left: 10px; font-size: 0.8rem; padding: 2px;">
-            <option value="">-- 定型文挿入 --</option>
-            <option value="proof">ホイロ</option>
-            <option value="bake1">焼成①</option>
-            <option value="bake2">焼成②（スチーム）</option>
-            <option value="bake3">焼成③（2重鉄板）</option>
-            <option value="bake4">焼成④（クッキングシート）</option>
-          </select>
-        </div>
-        <button type="button" class="del-btn" style="width:auto; padding:2px 5px;" onclick="removeStepBlock(this)">ブロック削除</button>
+      <div class="step-block-header edit-only-row">
+        <span class="block-title" style="color:#e91e63;">手順</span>
+        <select class="step-template-select edit-only-btn" onchange="applyStepTemplate(this)" style="margin-left: 10px; font-size: 0.8rem; padding: 2px;">
+          <option value="">-- 定型文挿入 --</option>
+          <option value="proof">ホイロ</option>
+          <option value="bake1">焼成①</option>
+          <option value="bake2">焼成②（スチーム）</option>
+          <option value="bake3">焼成③（2重天板）</option>
+          <option value="bake4">焼成④（クッキングシート）</option>
+        </select>
+        <button type="button" class="del-btn edit-only-btn" style="width:auto; padding:2px 5px;" onclick="removeStepBlock(this)">ブロック削除</button>
       </div>
-      <div class="step-text-rows">
-        <div class="step-input-row step-row">
-          <input type="text" class="step-text" placeholder="作業手順のテキストを入力">
-          <button type="button" class="del-btn" onclick="removeRow(this, 'step')">🗑️</button>
+      <div class="step-preview-block">
+        <div class="step-img-out">
+          <div class="print-only-block-title" style="font-weight:bold; margin-bottom:2px; text-align:left;">手順</div>
+          <div class="image-upload-box" onclick="triggerFileInput(this)">
+            <input type="file" class="image-file-input block-img" accept="image/*" onchange="previewImage(this)">
+            <div class="image-placeholder">
+              <span>📷 写真を選択</span>
+            </div>
+            <div class="image-preview" style="display: none;">
+              <img>
+              <button type="button" class="del-image-btn edit-only-btn" onclick="clearImage(event, this)">×</button>
+            </div>
+          </div>
+        </div>
+        <div class="step-texts-out">
+          <textarea class="step-textarea" placeholder="手順を自由に入力してください" oninput="autoResizeTextarea(this)"></textarea>
         </div>
       </div>
-      <button type="button" class="add-btn" style="background:#8bc34a; margin-top:0;" onclick="addStepRow(this)">＋ この手順に行を追加</button>
     `;
     container.appendChild(div);
-    updateBlockNumbers();
+    reorganizeStepBlocks();
+    
+    const newTextarea = div.querySelector('.step-textarea');
+    if (newTextarea) autoResizeTextarea(newTextarea);
   }
 
   function addStandbyBlock() {
@@ -636,250 +1049,108 @@
     const div = document.createElement('div');
     div.className = 'step-block standby-block';
     div.setAttribute('data-block-id', 's' + blockId);
+    div.setAttribute('data-block-type', 'standby');
     div.innerHTML = `
-      <div class="step-block-header">
-        <div style="display:flex; align-items:center; gap:5px; flex:1;">
-          <span class="s-block-title" style="color:#2196f3;">スタンバイ</span>
-          画像: <input type="file" class="block-img" accept="image/*" style="width:180px;">
-        </div>
-        <button type="button" class="del-btn" style="width:auto; padding:2px 5px;" onclick="removeStandbyBlock(this)">ブロック削除</button>
+      <div class="step-block-header edit-only-row">
+        <span class="s-block-title" style="color:#2196f3;">スタンバイ</span>
+        <button type="button" class="del-btn edit-only-btn" style="width:auto; padding:2px 5px;" onclick="removeStandbyBlock(this)">ブロック削除</button>
       </div>
-      <div class="step-text-rows">
-        <div class="step-input-row step-row">
-          <input type="text" class="step-text" placeholder="スタンバイ手順のテキストを入力">
-          <button type="button" class="del-btn" onclick="removeRow(this, 'step')">🗑️</button>
+      <div class="step-preview-block">
+        <div class="step-img-out">
+          <div class="print-only-block-title" style="font-weight:bold; margin-bottom:2px; text-align:left; background-color: #e3f2fd; padding: 2px;">スタンバイ</div>
+          <div class="image-upload-box" onclick="triggerFileInput(this)">
+            <input type="file" class="image-file-input block-img" accept="image/*" onchange="previewImage(this)">
+            <div class="image-placeholder">
+              <span>📷 写真を選択</span>
+            </div>
+            <div class="image-preview" style="display: none;">
+              <img>
+              <button type="button" class="del-image-btn edit-only-btn" onclick="clearImage(event, this)">×</button>
+            </div>
+          </div>
+        </div>
+        <div class="step-texts-out">
+          <textarea class="step-textarea" placeholder="スタンバイ手順を自由に入力してください" oninput="autoResizeTextarea(this); updateStandbyVisibility();"></textarea>
         </div>
       </div>
-      <button type="button" class="add-btn" style="background:#8bc34a; margin-top:0;" onclick="addStepRow(this)">＋ このスタンバイに行を追加</button>
     `;
     container.appendChild(div);
     updateStandbyBlockNumbers();
+    updateStandbyVisibility();
+    adjustPreviewScale();
+    
+    const newTextarea = div.querySelector('.step-textarea');
+    if (newTextarea) autoResizeTextarea(newTextarea);
   }
 
-  function addStepRow(btn) {
-    const textRowsContainer = btn.previousElementSibling;
-    const div = document.createElement('div');
-    div.className = 'step-input-row step-row';
-    div.innerHTML = `
-      <input type="text" class="step-text" placeholder="テキストを入力">
-      <button type="button" class="del-btn" onclick="removeRow(this, 'step')">🗑️</button>`;
-    textRowsContainer.appendChild(div);
+  // 画像アップローダーの動作処理
+  function triggerFileInput(box) {
+    const fileInput = box.querySelector('input[type="file"]');
+    if (fileInput) fileInput.click();
   }
 
-  function renderImage(fileInputId, outputContainerId) {
-    const input = typeof fileInputId === 'string' ? document.getElementById(fileInputId) : fileInputId;
-    const container = typeof outputContainerId === 'string' ? document.getElementById(outputContainerId) : outputContainerId;
-    container.innerHTML = '';
-    if (input && input.files && input.files[0]) {
-      const imgUrl = URL.createObjectURL(input.files[0]);
-      container.innerHTML = `<img src="${imgUrl}">`;
+  // 画像プレビュー処理
+  function previewImage(input) {
+    const box = input.closest('.image-upload-box');
+    const placeholder = box.querySelector('.image-placeholder');
+    const preview = box.querySelector('.image-preview');
+    const img = preview.querySelector('img');
+    
+    if (input.files && input.files[0]) {
+      const url = URL.createObjectURL(input.files[0]);
+      img.src = url;
+      placeholder.style.display = 'none';
+      preview.style.display = 'flex';
+      updateStandbyVisibility();
     }
   }
 
+  // 画像クリア処理
+  function clearImage(event, btn) {
+    event.stopPropagation();
+    const box = btn.closest('.image-upload-box');
+    const fileInput = box.querySelector('input[type="file"]');
+    const placeholder = box.querySelector('.image-placeholder');
+    const preview = box.querySelector('.image-preview');
+    const img = preview.querySelector('img');
+    
+    fileInput.value = '';
+    img.src = '';
+    placeholder.style.display = 'flex';
+    preview.style.display = 'none';
+    updateStandbyVisibility();
+  }
+
+  // プレビューの縮小率の調整
   function adjustPreviewScale() {
-    const wrapper = document.getElementById('previewWrapper');
+    const wrapper = document.getElementById('editorWrapper');
     const outputArea = document.getElementById('outputArea');
-    if (wrapper.style.display !== 'none') {
-      const wrapperWidth = wrapper.clientWidth;
-      // A4の210mmは約794px。余白含めて820px程度を基準に縮小
-      const scale = Math.min(1, wrapperWidth / 820);
-      outputArea.style.transform = `scale(${scale})`;
-      if (scale < 1) {
-        // スケールされた後の高さを確保して親要素が潰れないようにする
-        const rect = outputArea.getBoundingClientRect();
-        wrapper.style.height = (rect.height + 40) + 'px';
-      } else {
-        wrapper.style.height = 'auto';
-      }
+    if (!wrapper || !outputArea) return;
+
+    if (window.innerWidth <= 600) {
+      outputArea.style.transform = 'none';
+      wrapper.style.height = 'auto';
+      return;
+    }
+    
+    const wrapperWidth = wrapper.clientWidth;
+    const pageTargetWidth = 840;
+    const scale = Math.min(1, (wrapperWidth - 20) / pageTargetWidth);
+    
+    outputArea.style.transform = `scale(${scale})`;
+    outputArea.style.transformOrigin = 'top center';
+    
+    if (scale < 1) {
+      const rect = outputArea.getBoundingClientRect();
+      wrapper.style.height = (rect.height + 20) + 'px';
+    } else {
+      wrapper.style.height = 'auto';
     }
   }
 
   window.addEventListener('resize', adjustPreviewScale);
 
-  function generateManual() {
-    const wrapper = document.getElementById('previewWrapper');
-    wrapper.style.display = 'flex';
-    
-    // スケール調整
-    adjustPreviewScale();
-    
-    // 基本情報の反映
-    document.getElementById('outTitle').innerText = document.getElementById('productName').value || "商品名未設定";
-    const pStart = document.getElementById('periodStart').value;
-    const pEnd = document.getElementById('periodEnd').value;
-    document.getElementById('outPeriod').innerText = (pStart || pEnd) ? `${pStart} ～ ${pEnd}` : "-";
-
-    // 完成写真の反映
-    renderImage('mainImage', 'outMainImage');
-
-    // 食材の反映
-    const ingBody = document.getElementById('outIngredients');
-    ingBody.innerHTML = '';
-    document.querySelectorAll('#ingredientsContainer .ing-row').forEach(row => {
-      const code = row.querySelector('.ing-code').value;
-      const name = row.querySelector('.ing-name').value;
-      const amount = row.querySelector('.ing-amount').value;
-      const unit = row.querySelector('.ing-unit').value;
-      const standby = row.querySelector('.ing-standby').checked;
-      if(code || name || amount) {
-        const standbyHtml = standby ? '<span style="color: #1565c0; font-weight: bold; display: block; text-align: center;">✔</span>' : '';
-        const rowBg = standby ? ' style="background-color: #e3f2fd;"' : '';
-        ingBody.innerHTML += `<tr${rowBg}><td>${code}</td><td>${name}</td><td>${amount}${unit}</td><td>${standbyHtml}</td></tr>`;
-      }
-    });
-
-    // 規格寸法の反映
-    document.getElementById('outMoldDim').innerHTML = `<strong>寸法:</strong> 縦${document.getElementById('moldL').value}×横${document.getElementById('moldW').value}×高さ${document.getElementById('moldH').value} mm`;
-    document.getElementById('outProofDim').innerHTML = `<strong>寸法:</strong> 縦${document.getElementById('proofL').value}×横${document.getElementById('proofW').value}×高さ${document.getElementById('proofH').value} mm`;
-    document.getElementById('outBakeDim').innerHTML = `<strong>寸法:</strong> 縦${document.getElementById('bakeL').value}×横${document.getElementById('bakeW').value}×高さ${document.getElementById('bakeH').value} mm`;
-
-    // 規格条件の反映
-    document.getElementById('outMaxLoad').innerText = document.getElementById('maxLoad').value;
-    document.getElementById('outProofTime').innerText = document.getElementById('proofTime').value;
-    document.getElementById('outBakeTime').innerText = document.getElementById('bakeTime').value;
-
-    // 規格画像の反映
-    renderImage('moldImg', 'outMoldImg');
-    renderImage('proofImg', 'outProofImg');
-    renderImage('bakeImg', 'outBakeImg');
-    
-    // 生地出庫の反映
-    const dispatchTitleVal = document.getElementById('dispatchTitle').value.trim();
-    const dispatchOutArea = document.getElementById('outDispatchArea');
-    const outDispatchTitle = document.getElementById('outDispatchTitle');
-    dispatchOutArea.innerHTML = '';
-    
-    if(dispatchTitleVal) {
-      outDispatchTitle.innerText = dispatchTitleVal;
-      outDispatchTitle.style.display = 'inline';
-    } else {
-      outDispatchTitle.innerText = '';
-    }
-    
-    let dispatchHtml = '';
-    const dispatchRows = document.querySelectorAll('.dispatch-step-row');
-    let hasDispatchSteps = false;
-    dispatchRows.forEach((row) => {
-      const numLabel = row.querySelector('.step-num-label').innerText;
-      const textVal = row.querySelector('.step-text').value.trim();
-      if(textVal) {
-        hasDispatchSteps = true;
-        dispatchHtml += `
-          <div style="display:flex; gap:5px; margin-bottom:1px; font-size:0.75rem;">
-            <div style="font-weight:bold;">${numLabel}</div>
-            <div>${textVal}</div>
-          </div>`;
-      }
-    });
-
-    if (dispatchTitleVal || hasDispatchSteps) {
-      dispatchOutArea.innerHTML = dispatchHtml;
-      document.getElementById('dispatchSection').style.display = 'block';
-    } else {
-      document.getElementById('dispatchSection').style.display = 'none';
-    }
-
-    // 作業手順の反映（2カラム化）
-    const outLeft = document.getElementById('outStepsLeft');
-    const outRight = document.getElementById('outStepsRight');
-    const outFull = document.getElementById('outStepsFull');
-    outLeft.innerHTML = ''; outRight.innerHTML = ''; outFull.innerHTML = '';
-
-    const blocks = document.getElementById('stepsContainer').querySelectorAll('.step-block');
-    blocks.forEach((block, index) => {
-      const fileInput = block.querySelector('.block-img');
-      const hasImg = fileInput && fileInput.files && fileInput.files[0];
-      const textRows = block.querySelectorAll('.step-row');
-      
-      let textsHtml = '';
-      let hasText = false;
-      textRows.forEach((row) => {
-        const textVal = row.querySelector('.step-text').value.trim();
-        if(textVal) {
-          hasText = true;
-          textsHtml += `<div style="margin-bottom:2px;">・${textVal}</div>`;
-        }
-      });
-
-      if(hasText || hasImg) {
-        let imgHtml = '';
-        if (hasImg) {
-           const imgUrl = URL.createObjectURL(fileInput.files[0]);
-           imgHtml = `<img src="${imgUrl}">`;
-        }
-        
-        const numStr = index < circleNums.length ? circleNums[index] : `(${index + 1})`;
-        const blockHtml = `
-          <div class="step-preview-block">
-            <div class="step-img-out">
-              <div style="font-weight:bold; margin-bottom:2px; text-align:left;">手順${numStr}</div>
-              ${imgHtml}
-            </div>
-            <div class="step-texts-out" style="padding-top:14px;">${textsHtml}</div>
-          </div>`;
-        
-        if (index < 4) { outLeft.innerHTML += blockHtml; } 
-        else if (index < 8) { outRight.innerHTML += blockHtml; } 
-        else { outFull.innerHTML += blockHtml; }
-      }
-    });
-
-    // スタンバイの反映（全幅）
-    const outStandbyArea = document.getElementById('outStandbyArea');
-    outStandbyArea.innerHTML = '';
-
-    const sBlocks = document.getElementById('standbyContainer').querySelectorAll('.standby-block');
-    let hasStandby = false;
-    sBlocks.forEach((block) => {
-      const fileInput = block.querySelector('.block-img');
-      const hasImg = fileInput && fileInput.files && fileInput.files[0];
-      const textRows = block.querySelectorAll('.step-row');
-      
-      let textsHtml = '';
-      let hasText = false;
-      textRows.forEach((row) => {
-        const textVal = row.querySelector('.step-text').value.trim();
-        if(textVal) {
-          hasText = true;
-          textsHtml += `<div style="margin-bottom:2px;">・${textVal}</div>`;
-        }
-      });
-
-      if(hasText || hasImg) {
-        hasStandby = true;
-        let imgHtml = '';
-        if (hasImg) {
-           const imgUrl = URL.createObjectURL(fileInput.files[0]);
-           imgHtml = `<img src="${imgUrl}">`;
-        }
-        
-        const blockHtml = `
-          <div class="step-preview-block">
-            <div class="step-img-out">
-              <div style="font-weight:bold; margin-bottom:2px; text-align:left; background-color: #e3f2fd; padding: 2px;">スタンバイ</div>
-              ${imgHtml}
-            </div>
-            <div class="step-texts-out" style="padding-top:14px;">${textsHtml}</div>
-          </div>`;
-        
-        outStandbyArea.innerHTML += blockHtml;
-      }
-    });
-
-    if (hasStandby) {
-      document.getElementById('standbySection').style.display = 'block';
-    } else {
-      document.getElementById('standbySection').style.display = 'none';
-    }
-  }
-
-  function printManual() {
-    generateManual(); // 最新をプレビュー
-    setTimeout(() => {
-      window.print();
-    }, 500);
-  }
-
+  // Excelダウンロード処理
   function downloadExcel() {
     const data = [];
     
@@ -896,7 +1167,7 @@
       const name = row.querySelector('.ing-name').value;
       const amount = row.querySelector('.ing-amount').value;
       const unit = row.querySelector('.ing-unit').value;
-      const standby = row.querySelector('.ing-standby').checked;
+      const standby = row.querySelector('.ing-standby').value === 'スタンバイ';
       if(code || name || amount) {
         data.push([code, name, `${amount}${unit}`, standby ? "〇" : ""]);
       }
@@ -911,9 +1182,9 @@
     data.push(["寸法", moldD, proofD, bakeD]);
     data.push([
       "条件", 
-      `1鉄板最大載せ数: ${document.getElementById('maxLoad').value}`, 
-      `ホイロ時間: ${document.getElementById('proofTime').value}`, 
-      `焼成時間: ${document.getElementById('bakeTime').value}`
+      `1鉄板最大載せ数: ${document.getElementById('maxLoad').value || "6"} 個`, 
+      `ホイロ時間: ${document.getElementById('proofTime').value || "40"} 分`, 
+      `焼成時間: ${document.getElementById('bakeTime').value || "10"} 分`
     ]);
     data.push([]);
 
@@ -937,38 +1208,50 @@
     }
 
     // 手順
-    const blocks = document.getElementById('stepsContainer').querySelectorAll('.step-block');
+    const blocks = document.querySelectorAll('#outputArea .step-block[data-block-type="step"]');
     blocks.forEach((block, index) => {
       const numStr = index < circleNums.length ? circleNums[index] : `(${index + 1})`;
       data.push([`手順${numStr}`]);
       
-      const textRows = block.querySelectorAll('.step-row');
-      textRows.forEach((row) => {
-        const textVal = row.querySelector('.step-text').value.trim();
-        if(textVal) {
-          data.push(["・", textVal]);
-        }
-      });
+      const textarea = block.querySelector('.step-textarea');
+      if (textarea && textarea.value.trim()) {
+        const lines = textarea.value.trim().split('\n');
+        lines.forEach((line) => {
+          let cleanedLine = line.trim();
+          if (cleanedLine) {
+            if (cleanedLine.startsWith('・')) {
+              cleanedLine = cleanedLine.substring(1).trim();
+            }
+            data.push(["・", cleanedLine]);
+          }
+        });
+      }
       data.push([]);
     });
 
     // スタンバイ
-    const sBlocks = document.getElementById('standbyContainer').querySelectorAll('.standby-block');
+    const sBlocks = document.querySelectorAll('#standbyContainer .standby-block');
     let hasStandbyData = false;
     const sData = [];
     sBlocks.forEach((block) => {
       sData.push([`スタンバイ`]);
       
       let hasText = false;
-      const textRows = block.querySelectorAll('.step-row');
-      textRows.forEach((row) => {
-        const textVal = row.querySelector('.step-text').value.trim();
-        if(textVal) {
-          sData.push(["・", textVal]);
-          hasText = true;
-          hasStandbyData = true;
-        }
-      });
+      const textarea = block.querySelector('.step-textarea');
+      if (textarea && textarea.value.trim()) {
+        const lines = textarea.value.trim().split('\n');
+        lines.forEach((line) => {
+          let cleanedLine = line.trim();
+          if (cleanedLine) {
+            if (cleanedLine.startsWith('・')) {
+              cleanedLine = cleanedLine.substring(1).trim();
+            }
+            sData.push(["・", cleanedLine]);
+            hasText = true;
+            hasStandbyData = true;
+          }
+        });
+      }
       if(hasText) sData.push([]);
     });
     if (hasStandbyData) {
@@ -985,7 +1268,7 @@
   
   // テンプレートデータ
   const dispatchTitles = {
-    temp1: "玉生地（ホテル・イギリス・よもぎ・レーズン・バジル）棒生地（トースト・スティッククロワッサン）",
+    temp1: "玉生地（ホテル・イギリス・よもぎ・レーズン・バジル）／棒生地（トースト・スティッククロワッサン）",
     temp2: "シート生地①（クロワッサン・クロライト）",
     temp3: "シート生地②（チャバタ）",
     temp4: "シート生地③（多加水シート・ロデヴ）"
@@ -993,28 +1276,28 @@
 
   const dispatchTemplates = {
     temp1: [
-      "鉄板に汚れが無いことを確認します。",
-      "鉄板にラップを敷き、生地が重ならないように並べます。ラップを上から重ねます。",
-      "周り4辺を内側に折りたたみます。※生地が乾燥しないように密閉させる。",
-      "手前に「命を守るシール」を貼ります。※ラップから生地を取る際に、生地にラップがついていないことを確認。異物混入注意。"
+      "鉄板の汚れが無いことを確認。",
+      "鉄板にラップを敷き、生地を重ならないよう並べて上からラップを重ねる。",
+      "4辺を内側に折りたたみ、乾燥しないよう密閉する。",
+      "手前に「命を守るシール」を貼る。※剥がす際のラップ付着・異物混入に注意。"
     ],
     temp2: [
-      "鉄板に汚れが無いことを確認します。",
-      "鉄板にラップを敷き、生地が重ならないように並べます。ラップを上から重ねます。",
-      "②同様にラップの上に生地を並べます。（最大4段まで）",
-      "周り4辺を内側に折りたたみます。※生地が乾燥しないように密閉させる。",
-      "手前に「命を守るシール」を貼ります。※ラップから生地を取る際に、生地にラップがついていないことを確認。異物混入注意。"
+      "鉄板の汚れが無いことを確認。",
+      "鉄板にラップを敷き、生地を重ならないよう並べて上からラップを重ねる。",
+      "同様の手順で、ラップの上に生地を並べる（最大4段まで）。",
+      "4辺を内側に折りたたみ、乾燥しないよう密閉する。",
+      "手前に「命を守るシール」を貼る。※剥がす際のラップ付着・異物混入に注意。"
     ],
     temp3: [
-      "鉄板に汚れが無いことを確認します。",
-      "鉄板にラップを敷き、生地が重ならないように並べます。ラップを上から重ねます。",
-      "周り4辺を内側に折りたたみます。※生地が乾燥しないように密閉させる。",
-      "手前に「命を守るシール」を貼ります。※ラップから生地を取る際に、生地にラップがついていないことを確認。異物混入注意。"
+      "鉄板の汚れが無いことを確認。",
+      "鉄板にラップを敷き、生地を重ならないよう並べて上からラップを重ねる。",
+      "4辺を内側に折りたたみ、乾燥しないよう密閉する。",
+      "手前に「命を守るシール」を貼る。※剥がす際のラップ付着・異物混入に注意。"
     ],
     temp4: [
-      "鉄板に汚れが無いことを確認します。",
-      "鉄板にロデヴ生地を重ならないように並べます。（1鉄板最大4枚）※異物混入を防ぐため、ラップはしない。",
-      "もう一枚の鉄板を被せ、冷蔵庫で解凍します。　※生地が乾燥しないように注意。"
+      "鉄板の汚れが無いことを確認。",
+      "鉄板に生地を重ならないよう並べる（最大4枚）。※異物混入防止のためラップ不可。",
+      "もう一枚の鉄板を被せ、乾燥に注意して冷蔵庫で解凍する。"
     ]
   };
 
@@ -1023,108 +1306,150 @@
     const tempKey = select.value;
     if (!tempKey) return;
 
-    // 生地のタイトル（種類）を反映
     document.getElementById('dispatchTitle').value = dispatchTitles[tempKey];
 
     const container = document.getElementById('dispatchStepsContainer');
-    container.innerHTML = ''; // クリア
+    container.innerHTML = '';
 
     const lines = dispatchTemplates[tempKey];
     lines.forEach((lineText) => {
       const div = document.createElement('div');
       div.className = 'step-input-row dispatch-step-row';
+      div.style.alignItems = 'stretch';
       div.innerHTML = `
-        <span class="step-num-label"></span>
-        <input type="text" class="step-text" value="${lineText}">
-        <button type="button" class="del-btn" onclick="removeRow(this, 'dispatch')">🗑️</button>`;
+        <span class="step-num-label" style="display: flex; align-items: center; justify-content: center; height: auto;"></span>
+        <textarea class="step-text step-textarea" placeholder="出庫手順を入力" rows="1" oninput="autoResizeTextarea(this); updateDispatchVisibility();" style="flex: 1; min-height: 18px; height: 18px; padding: 2px 4px; resize: none; overflow-y: hidden;">${lineText}</textarea>
+        <div style="display: flex; align-items: center; padding-left: 2px;">
+          <button type="button" class="del-btn edit-only-btn" onclick="removeRow(this, 'dispatch')">🗑️</button>
+        </div>`;
       container.appendChild(div);
+      
+      const ta = div.querySelector('textarea');
+      autoResizeTextarea(ta);
     });
     
     updateNumbers('dispatchStepsContainer', 'dispatch-step-row');
-    select.value = ""; // リセット
+    select.value = "";
+    updateDispatchVisibility();
+    adjustPreviewScale();
   }
 
   function applyStepTemplate(selectObj) {
     const tempKey = selectObj.value;
     if (!tempKey) return;
 
-    let proofTimeVal = document.getElementById('proofTime').value.trim();
-    let bakeTimeVal = document.getElementById('bakeTime').value.trim();
+    let proofTimeVal = document.getElementById('proofTime').value.trim() || "40";
+    let bakeTimeVal = document.getElementById('bakeTime').value.trim() || "10";
     
-    // 入力チェックと補完
-    if (tempKey === "proof") {
-      if (!proofTimeVal) {
-        alert("先に上部の「規格・工程条件」でホイロ時間目安を入力してください。");
-        selectObj.value = "";
-        return;
-      }
-      if (!proofTimeVal.includes('分')) proofTimeVal += '分';
-    } else if (tempKey.startsWith("bake")) {
-      if (!bakeTimeVal) {
-        alert("先に上部の「規格・工程条件」で焼成時間目安を入力してください。");
-        selectObj.value = "";
-        return;
-      }
-      if (!bakeTimeVal.includes('分')) bakeTimeVal += '分';
-    }
+    // 分マークをあらかじめ除去して統一
+    proofTimeVal = proofTimeVal.replace(/分/g, "");
+    bakeTimeVal = bakeTimeVal.replace(/分/g, "");
 
     let lines = [];
     if (tempKey === "proof") {
       lines = [
-        "ホイロに入れます。",
-        `ホイロ時間の目安は、${proofTimeVal}です。`,
-        "生地の状態や室温によっても時間は変化しますので、ホイロ規格を基準にしてください。"
+        `ホイロ：${proofTimeVal}分`,
+        "※室温や生地状態により変化するため、最終判断はホイロ規格を基準にしてください。"
       ];
     } else if (tempKey === "bake1") {
       lines = [
-        "焼成します。",
-        `焼成時間の目安は、${bakeTimeVal}です。　（数が少ない場合は焼成時間も短くしてください。）`,
-        "生地の状態やオーブンによっても時間は変化しますので、焼き色を基準をしてください。"
+        `焼成：${bakeTimeVal}分（数が少ない場合は短縮）`,
+        "※オーブンや生地状態により変化するため、焼き色を基準にしてください。"
       ];
     } else if (tempKey === "bake2") {
       lines = [
-        "スチームをかけて、焼成します。",
-        `焼成時間の目安は、${bakeTimeVal}です。　（数が少ない場合は焼成時間も短くしてください。）`,
-        "生地の状態やオーブンによっても時間は変化しますので、焼き色を基準をしてください。"
+        `スチームをかけて焼成：${bakeTimeVal}分（数が少ない場合は短縮）`,
+        "※オーブンや生地状態により変化するため、焼き色を基準にしてください。"
       ];
     } else if (tempKey === "bake3") {
       lines = [
-        "2重鉄板にして、焼成します。",
-        `焼成時間の目安は、${bakeTimeVal}です。　（数が少ない場合は焼成時間も短くしてください。）`,
-        "生地の状態やオーブンによっても時間は変化しますので、焼き色を基準をしてください。"
+        `2重鉄板にして焼成：${bakeTimeVal}分（数が少ない場合は短縮）`,
+        "※オーブンや生地状態により変化するため、焼き色を基準にしてください。"
       ];
     } else if (tempKey === "bake4") {
       lines = [
-        "クッキングシートを被せ、上に鉄板をのせて、焼成します。",
-        `焼成時間の目安は, ${bakeTimeVal}です。　（数が少ない場合は焼成時間も短くしてください。）`,
-        "生地の状態やオーブンによっても時間は変化しますので、焼き色を基準をしてください。"
+        `クッキングシートを被せ、上に鉄板をのせて焼成：${bakeTimeVal}分（数が少ない場合は短縮）`,
+        "※オーブンや生地状態により変化するため、焼き色を基準にしてください。"
       ];
     }
 
     const block = selectObj.closest('.step-block');
-    const textRowsContainer = block.querySelector('.step-text-rows');
+    const textarea = block.querySelector('.step-textarea');
     
-    // 現在の手順をすべてクリア（上書き）
-    textRowsContainer.innerHTML = '';
+    if (textarea) {
+      textarea.value = lines.join('\n');
+      autoResizeTextarea(textarea);
+    }
 
-    lines.forEach((lineText) => {
-      const div = document.createElement('div');
-      div.className = 'step-input-row step-row';
-      div.innerHTML = `
-        <input type="text" class="step-text" value="${lineText}">
-        <button type="button" class="del-btn" onclick="removeRow(this, 'step')">🗑️</button>`;
-      textRowsContainer.appendChild(div);
-    });
-
-    selectObj.value = ""; // リセット
+    selectObj.value = "";
+    adjustPreviewScale();
   }
 
-  // 初期化時の番号付け
-  updateBlockNumbers();
-  updateStandbyBlockNumbers();
+  function updateDispatchVisibility() {
+    const title = document.getElementById('dispatchTitle').value.trim();
+    let hasSteps = false;
+    document.querySelectorAll('#dispatchStepsContainer .step-text').forEach(input => {
+      if (input.value.trim()) hasSteps = true;
+    });
+    const section = document.getElementById('dispatchSection');
+    if (!title && !hasSteps) {
+      section.classList.add('print-empty-hide');
+    } else {
+      section.classList.remove('print-empty-hide');
+    }
+  }
 
-  // === マスタデータ連携＆予測変換＆自動入力ロジック ===
-  let menuMaster = {};
+  function updateStandbyVisibility() {
+    const section = document.getElementById('standbySection');
+    let hasContent = false;
+    
+    document.querySelectorAll('#standbyContainer .standby-block').forEach(block => {
+      const imgInput = block.querySelector('.block-img');
+      if (imgInput && imgInput.files && imgInput.files[0]) hasContent = true;
+      const textarea = block.querySelector('.step-textarea');
+      if (textarea && textarea.value.trim()) hasContent = true;
+    });
+    
+    if (hasContent) {
+      section.classList.remove('print-empty-hide');
+    } else {
+      section.classList.add('print-empty-hide');
+    }
+  }
+
+  // 初期化
+  reorganizeStepBlocks();
+  updateStandbyBlockNumbers();
+  updateDispatchVisibility();
+  updateStandbyVisibility();
+
+  // === マスタデータ連携・サジェスト・スプレッドシートデータ連携 ===
+  let menuMaster = {
+    "1001": {
+      name: "ざくざく枝豆チーズスティック (デモ)",
+      ingredients: [
+        { code: "E001", name: "スティック用パン生地", amount: "60", unit: "g" },
+        { code: "E002", name: "冷凍むき枝豆", amount: "25", unit: "g" },
+        { code: "E003", name: "シュレッドチーズ", amount: "15", unit: "g" },
+        { code: "E004", name: "マヨネーズ", amount: "5", unit: "g" }
+      ]
+    },
+    "1002": {
+      name: "スティッククロワッサン (デモ)",
+      ingredients: [
+        { code: "C001", name: "クロワッサン板生地", amount: "50", unit: "g" },
+        { code: "C002", name: "艶出し用卵液", amount: "3", unit: "g" }
+      ]
+    },
+    "1003": {
+      name: "とろ～りチーズオムレツパン (デモ)",
+      ingredients: [
+        { code: "E001", name: "スティック用パン生地", amount: "60", unit: "g" },
+        { code: "O001", name: "とろっとスクランブルエッグ", amount: "35", unit: "g" },
+        { code: "E003", name: "シュレッドチーズ", amount: "10", unit: "g" }
+      ]
+    }
+  };
 
   function processMasterRows(rows, sourceLabel) {
     const statusDiv = document.getElementById('masterStatus');
@@ -1132,7 +1457,7 @@
     
     let headerIdx = -1;
     for (let i = 0; i < rows.length; i++) {
-      if (rows[i] && rows[i].includes('業態区分')) {
+      if (rows[i] && (rows[i].includes('業務形態区分') || rows[i].includes('業態区分'))) {
         headerIdx = i;
         break;
       }
@@ -1153,13 +1478,7 @@
       const ingAmount = cols[12] ? String(cols[12]).trim() : "";
       const ingUnit = cols[13] ? String(cols[13]).trim() : "";
       
-      // Fallback for shifted columns (e.g. menu 1001 summary row)
-      if (!menuCode && cols[9]) {
-        menuCode = String(cols[9]).trim();
-        menuName = String(cols[10]).trim();
-      }
-      
-      if (!menuCode) continue;
+      if (!menuCode || menuCode === "ﾒﾆｭｰｺｰﾄﾞ" || menuCode === "メニューコード") continue;
       
       if (!menuMaster[menuCode]) {
         menuMaster[menuCode] = {
@@ -1168,14 +1487,16 @@
         };
       }
       
-      // Only load ingredients if it is a normal row (cols[3] is populated)
-      if (cols[3] && (ingCode || ingName)) {
-        menuMaster[menuCode].ingredients.push({
-          code: ingCode || "",
-          name: ingName || "",
-          amount: ingAmount || "",
-          unit: ingUnit || "g"
-        });
+      if (ingCode || ingName) {
+        // ヘッダー文字列の混入を防ぐ
+        if (ingCode !== "商品コード" && ingName !== "商品名称") {
+          menuMaster[menuCode].ingredients.push({
+            code: ingCode || "",
+            name: ingName || "",
+            amount: ingAmount || "",
+            unit: ingUnit || "g"
+          });
+        }
       }
     }
     
@@ -1184,10 +1505,10 @@
     statusDiv.style.backgroundColor = "#e8f5e9";
     statusDiv.style.color = "#2e7d32";
     
-    // Save to localStorage cache
-    localStorage.setItem('cachedMenuMaster', JSON.stringify(menuMaster));
-    localStorage.setItem('cachedMenuCount', menuCount);
-    localStorage.setItem('cachedSourceLabel', sourceLabel);
+    safeStorage.setItem('cachedMenuMaster', JSON.stringify(menuMaster));
+    safeStorage.setItem('cachedMenuCount', menuCount);
+    safeStorage.setItem('cachedSourceLabel', sourceLabel);
+    safeStorage.setItem('cachedVersion', "v4");
   }
 
   async function loadMasterData() {
@@ -1216,7 +1537,7 @@
       
     } catch (error) {
       console.error(error);
-      statusDiv.innerText = "マスタデータの読み込みに失敗しました。マスタの共有設定またはネットワーク環境を確認してください。";
+      statusDiv.innerText = "同期失敗：上の『ローカル連携』からダウンロードしたExcel/CSVファイルを読み込めます。";
       statusDiv.style.backgroundColor = "#ffebee";
       statusDiv.style.color = "#c62828";
     }
@@ -1251,63 +1572,74 @@
     }
     
     ingredients.forEach(ing => {
-      const div = document.createElement('div');
-      div.className = 'row ing-row';
+      const tr = document.createElement('tr');
+      tr.className = 'ing-row';
       
-      const units = ["g", "kg", "ml", "L", "個", "枚", "適量"];
+      const units = ["g", "kg", "ml", "L", "個", "枚", "本", "尾", "杯", "種", "人前", "円", "適量"];
       let unitOptions = "";
       units.forEach(u => {
         const selected = u === ing.unit ? " selected" : "";
         unitOptions += `<option value="${u}"${selected}>${u}</option>`;
       });
       
-      div.innerHTML = `
-        <div style="flex: 1;">
-          <div class="autocomplete-wrapper">
-            <input type="text" class="ing-code" value="${ing.code}" placeholder="コード">
-            <span class="dropdown-arrow">▼</span>
-          </div>
-        </div>
-        <div style="flex: 2;">
-          <div class="autocomplete-wrapper">
-            <input type="text" class="ing-name" value="${ing.name}" placeholder="品名">
-            <span class="dropdown-arrow">▼</span>
-          </div>
-        </div>
-        <div style="flex: 1;"><input type="number" class="ing-amount" step="any" value="${ing.amount}" placeholder="使用量"></div>
-        <div style="flex: 0.8;">
+      tr.innerHTML = `
+        <td><input type="text" class="ing-code" value="${ing.code}" placeholder="コード"></td>
+        <td><input type="text" class="ing-name" value="${ing.name}" placeholder="品名"></td>
+        <td><input type="number" class="ing-amount" step="any" value="${ing.amount}" placeholder="使用量"></td>
+        <td>
           <select class="ing-unit">
             ${unitOptions}
           </select>
-        </div>
-        <div style="flex: 0.6; text-align: center; display: flex; align-items: center; justify-content: center; gap: 2px;">
-          <input type="checkbox" class="ing-standby" style="width: auto; margin: 0;">
-          <span style="font-size: 0.7rem; font-weight: bold;">スタ</span>
-        </div>
-        <button type="button" class="del-btn" onclick="removeRow(this, 'ing')">🗑️</button>
+        </td>
+        <td style="text-align: center; position: relative;">
+          <select class="ing-standby">
+            <option value=""${ing.standby ? '' : ' selected'}></option>
+            <option value="スタンバイ"${ing.standby ? ' selected' : ''}>スタンバイ</option>
+          </select>
+          <span class="print-standby-check">✔</span>
+        </td>
+        <td class="edit-only-col" style="text-align: center;">
+          <button type="button" class="del-btn edit-only-btn" onclick="removeRow(this, 'ing')">🗑️</button>
+        </td>
       `;
-      container.appendChild(div);
+      container.appendChild(tr);
     });
+    adjustPreviewScale();
   }
 
-  // 初期ロードとイベント登録
   document.addEventListener('DOMContentLoaded', () => {
-    // Try loading from localStorage cache
-    const cachedData = localStorage.getItem('cachedMenuMaster');
-    if (cachedData) {
+    reorganizeStepBlocks();
+    updateStandbyBlockNumbers();
+    updateDispatchVisibility();
+    updateStandbyVisibility();
+
+    // 初期時にすでにあるテキストエリアのサイズを調整
+    document.querySelectorAll('.step-textarea').forEach(el => {
+      autoResizeTextarea(el);
+    });
+
+    const CACHE_VERSION = "v4";
+    const cachedVersion = safeStorage.getItem('cachedVersion');
+    const cachedData = safeStorage.getItem('cachedMenuMaster');
+    
+    if (cachedData && cachedVersion === CACHE_VERSION) {
       try {
         menuMaster = JSON.parse(cachedData);
-        const menuCount = localStorage.getItem('cachedMenuCount') || Object.keys(menuMaster).length;
-        const sourceLabel = localStorage.getItem('cachedSourceLabel') || "キャッシュから読込";
+        const menuCount = safeStorage.getItem('cachedMenuCount') || Object.keys(menuMaster).length;
+        const sourceLabel = safeStorage.getItem('cachedSourceLabel') || "キャッシュ";
         const statusDiv = document.getElementById('masterStatus');
         statusDiv.innerText = `マスタデータ読込完了 (${menuCount}件のメニュー) (${sourceLabel})`;
         statusDiv.style.backgroundColor = "#e8f5e9";
         statusDiv.style.color = "#2e7d32";
       } catch (e) {
-        console.error("Cache load error, falling back to Google Sheets fetch", e);
+        console.error("Cache load error", e);
         loadMasterData();
       }
     } else {
+      safeStorage.removeItem('cachedMenuMaster');
+      safeStorage.removeItem('cachedMenuCount');
+      safeStorage.removeItem('cachedSourceLabel');
+      safeStorage.setItem('cachedVersion', CACHE_VERSION);
       loadMasterData();
     }
     
@@ -1336,7 +1668,7 @@
     }
   });
 
-  // Custom Suggestion Autocomplete Logic
+  // サジェスト機能
   let activeSuggestTarget = null;
   let activeSuggestValue = null;
 
@@ -1361,41 +1693,17 @@
     const wrapper = inputEl.parentElement;
     if (!wrapper.classList.contains('autocomplete-wrapper')) return;
 
-    let isMenuField = (inputEl.id === 'menuCode' || inputEl.id === 'productName');
-    let isCodeField = (inputEl.classList.contains('ing-code') || inputEl.id === 'menuCode');
-
     let matches = [];
+    const valUpper = val.toUpperCase();
 
-    if (isMenuField) {
-      for (const [code, menu] of Object.entries(menuMaster)) {
-        const matchCode = code.includes(val);
-        const matchName = menu.name.includes(val);
-        if (!val || (isCodeField ? matchCode : matchName)) {
-          matches.push({
-            code: code,
-            name: menu.name
-          });
-        }
-      }
-    } else {
-      const seenIngs = new Set();
-      for (const menu of Object.values(menuMaster)) {
-        for (const ing of menu.ingredients) {
-          const key = `${ing.code}_${ing.name}`;
-          if (!seenIngs.has(key)) {
-            seenIngs.add(key);
-            const matchCode = ing.code.includes(val);
-            const matchName = ing.name.includes(val);
-            if (!val || (isCodeField ? matchCode : matchName)) {
-              matches.push({
-                code: ing.code,
-                name: ing.name,
-                amount: ing.amount,
-                unit: ing.unit
-              });
-            }
-          }
-        }
+    for (const [code, menu] of Object.entries(menuMaster)) {
+      const matchCode = code.toUpperCase().includes(valUpper);
+      const matchName = menu.name.toUpperCase().includes(valUpper);
+      if (!val || matchCode || matchName) {
+        matches.push({
+          code: code,
+          name: menu.name
+        });
       }
     }
 
@@ -1405,6 +1713,10 @@
 
     const listDiv = document.createElement('div');
     listDiv.className = 'suggest-list';
+    if (inputEl.id === 'menuCode') {
+      listDiv.style.right = '0';
+      listDiv.style.left = 'auto';
+    }
 
     matches.forEach(item => {
       const itemDiv = document.createElement('div');
@@ -1415,19 +1727,9 @@
         e.preventDefault();
         e.stopPropagation();
         
-        if (isMenuField) {
-          document.getElementById('menuCode').value = item.code;
-          document.getElementById('productName').value = item.name;
-          populateIngredients(menuMaster[item.code].ingredients);
-        } else {
-          const row = inputEl.closest('.ing-row');
-          if (row) {
-            row.querySelector('.ing-code').value = item.code;
-            row.querySelector('.ing-name').value = item.name;
-            if (item.amount) row.querySelector('.ing-amount').value = item.amount;
-            if (item.unit) row.querySelector('.ing-unit').value = item.unit;
-          }
-        }
+        document.getElementById('menuCode').value = item.code;
+        document.getElementById('productName').value = item.name;
+        populateIngredients(menuMaster[item.code].ingredients);
         closeAllSuggestions();
       });
       listDiv.appendChild(itemDiv);
@@ -1437,8 +1739,26 @@
   }
 
   function handleInputEvent(e) {
-    if (e.target.classList.contains('ing-code') || e.target.classList.contains('ing-name') || e.target.id === 'menuCode' || e.target.id === 'productName') {
-      showSuggestions(e.target);
+    let target = e.target;
+    if (!target) return;
+    
+    // classListの存在確認を含め安全に取得
+    let isArrowClick = target.classList && target.classList.contains('dropdown-arrow');
+    if (isArrowClick) {
+      target = target.parentElement ? target.parentElement.querySelector('input') : null;
+    }
+    if (!target) return;
+
+    if (target.id === 'menuCode' || target.id === 'productName') {
+      if (e.type === 'click' && isArrowClick) {
+        const existingList = target.parentElement ? target.parentElement.querySelector('.suggest-list') : null;
+        if (existingList) {
+          closeAllSuggestions();
+          return;
+        }
+        target.focus();
+      }
+      showSuggestions(target);
     }
   }
 
@@ -1447,20 +1767,34 @@
   document.addEventListener('click', handleInputEvent);
 
   document.addEventListener('click', function(e) {
-    if (!e.target.closest('.autocomplete-wrapper')) {
+    if (!e.target || !e.target.closest || !e.target.closest('.autocomplete-wrapper')) {
       closeAllSuggestions();
+    }
+  });
+
+  // スタンバイセレクトボックス変更時のクラス付与処理 (印刷用スタイルとの連携)
+  document.addEventListener('change', function(e) {
+    if (e.target.classList.contains('ing-standby')) {
+      const row = e.target.closest('.ing-row');
+      if (row) {
+        if (e.target.value === 'スタンバイ') {
+          row.classList.add('is-standby');
+        } else {
+          row.classList.remove('is-standby');
+        }
+      }
     }
   });
 
   document.addEventListener('focusout', function(e) {
     setTimeout(() => {
-      if (document.activeElement !== e.target && (!document.activeElement || !document.activeElement.closest('.autocomplete-wrapper'))) {
+      if (document.activeElement !== e.target && (!document.activeElement || !document.activeElement.closest || !document.activeElement.closest('.autocomplete-wrapper'))) {
         closeAllSuggestions();
       }
     }, 150);
   });
 
-  // Handle local file input (Excel or CSV)
+  // ローカルファイル読込
   const masterFileInput = document.getElementById('masterFileInput');
   if (masterFileInput) {
     masterFileInput.addEventListener('change', function(e) {
@@ -1517,7 +1851,5 @@
     });
   }
 </script>
-</div>
-</div>
 </body>
 </html>
