@@ -209,7 +209,18 @@
 
 <div class="container">
   <h1>パン手順書作成フォーム</h1>
-  <div id="masterStatus" style="font-size: 0.8rem; color: #1565c0; margin-bottom: 10px; padding: 6px; background: #e3f2fd; border-radius: 4px; font-weight:bold; text-align: center;">マスタデータを読み込んでいます...</div>
+  <div style="background: #e3f2fd; border: 1px solid #90caf9; padding: 10px; border-radius: 6px; margin-bottom: 12px; font-size: 0.8rem;">
+    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <span style="font-weight: bold; color: #0d47a1;">📁 ローカル連携:</span>
+        <input type="file" id="masterFileInput" accept=".xlsx, .xls, .csv" style="font-size: 0.75rem; width: auto; max-width: 220px; padding: 2px;">
+      </div>
+      <div>
+        <button type="button" id="syncSheetsBtn" style="background-color: #1976d2; color: #fff; border: none; border-radius: 4px; padding: 4px 10px; font-size: 0.75rem; font-weight: bold; cursor: pointer;" onclick="loadMasterData()">☁️ スプシから同期</button>
+      </div>
+    </div>
+    <div id="masterStatus" style="margin-top: 8px; font-size: 0.8rem; color: #1565c0; padding: 6px; background: #fff; border: 1px solid #bbdefb; border-radius: 4px; font-weight:bold; text-align: center;">マスタデータを読み込んでいます...</div>
+  </div>
   
   <form id="recipeForm">
     <!-- 基本情報 -->
@@ -1115,13 +1126,77 @@
   // === マスタデータ連携＆予測変換＆自動入力ロジック ===
   let menuMaster = {};
 
+  function processMasterRows(rows, sourceLabel) {
+    const statusDiv = document.getElementById('masterStatus');
+    menuMaster = {};
+    
+    let headerIdx = -1;
+    for (let i = 0; i < rows.length; i++) {
+      if (rows[i] && rows[i].includes('業態区分')) {
+        headerIdx = i;
+        break;
+      }
+    }
+    
+    if (headerIdx === -1) {
+      headerIdx = 0;
+    }
+    
+    for (let i = headerIdx + 1; i < rows.length; i++) {
+      const cols = rows[i];
+      if (!cols || cols.length === 0) continue;
+      
+      let menuCode = cols[3] ? String(cols[3]).trim() : "";
+      let menuName = cols[4] ? String(cols[4]).trim() : "";
+      const ingCode = cols[10] ? String(cols[10]).trim() : "";
+      const ingName = cols[11] ? String(cols[11]).trim() : "";
+      const ingAmount = cols[12] ? String(cols[12]).trim() : "";
+      const ingUnit = cols[13] ? String(cols[13]).trim() : "";
+      
+      // Fallback for shifted columns (e.g. menu 1001 summary row)
+      if (!menuCode && cols[9]) {
+        menuCode = String(cols[9]).trim();
+        menuName = String(cols[10]).trim();
+      }
+      
+      if (!menuCode) continue;
+      
+      if (!menuMaster[menuCode]) {
+        menuMaster[menuCode] = {
+          name: menuName,
+          ingredients: []
+        };
+      }
+      
+      // Only load ingredients if it is a normal row (cols[3] is populated)
+      if (cols[3] && (ingCode || ingName)) {
+        menuMaster[menuCode].ingredients.push({
+          code: ingCode || "",
+          name: ingName || "",
+          amount: ingAmount || "",
+          unit: ingUnit || "g"
+        });
+      }
+    }
+    
+    const menuCount = Object.keys(menuMaster).length;
+    statusDiv.innerText = `マスタデータ読込完了 (${menuCount}件のメニュー) (${sourceLabel})`;
+    statusDiv.style.backgroundColor = "#e8f5e9";
+    statusDiv.style.color = "#2e7d32";
+    
+    // Save to localStorage cache
+    localStorage.setItem('cachedMenuMaster', JSON.stringify(menuMaster));
+    localStorage.setItem('cachedMenuCount', menuCount);
+    localStorage.setItem('cachedSourceLabel', sourceLabel);
+  }
+
   async function loadMasterData() {
     const statusDiv = document.getElementById('masterStatus');
-    statusDiv.innerText = "マスタデータを読み込んでいます...";
+    statusDiv.innerText = "マスタデータをスプレッドシートから読み込んでいます...";
     statusDiv.style.backgroundColor = "#ffe0b2";
     statusDiv.style.color = "#e65100";
 
-    const url = "https://docs.google.com/spreadsheets/d/1FUpFIMRcoOf-f5xDkcJGNparud13cgINV7JQehHznZ8/export?format=csv&gid=0";
+    const url = "https://docs.google.com/spreadsheets/d/1FUpFIMRcoOf-f5xDkcJGNparud13cgINV7JQehHznZ8/gviz/tq?tqx=out:csv&sheet=" + encodeURIComponent("BQ原価レシピ7");
     try {
       const response = await fetch(url);
       if (!response.ok) throw new Error("ネットワークエラーが発生しました。");
@@ -1130,50 +1205,14 @@
       const csvText = decoder.decode(arrayBuffer);
       
       const lines = csvText.split(/\r?\n/);
-      menuMaster = {};
-      
-      for (let i = 1; i < lines.length; i++) {
-        const line = lines[i];
-        if (!line.trim()) continue;
-        const cols = parseCSVLine(line);
-        
-        let menuCode = cols[3];
-        let menuName = cols[4];
-        const ingCode = cols[10];
-        const ingName = cols[11];
-        const ingAmount = cols[12];
-        const ingUnit = cols[13];
-        
-        // Fallback for shifted columns (e.g. menu 1001 summary row)
-        if (!menuCode && cols[9]) {
-          menuCode = cols[9];
-          menuName = cols[10];
-        }
-        
-        if (!menuCode) continue;
-        
-        if (!menuMaster[menuCode]) {
-          menuMaster[menuCode] = {
-            name: menuName,
-            ingredients: []
-          };
-        }
-        
-        // Only load ingredients if it is a normal row (cols[3] is populated)
-        if (cols[3] && (ingCode || ingName)) {
-          menuMaster[menuCode].ingredients.push({
-            code: ingCode || "",
-            name: ingName || "",
-            amount: ingAmount || "",
-            unit: ingUnit || "g"
-          });
+      const rows = [];
+      for (let i = 0; i < lines.length; i++) {
+        if (lines[i].trim()) {
+          rows.push(parseCSVLine(lines[i]));
         }
       }
       
-      const menuCount = Object.keys(menuMaster).length;
-      statusDiv.innerText = `マスタデータ読込完了 (${menuCount}件のメニュー)`;
-      statusDiv.style.backgroundColor = "#e8f5e9";
-      statusDiv.style.color = "#2e7d32";
+      processMasterRows(rows, "スプシから同期");
       
     } catch (error) {
       console.error(error);
@@ -1253,7 +1292,24 @@
 
   // 初期ロードとイベント登録
   document.addEventListener('DOMContentLoaded', () => {
-    loadMasterData();
+    // Try loading from localStorage cache
+    const cachedData = localStorage.getItem('cachedMenuMaster');
+    if (cachedData) {
+      try {
+        menuMaster = JSON.parse(cachedData);
+        const menuCount = localStorage.getItem('cachedMenuCount') || Object.keys(menuMaster).length;
+        const sourceLabel = localStorage.getItem('cachedSourceLabel') || "キャッシュから読込";
+        const statusDiv = document.getElementById('masterStatus');
+        statusDiv.innerText = `マスタデータ読込完了 (${menuCount}件のメニュー) (${sourceLabel})`;
+        statusDiv.style.backgroundColor = "#e8f5e9";
+        statusDiv.style.color = "#2e7d32";
+      } catch (e) {
+        console.error("Cache load error, falling back to Google Sheets fetch", e);
+        loadMasterData();
+      }
+    } else {
+      loadMasterData();
+    }
     
     const menuCodeInput = document.getElementById('menuCode');
     const productNameInput = document.getElementById('productName');
@@ -1403,6 +1459,63 @@
       }
     }, 150);
   });
+
+  // Handle local file input (Excel or CSV)
+  const masterFileInput = document.getElementById('masterFileInput');
+  if (masterFileInput) {
+    masterFileInput.addEventListener('change', function(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const statusDiv = document.getElementById('masterStatus');
+      statusDiv.innerText = "ファイルを解析しています...";
+      statusDiv.style.backgroundColor = "#ffe0b2";
+      statusDiv.style.color = "#e65100";
+
+      const fileName = file.name;
+      const isExcel = fileName.endsWith('.xlsx') || fileName.endsWith('.xls');
+
+      const reader = new FileReader();
+      if (isExcel) {
+        reader.onload = function(evt) {
+          try {
+            const data = new Uint8Array(evt.target.result);
+            const workbook = XLSX.read(data, {type: 'array'});
+            const firstSheetName = workbook.SheetNames[0];
+            const worksheet = workbook.Sheets[firstSheetName];
+            const rows = XLSX.utils.sheet_to_json(worksheet, {header: 1});
+            processMasterRows(rows, `Excel: ${fileName}`);
+          } catch (err) {
+            console.error(err);
+            statusDiv.innerText = "Excelファイルの解析に失敗しました。";
+            statusDiv.style.backgroundColor = "#ffebee";
+            statusDiv.style.color = "#c62828";
+          }
+        };
+        reader.readAsArrayBuffer(file);
+      } else {
+        reader.onload = function(evt) {
+          try {
+            const text = evt.target.result;
+            const lines = text.split(/\r?\n/);
+            const rows = [];
+            for (let i = 0; i < lines.length; i++) {
+              if (lines[i].trim()) {
+                rows.push(parseCSVLine(lines[i]));
+              }
+            }
+            processMasterRows(rows, `CSV: ${fileName}`);
+          } catch (err) {
+            console.error(err);
+            statusDiv.innerText = "CSVファイルの解析に失敗しました。";
+            statusDiv.style.backgroundColor = "#ffebee";
+            statusDiv.style.color = "#c62828";
+          }
+        };
+        reader.readAsText(file, 'utf-8');
+      }
+    });
+  }
 </script>
 </div>
 </div>
