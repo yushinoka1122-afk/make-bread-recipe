@@ -518,6 +518,156 @@
       display: none !important;
     }
   }
+
+  /* --- 1.7 保存済み手順書一覧モーダル Styles --- */
+  .modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(15, 23, 42, 0.6);
+    backdrop-filter: blur(4px);
+    z-index: 20000;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    animation: modalFadeIn 0.2s ease-out;
+  }
+  .modal-content {
+    background: #ffffff;
+    border-radius: 12px;
+    width: 90%;
+    max-width: 600px;
+    max-height: 80vh;
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+    display: flex;
+    flex-direction: column;
+    animation: modalScaleUp 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+    overflow: hidden;
+  }
+  .modal-header {
+    padding: 12px 16px;
+    background: #f8fafc;
+    border-bottom: 1px solid #cbd5e1;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .modal-header h3 {
+    margin: 0;
+    font-size: 1rem;
+    color: #1e293b;
+    font-weight: bold;
+  }
+  .close-modal-btn {
+    background: transparent;
+    color: #64748b;
+    border: none;
+    font-size: 1.5rem;
+    cursor: pointer;
+    padding: 0 4px;
+    line-height: 1;
+  }
+  .close-modal-btn:hover {
+    color: #0f172a;
+  }
+  .modal-body {
+    padding: 16px;
+    overflow-y: auto;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+  }
+  .modal-recipe-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: 55vh;
+    overflow-y: auto;
+    padding-right: 4px;
+  }
+  .recipe-card {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 12px;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    background: #fff;
+    transition: all 0.15s ease;
+    cursor: pointer;
+    box-sizing: border-box;
+  }
+  .recipe-card:hover {
+    border-color: #3b82f6;
+    background: #f8fafc;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+  }
+  .recipe-card-thumb {
+    width: 48px;
+    height: 48px;
+    border-radius: 6px;
+    object-fit: cover;
+    background: #f1f5f9;
+    border: 1px solid #cbd5e1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    overflow: hidden;
+    flex-shrink: 0;
+  }
+  .recipe-card-thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  .recipe-card-info {
+    flex: 1;
+    min-width: 0;
+    text-align: left;
+  }
+  .recipe-card-title {
+    font-weight: bold;
+    font-size: 0.85rem;
+    color: #1e293b;
+    margin: 0 0 2px 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .recipe-card-meta {
+    font-size: 0.7rem;
+    color: #64748b;
+    display: flex;
+    gap: 12px;
+    margin: 0;
+  }
+  .recipe-card-actions {
+    display: flex;
+    gap: 6px;
+    flex-shrink: 0;
+  }
+  .recipe-card-actions button {
+    padding: 4px 8px;
+    font-size: 0.7rem;
+    border-radius: 4px;
+    font-weight: bold;
+  }
+  @keyframes modalFadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  @keyframes modalScaleUp {
+    from { transform: scale(0.95); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+  }
+  @media print {
+    .modal-overlay {
+      display: none !important;
+    }
+  }
 </style>
 </head>
 <body>
@@ -539,6 +689,7 @@
     <button type="button" style="background-color: #1976d2;" onclick="loadMasterData()">☁️ スプシから同期</button>
     <button type="button" class="print-btn" onclick="window.print()">PDF保存・印刷</button>
     <button type="button" class="excel-btn" onclick="downloadExcel()">ExcelでDL</button>
+    <button type="button" style="background-color: #f59e0b;" onclick="openRecipeListModal()">📂 保存済み一覧 (<span id="savedCount">0</span>)</button>
     <button type="button" style="background-color: #2e7d32;" onclick="saveCurrentRecipeToDB()">💾 保存・更新</button>
     <button type="button" style="background-color: #c62828;" onclick="deleteCurrentRecipeFromDB()">🗑️ 削除</button>
     <button type="button" style="background-color: #455a64;" onclick="exportDBtoJSON()">📤 バックアップ</button>
@@ -2021,6 +2172,7 @@
       if (currentCode) {
         updateDBStatusLabel(currentCode);
       }
+      updateSavedCount();
     })
     .catch(err => {
       console.error("Failed to initialize database:", err);
@@ -2535,6 +2687,7 @@
       await recipeDB.saveRecipe(recipe);
       savedMenuCodes.add(code);
       updateDBStatusLabel(code);
+      updateSavedCount();
       showStatusMessage("💾 保存完了", "success");
       alert("手順書データをデータベースに保存しました。");
     } catch (e) {
@@ -2564,6 +2717,7 @@
     try {
       await recipeDB.deleteRecipe(code);
       savedMenuCodes.delete(code);
+      updateSavedCount();
       resetFormToDefault(true);
       showStatusMessage("🗑️ 削除完了", "success");
       alert("手順書データをデータベースから削除しました。");
@@ -2685,6 +2839,7 @@
           savedMenuCodes.add(r.menuCode);
           importCount++;
         }
+        updateSavedCount();
 
         // 現在読み込み中のコードがあれば再読込
         const currentCode = document.getElementById('menuCode').value.trim();
@@ -2738,6 +2893,204 @@
       reader.readAsDataURL(blob);
     });
   }
+
+  // --- 3.7.1 Saved Recipes List Modal Management ---
+  let modalObjectUrls = [];
+
+  function updateSavedCount() {
+    const savedCountSpan = document.getElementById('savedCount');
+    const modalSavedCountSpan = document.getElementById('modalSavedCount');
+    if (savedCountSpan) {
+      savedCountSpan.innerText = savedMenuCodes.size;
+    }
+    if (modalSavedCountSpan) {
+      modalSavedCountSpan.innerText = savedMenuCodes.size;
+    }
+  }
+
+  async function openRecipeListModal() {
+    const modal = document.getElementById('recipeListModal');
+    const grid = document.getElementById('modalRecipeGrid');
+    const searchInput = document.getElementById('modalSearchInput');
+    if (!modal || !grid) return;
+
+    if (searchInput) searchInput.value = '';
+
+    showStatusMessage("一覧を読み込んでいます...", "info");
+    
+    modalObjectUrls.forEach(url => URL.revokeObjectURL(url));
+    modalObjectUrls = [];
+
+    try {
+      const recipes = await recipeDB.getAllRecipes();
+      
+      recipes.sort((a, b) => {
+        const numA = parseInt(a.menuCode, 10);
+        const numB = parseInt(b.menuCode, 10);
+        if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
+        return String(a.menuCode).localeCompare(String(b.menuCode));
+      });
+
+      grid.innerHTML = '';
+      if (recipes.length === 0) {
+        grid.innerHTML = '<div style="text-align: center; color: #64748b; padding: 20px; font-size: 0.85rem;">保存された手順書がありません。</div>';
+      } else {
+        recipes.forEach(r => {
+          const card = document.createElement('div');
+          card.className = 'recipe-card';
+          card.setAttribute('data-code', r.menuCode);
+          card.setAttribute('data-name', r.productName || '');
+
+          let thumbHTML = '<div class="recipe-card-thumb">🍞</div>';
+          if (r.mainImageBlob) {
+            const url = URL.createObjectURL(r.mainImageBlob);
+            modalObjectUrls.push(url);
+            thumbHTML = `<div class="recipe-card-thumb"><img src="${url}" alt="縮小版"></div>`;
+          }
+
+          let dateStr = '不明';
+          if (r.lastUpdated) {
+            const d = new Date(r.lastUpdated);
+            const y = d.getFullYear();
+            const m = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            const h = String(d.getHours()).padStart(2, '0');
+            const min = String(d.getMinutes()).padStart(2, '0');
+            dateStr = `${y}/${m}/${day} ${h}:${min}`;
+          }
+
+          card.innerHTML = `
+            ${thumbHTML}
+            <div class="recipe-card-info">
+              <h4 class="recipe-card-title">${r.menuCode} : ${r.productName || '無題の商品'}</h4>
+              <p class="recipe-card-meta">
+                <span>📅 更新: ${dateStr}</span>
+                <span>📋 原料: ${(r.ingredients || []).length}件</span>
+              </p>
+            </div>
+            <div class="recipe-card-actions">
+              <button type="button" style="background-color: #2196F3;" onclick="loadRecipeFromList('${r.menuCode}', event)">編集</button>
+              <button type="button" style="background-color: #ef4444;" onclick="deleteRecipeFromList('${r.menuCode}', event)">🗑️</button>
+            </div>
+          `;
+
+          card.addEventListener('click', () => {
+            loadRecipeFromList(r.menuCode);
+          });
+
+          grid.appendChild(card);
+        });
+      }
+
+      updateSavedCount();
+      modal.style.display = 'flex';
+      showStatusMessage("一覧表示中", "success");
+    } catch (e) {
+      console.error(e);
+      showStatusMessage("一覧取得エラー", "error");
+      alert("一覧の読み込み中にエラーが発生しました: " + e.message);
+    }
+  }
+
+  function closeRecipeListModal() {
+    const modal = document.getElementById('recipeListModal');
+    if (modal) modal.style.display = 'none';
+
+    modalObjectUrls.forEach(url => URL.revokeObjectURL(url));
+    modalObjectUrls = [];
+    
+    const currentCode = document.getElementById('menuCode').value.trim();
+    updateDBStatusLabel(currentCode);
+  }
+
+  function closeRecipeListModalOnOverlay(e) {
+    if (e.target.id === 'recipeListModal') {
+      closeRecipeListModal();
+    }
+  }
+
+  function filterModalRecipes() {
+    const query = document.getElementById('modalSearchInput').value.trim().toLowerCase();
+    const cards = document.querySelectorAll('#modalRecipeGrid .recipe-card');
+    
+    cards.forEach(card => {
+      const code = card.getAttribute('data-code').toLowerCase();
+      const name = card.getAttribute('data-name').toLowerCase();
+      
+      if (code.includes(query) || name.includes(query)) {
+        card.style.display = 'flex';
+      } else {
+        card.style.display = 'none';
+      }
+    });
+  }
+
+  async function loadRecipeFromList(code, event) {
+    if (event) {
+      event.stopPropagation();
+      event.preventDefault();
+    }
+    
+    closeRecipeListModal();
+    document.getElementById('menuCode').value = code;
+    await handleMenuCodeSelection(code);
+  }
+
+  async function deleteRecipeFromList(code, event) {
+    if (event) {
+      event.stopPropagation();
+      event.preventDefault();
+    }
+
+    if (!confirm(`メニューコード 「${code}」 の手順書データをデータベースから削除しますか？`)) {
+      return;
+    }
+
+    try {
+      await recipeDB.deleteRecipe(code);
+      savedMenuCodes.delete(code);
+      
+      const card = document.querySelector(`#modalRecipeGrid .recipe-card[data-code="${code}"]`);
+      if (card) card.remove();
+      
+      updateSavedCount();
+      
+      const currentCode = document.getElementById('menuCode').value.trim();
+      if (currentCode === code) {
+        resetFormToDefault(true);
+      }
+      
+      const grid = document.getElementById('modalRecipeGrid');
+      if (grid && grid.querySelectorAll('.recipe-card').length === 0) {
+        grid.innerHTML = '<div style="text-align: center; color: #64748b; padding: 20px; font-size: 0.85rem;">保存された手順書がありません。</div>';
+      }
+
+      alert("手順書データをデータベースから削除しました。");
+    } catch (e) {
+      console.error(e);
+      alert("削除中にエラーが発生しました: " + e.message);
+    }
+  }
 </script>
+<!-- ==========================================================================
+     ■ SECTION 2.1: DIALOGS & MODALS
+     ========================================================================== -->
+<div id="recipeListModal" class="modal-overlay" style="display: none;" onclick="closeRecipeListModalOnOverlay(event)">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h3>📂 保存済み手順書一覧 (<span id="modalSavedCount">0</span>)</h3>
+      <button type="button" class="close-modal-btn" onclick="closeRecipeListModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="search-wrapper" style="margin-bottom: 12px; position: relative;">
+        <input type="text" id="modalSearchInput" placeholder="メニューコードまたは商品名称で検索..." oninput="filterModalRecipes()" style="width: 100%; padding: 6px 12px; font-size: 0.85rem; border: 1px solid #cbd5e1; border-radius: 6px; box-sizing: border-box;">
+      </div>
+      <div id="modalRecipeGrid" class="modal-recipe-grid">
+        <!-- レシピカードが動的に生成されます -->
+      </div>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>
