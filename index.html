@@ -433,7 +433,7 @@
   /* --- 1.6 Print Media Query Overrides (Ctrl+P Styles) --- */
   @media print {
     body { background: #fff; margin: 0; padding: 0; font-family: "Meiryo", sans-serif; }
-    .utility-bar, .edit-only-btn, .edit-only-col, .dropdown-arrow, .image-placeholder, .del-image-btn, .step-block-header {
+    .utility-bar, .edit-only-btn, .edit-only-col, .edit-only-row, .dropdown-arrow, .image-placeholder, .del-image-btn, .step-block-header {
       display: none !important;
     }
     #editorWrapper { background: none; padding: 0; margin: 0; display: block; }
@@ -491,6 +491,13 @@
     /* 印刷時のタイトルを出す */
     .print-only-block-title {
       display: block !important;
+    }
+    .step-block {
+      padding: 0 !important;
+      border: 1px solid #cbd5e1 !important;
+    }
+    .step-texts-out {
+      padding: 4px !important;
     }
 
     .preview-header { margin-bottom: 3px; padding-bottom: 3px; }
@@ -979,7 +986,6 @@
         </div>
         <div class="step-preview-block">
           <div class="step-img-out">
-            <div class="print-only-block-title" style="font-weight:bold; margin-bottom:2px; text-align:left;">手順①</div>
             <div class="image-upload-box" onclick="triggerFileInput(this)">
               <input type="file" class="image-file-input block-img" accept="image/*" onchange="previewImage(this)">
               <div class="image-placeholder">
@@ -992,6 +998,7 @@
             </div>
           </div>
           <div class="step-texts-out">
+            <div class="print-only-block-title" style="font-weight:bold; margin-bottom:2px; text-align:left;">手順①</div>
             <textarea class="step-textarea" placeholder="手順を自由に入力してください" oninput="autoResizeTextarea(this)"></textarea>
           </div>
         </div>
@@ -1205,7 +1212,6 @@
       </div>
       <div class="step-preview-block">
         <div class="step-img-out">
-          <div class="print-only-block-title" style="font-weight:bold; margin-bottom:2px; text-align:left;">手順</div>
           <div class="image-upload-box" onclick="triggerFileInput(this)">
             <input type="file" class="image-file-input block-img" accept="image/*" onchange="previewImage(this)">
             <div class="image-placeholder">
@@ -1218,6 +1224,7 @@
           </div>
         </div>
         <div class="step-texts-out">
+          <div class="print-only-block-title" style="font-weight:bold; margin-bottom:2px; text-align:left;">手順</div>
           <textarea class="step-textarea" placeholder="手順を自由に入力してください" oninput="autoResizeTextarea(this)"></textarea>
         </div>
       </div>
@@ -1243,7 +1250,6 @@
       </div>
       <div class="step-preview-block">
         <div class="step-img-out">
-          <div class="print-only-block-title" style="font-weight:bold; margin-bottom:2px; text-align:left; background-color: #e3f2fd; padding: 2px;">スタンバイ</div>
           <div class="image-upload-box" onclick="triggerFileInput(this)">
             <input type="file" class="image-file-input block-img" accept="image/*" onchange="previewImage(this)">
             <div class="image-placeholder">
@@ -1704,11 +1710,13 @@
     safeStorage.setItem('cachedVersion', "v4");
   }
 
-  async function loadMasterData() {
+  async function loadMasterData(isAuto = false) {
     const statusDiv = document.getElementById('masterStatus');
-    statusDiv.innerText = "マスタデータをスプレッドシートから読み込んでいます...";
-    statusDiv.style.backgroundColor = "#ffe0b2";
-    statusDiv.style.color = "#e65100";
+    if (!isAuto) {
+      statusDiv.innerText = "マスタデータをスプレッドシートから読み込んでいます...";
+      statusDiv.style.backgroundColor = "#ffe0b2";
+      statusDiv.style.color = "#e65100";
+    }
 
     const url = "https://docs.google.com/spreadsheets/d/1FUpFIMRcoOf-f5xDkcJGNparud13cgINV7JQehHznZ8/gviz/tq?tqx=out:csv&sheet=" + encodeURIComponent("BQ原価レシピ7");
     try {
@@ -1726,13 +1734,21 @@
         }
       }
       
-      processMasterRows(rows, "スプシから同期");
+      processMasterRows(rows, isAuto ? "スプシから自動更新" : "スプシから同期");
       
     } catch (error) {
       console.error(error);
-      statusDiv.innerText = "同期失敗：上の『ローカル連携』からダウンロードしたExcel/CSVファイルを読み込めます。";
-      statusDiv.style.backgroundColor = "#ffebee";
-      statusDiv.style.color = "#c62828";
+      if (!isAuto) {
+        statusDiv.innerText = "同期失敗：上の『ローカル連携』からダウンロードしたExcel/CSVファイルを読み込めます。";
+        statusDiv.style.backgroundColor = "#ffebee";
+        statusDiv.style.color = "#c62828";
+      } else {
+        const menuCount = Object.keys(menuMaster).length;
+        const sourceLabel = safeStorage.getItem('cachedSourceLabel') || "キャッシュ";
+        statusDiv.innerText = `マスタデータ読込完了 (${menuCount}件のメニュー) (${sourceLabel})`;
+        statusDiv.style.backgroundColor = "#e8f5e9";
+        statusDiv.style.color = "#2e7d32";
+      }
     }
   }
 
@@ -1824,16 +1840,19 @@
         statusDiv.innerText = `マスタデータ読込完了 (${menuCount}件のメニュー) (${sourceLabel})`;
         statusDiv.style.backgroundColor = "#e8f5e9";
         statusDiv.style.color = "#2e7d32";
+        
+        // キャッシュ読み込み後、バックグラウンドでGoogleスプレッドシートから自動更新を行う
+        loadMasterData(true);
       } catch (e) {
         console.error("Cache load error", e);
-        loadMasterData();
+        loadMasterData(false);
       }
     } else {
       safeStorage.removeItem('cachedMenuMaster');
       safeStorage.removeItem('cachedMenuCount');
       safeStorage.removeItem('cachedSourceLabel');
       safeStorage.setItem('cachedVersion', CACHE_VERSION);
-      loadMasterData();
+      loadMasterData(false);
     }
     
     const menuCodeInput = document.getElementById('menuCode');
@@ -2408,7 +2427,6 @@
           </div>
           <div class="step-preview-block">
             <div class="step-img-out">
-              <div class="print-only-block-title" style="font-weight:bold; margin-bottom:2px; text-align:left;">手順</div>
               <div class="image-upload-box" onclick="triggerFileInput(this)">
                 <input type="file" class="image-file-input block-img" accept="image/*" onchange="previewImage(this)">
                 <div class="image-placeholder">
@@ -2421,6 +2439,7 @@
               </div>
             </div>
             <div class="step-texts-out">
+              <div class="print-only-block-title" style="font-weight:bold; margin-bottom:2px; text-align:left;">手順</div>
               <textarea class="step-textarea" placeholder="手順を自由に入力してください" oninput="autoResizeTextarea(this)"></textarea>
             </div>
           </div>
@@ -2445,7 +2464,7 @@
     if (recipe.standbySteps && recipe.standbySteps.length > 0) {
       recipe.standbySteps.forEach((step, index) => {
         const div = document.createElement('div');
-        div.className = 'standby-block';
+        div.className = 'step-block standby-block';
         div.innerHTML = `
           <div class="edit-only-row" style="margin-bottom: 2px; display: flex; justify-content: space-between; align-items: center;">
             <strong class="standby-title" style="color: #0d47a1;">スタンバイ</strong>
@@ -2453,7 +2472,6 @@
           </div>
           <div class="step-preview-block">
             <div class="step-img-out">
-              <div class="print-only-standby-title" style="font-weight:bold; margin-bottom:2px; text-align:left;">スタンバイ</div>
               <div class="image-upload-box" onclick="triggerFileInput(this)">
                 <input type="file" class="image-file-input block-img" accept="image/*" onchange="previewImage(this)">
                 <div class="image-placeholder">
@@ -2547,7 +2565,6 @@
       </div>
       <div class="step-preview-block">
         <div class="step-img-out">
-          <div class="print-only-block-title" style="font-weight:bold; margin-bottom:2px; text-align:left;">手順①</div>
           <div class="image-upload-box" onclick="triggerFileInput(this)">
             <input type="file" class="image-file-input block-img" accept="image/*" onchange="previewImage(this)">
             <div class="image-placeholder">
@@ -2560,6 +2577,7 @@
           </div>
         </div>
         <div class="step-texts-out">
+          <div class="print-only-block-title" style="font-weight:bold; margin-bottom:2px; text-align:left;">手順①</div>
           <textarea class="step-textarea" placeholder="手順を自由に入力してください" oninput="autoResizeTextarea(this)"></textarea>
         </div>
       </div>
@@ -2570,7 +2588,7 @@
   function insertBlankStandbyBlock() {
     const container = document.getElementById('standbyContainer');
     const div = document.createElement('div');
-    div.className = 'standby-block';
+    div.className = 'step-block standby-block';
     div.innerHTML = `
       <div class="edit-only-row" style="margin-bottom: 2px; display: flex; justify-content: space-between; align-items: center;">
         <strong class="standby-title" style="color: #0d47a1;">スタンバイ</strong>
@@ -2578,7 +2596,6 @@
       </div>
       <div class="step-preview-block">
         <div class="step-img-out">
-          <div class="print-only-standby-title" style="font-weight:bold; margin-bottom:2px; text-align:left;">スタンバイ</div>
           <div class="image-upload-box" onclick="triggerFileInput(this)">
             <input type="file" class="image-file-input block-img" accept="image/*" onchange="previewImage(this)">
             <div class="image-placeholder">
