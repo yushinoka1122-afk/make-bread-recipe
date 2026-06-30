@@ -267,6 +267,16 @@
     border-color: #2196F3;
     background-color: #eff6ff;
   }
+  .image-upload-box.dragover {
+    border-color: #2196F3;
+    background-color: #eff6ff;
+    border-style: solid;
+    box-shadow: 0 0 0 2px rgba(33, 150, 243, 0.15);
+    transform: scale(1.01);
+  }
+  .image-upload-box.dragover * {
+    pointer-events: none;
+  }
   .image-placeholder {
     color: #64748b;
     font-size: 0.7rem;
@@ -3071,6 +3081,48 @@
       alert("削除中にエラーが発生しました: " + e.message);
     }
   }
+
+  // --- 3.8 Drag and Drop Photo Upload Support ---
+  // ドラッグ＆ドロップによる画像アップロードのイベントデリゲーション
+  document.addEventListener('dragenter', (e) => {
+    const box = e.target.closest('.image-upload-box');
+    if (box) {
+      e.preventDefault();
+      box.classList.add('dragover');
+    }
+  });
+
+  document.addEventListener('dragover', (e) => {
+    const box = e.target.closest('.image-upload-box');
+    if (box) {
+      e.preventDefault();
+      box.classList.add('dragover');
+    }
+  });
+
+  document.addEventListener('dragleave', (e) => {
+    const box = e.target.closest('.image-upload-box');
+    if (box && (!e.relatedTarget || !box.contains(e.relatedTarget))) {
+      box.classList.remove('dragover');
+    }
+  });
+
+  document.addEventListener('drop', (e) => {
+    const box = e.target.closest('.image-upload-box');
+    if (box) {
+      e.preventDefault();
+      box.classList.remove('dragover');
+      const files = e.dataTransfer.files;
+      if (files && files.length > 0) {
+        const fileInput = box.querySelector('input[type="file"]');
+        if (fileInput) {
+          fileInput.files = files;
+          const event = new Event('change', { bubbles: true });
+          fileInput.dispatchEvent(event);
+        }
+      }
+    }
+  });
 </script>
 <!-- ==========================================================================
      ■ SECTION 2.1: DIALOGS & MODALS
