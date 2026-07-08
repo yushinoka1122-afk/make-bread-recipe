@@ -6,6 +6,8 @@
 <title>パン手順書作成ツール</title>
 <!-- SheetJS -->
 <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+<!-- SortableJS -->
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
 <style>
   /* ==========================================================================
      ■ SECTION 1: STYLE SHEETS (CSS)
@@ -191,29 +193,7 @@
     padding: 2px 1px !important;
   }
   
-  /* --- 1.4 Step Blocks & Dispatch Styles --- */
-  /* 生地出庫 */
-  #dispatchSection {
-    margin-bottom: 3px;
-    padding: 2px;
-    border: 1px solid #b0bec5;
-    border-radius: 4px;
-    background-color: #fafafa;
-    font-size: 10px;
-  }
-  #dispatchSection input, #dispatchSection select {
-    font-size: 10px !important;
-  }
-  #dispatchSection .step-num-label {
-    font-size: 10px !important;
-  }
-  #dispatchSection strong {
-    font-size: 10px !important;
-  }
-  #dispatchSection button {
-    font-size: 9px !important;
-    padding: 2px 4px !important;
-  }
+  /* --- 1.4 Step Blocks Styles --- */
   
   /* 手順リストとグリッド */
   .steps-grid { display: flex; gap: 8px; margin-bottom: 4px; }
@@ -221,7 +201,7 @@
   .steps-full { display: flex; flex-direction: column; gap: 4px; }
   
   .step-block { border: 1px dashed #cbd5e1; padding: 4px; background: #fff; margin-bottom: 3px; border-radius: 4px; }
-  .step-block-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 3px; font-size: 11px; background: #f8fafc; padding: 1px 3px; border-radius: 3px; }
+  .step-block-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 3px; font-size: 11px; background: #f8fafc; padding: 1px 3px; border-radius: 3px; cursor: move; }
   .step-preview-block { display: flex; gap: 6px; font-size: 10px; align-items: flex-start; }
   .step-img-out { flex: 0 0 120px; text-align: center; display: flex; flex-direction: column; }
   .step-texts-out { flex: 1; display: flex; flex-direction: column; }
@@ -967,34 +947,7 @@
       </div>
     </div>
 
-    <!-- 生地出庫 -->
-    <div id="dispatchSection">
-      <div style="font-weight:bold; margin-bottom:3px; color:#444; border-bottom: 1px solid #ccc; padding-bottom: 2px; display: flex; align-items: center; justify-content: space-between;">
-        <div style="display: flex; align-items: center; gap: 5px; flex: 1;">
-          <strong>■ 生地出庫：</strong>
-          <input type="text" id="dispatchTitle" placeholder="例: スティッククロワッサン生地 HT: 24h" style="font-size: 10px; color: #1565c0; font-weight: normal; flex: 1;" oninput="updateDispatchVisibility()">
-        </div>
-        <div class="edit-only-btn" style="display: flex; gap: 5px; align-items: center;">
-          <select id="dispatchTemplate" onchange="applyDispatchTemplate()" style="padding: 1px 4px; font-size: 9px; width: auto;">
-            <option value="">-- テンプレート --</option>
-            <option value="temp1">玉生地・棒生地</option>
-            <option value="temp2">シート生地①</option>
-            <option value="temp3">シート生地②</option>
-            <option value="temp4">シート生地③</option>
-          </select>
-        </div>
-      </div>
-      <div id="dispatchStepsContainer">
-        <div class="step-input-row dispatch-step-row" style="align-items: stretch;">
-          <span class="step-num-label" style="display: flex; align-items: center; justify-content: center; height: auto;">①</span>
-          <textarea class="step-text step-textarea" placeholder="出庫手順を入力" rows="1" oninput="autoResizeTextarea(this); updateDispatchVisibility();" style="flex: 1; min-height: 18px; height: 18px; padding: 2px 4px; resize: none; overflow-y: hidden;"></textarea>
-          <div style="display: flex; align-items: center; padding-left: 2px;">
-            <button type="button" class="del-btn edit-only-btn" onclick="removeRow(this, 'dispatch')">🗑️</button>
-          </div>
-        </div>
-      </div>
-      <button type="button" class="add-btn edit-only-btn" style="margin-top: 2px;" onclick="addDispatchStep()">＋ 出庫手順に行を追加</button>
-    </div>
+
 
     <!-- 作業手順の2カラム化コンテナ -->
     <div class="steps-grid">
@@ -1039,6 +992,25 @@
             <div class="print-only-block-title" style="font-weight:bold; margin-bottom:2px; text-align:left;">手順①</div>
             <textarea class="step-textarea" placeholder="手順を自由に入力してください" oninput="autoResizeTextarea(this)"></textarea>
           </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 提供方法セクション -->
+    <div style="display: flex; justify-content: flex-end; margin-bottom: 4px;">
+      <div style="width: calc(50% - 4px);">
+        <div id="servingMethodSection" class="step-block" style="padding: 2px 4px; margin-bottom: 0;">
+          <div style="font-weight:bold; font-size:10px; margin-bottom:2px; display:flex; justify-content:space-between; align-items:center;">
+            <span style="color:#e91e63;">■ 提供方法</span>
+            <select id="servingTemplate" class="edit-only-btn" style="font-size: 9px; padding: 1px 4px;" onchange="document.getElementById('servingText').value = this.value; autoResizeTextarea(document.getElementById('servingText'));">
+              <option value="">-- 提供方法テンプレ --</option>
+              <option value="商品の向きをそろえて、焼きたてを提供します。">① 焼きたて</option>
+              <option value="チョコが完全に固まってから、商品の向きをそろえて提供します。">② チョコ固め</option>
+              <option value="粗熱が取れてから、商品の向きをそろえて提供します。">③ 粗熱取り</option>
+              <option value="商品は重ねずに向きをそろえて提供します。">④ 重ねない</option>
+            </select>
+          </div>
+          <textarea id="servingText" class="step-textarea" placeholder="提供方法" rows="1" oninput="autoResizeTextarea(this)" style="min-height: 18px; height: 18px; padding: 2px;"></textarea>
         </div>
       </div>
     </div>
@@ -1152,10 +1124,6 @@
     const row = btn.closest('.row, .step-input-row, .ing-row');
     row.remove();
     
-    if (type === 'dispatch') {
-      updateNumbers('dispatchStepsContainer', 'dispatch-step-row');
-      updateDispatchVisibility();
-    }
     adjustPreviewScale();
   }
 
@@ -1221,22 +1189,7 @@
     adjustPreviewScale();
   }
 
-  function addDispatchStep() {
-    const container = document.getElementById('dispatchStepsContainer');
-    const div = document.createElement('div');
-    div.className = 'step-input-row dispatch-step-row';
-    div.style.alignItems = 'stretch';
-    div.innerHTML = `
-      <span class="step-num-label" style="display: flex; align-items: center; justify-content: center; height: auto;"></span>
-      <textarea class="step-text step-textarea" placeholder="出庫手順を入力" rows="1" oninput="autoResizeTextarea(this); updateDispatchVisibility();" style="flex: 1; min-height: 18px; height: 18px; padding: 2px 4px; resize: none; overflow-y: hidden;"></textarea>
-      <div style="display: flex; align-items: center; padding-left: 2px;">
-        <button type="button" class="del-btn edit-only-btn" onclick="removeRow(this, 'dispatch')">🗑️</button>
-      </div>`;
-    container.appendChild(div);
-    updateNumbers('dispatchStepsContainer', 'dispatch-step-row');
-    updateDispatchVisibility();
-    adjustPreviewScale();
-  }
+
 
   function addStepBlock() {
     const container = document.getElementById('outStepsFull');
@@ -1449,24 +1402,9 @@
     ]);
     data.push([]);
 
-    // 生地出庫
-    const dispatchTitleVal = document.getElementById('dispatchTitle').value.trim();
-    const dRows = document.querySelectorAll('.dispatch-step-row');
-    let hasD = false;
-    const dData = [];
-    dRows.forEach((row) => {
-      const numLabel = row.querySelector('.step-num-label').innerText;
-      const textVal = row.querySelector('.step-text').value.trim();
-      if(textVal) {
-        dData.push([numLabel, textVal]);
-        hasD = true;
-      }
-    });
-    if(dispatchTitleVal || hasD) {
-      if(dispatchTitleVal) data.push([dispatchTitleVal]);
-      dData.forEach(r => data.push(r));
-      data.push([]);
-    }
+    // 提供方法
+    data.push(["提供方法", document.getElementById('servingText').value]);
+    data.push([]);
 
     // 手順
     const blocks = document.querySelectorAll('#outputArea .step-block[data-block-type="step"]');
@@ -1529,72 +1467,7 @@
   
   // --- 3.5 Step Templates & Section Visibility ---
   // テンプレートデータ
-  const dispatchTitles = {
-    temp1: "玉生地（ホテル・イギリス・よもぎ・レーズン・バジル）／棒生地（トースト・スティッククロワッサン）",
-    temp2: "シート生地①（クロワッサン・クロライト）",
-    temp3: "シート生地②（チャバタ）",
-    temp4: "シート生地③（多加水シート・ロデヴ）"
-  };
 
-  const dispatchTemplates = {
-    temp1: [
-      "鉄板の汚れが無いことを確認。",
-      "鉄板にラップを敷き、生地を重ならないよう並べて上からラップを重ねる。",
-      "4辺を内側に折りたたみ、乾燥しないよう密閉する。",
-      "手前に「命を守るシール」を貼る。※剥がす際のラップ付着・異物混入に注意。"
-    ],
-    temp2: [
-      "鉄板の汚れが無いことを確認。",
-      "鉄板にラップを敷き、生地を重ならないよう並べて上からラップを重ねる。",
-      "同様の手順で、ラップの上に生地を並べる（最大4段まで）。",
-      "4辺を内側に折りたたみ、乾燥しないよう密閉する。",
-      "手前に「命を守るシール」を貼る。※剥がす際のラップ付着・異物混入に注意。"
-    ],
-    temp3: [
-      "鉄板の汚れが無いことを確認。",
-      "鉄板にラップを敷き、生地を重ならないよう並べて上からラップを重ねる。",
-      "4辺を内側に折りたたみ、乾燥しないよう密閉する。",
-      "手前に「命を守るシール」を貼る。※剥がす際のラップ付着・異物混入に注意。"
-    ],
-    temp4: [
-      "鉄板の汚れが無いことを確認。",
-      "鉄板に生地を重ならないよう並べる（最大4枚）。※異物混入防止のためラップ不可。",
-      "もう一枚の鉄板を被せ、乾燥に注意して冷蔵庫で解凍する。"
-    ]
-  };
-
-  function applyDispatchTemplate() {
-    const select = document.getElementById('dispatchTemplate');
-    const tempKey = select.value;
-    if (!tempKey) return;
-
-    document.getElementById('dispatchTitle').value = dispatchTitles[tempKey];
-
-    const container = document.getElementById('dispatchStepsContainer');
-    container.innerHTML = '';
-
-    const lines = dispatchTemplates[tempKey];
-    lines.forEach((lineText) => {
-      const div = document.createElement('div');
-      div.className = 'step-input-row dispatch-step-row';
-      div.style.alignItems = 'stretch';
-      div.innerHTML = `
-        <span class="step-num-label" style="display: flex; align-items: center; justify-content: center; height: auto;"></span>
-        <textarea class="step-text step-textarea" placeholder="出庫手順を入力" rows="1" oninput="autoResizeTextarea(this); updateDispatchVisibility();" style="flex: 1; min-height: 18px; height: 18px; padding: 2px 4px; resize: none; overflow-y: hidden;">${lineText}</textarea>
-        <div style="display: flex; align-items: center; padding-left: 2px;">
-          <button type="button" class="del-btn edit-only-btn" onclick="removeRow(this, 'dispatch')">🗑️</button>
-        </div>`;
-      container.appendChild(div);
-      
-      const ta = div.querySelector('textarea');
-      autoResizeTextarea(ta);
-    });
-    
-    updateNumbers('dispatchStepsContainer', 'dispatch-step-row');
-    select.value = "";
-    updateDispatchVisibility();
-    adjustPreviewScale();
-  }
 
   function applyStepTemplate(selectObj) {
     const tempKey = selectObj.value;
@@ -1647,20 +1520,6 @@
     adjustPreviewScale();
   }
 
-  function updateDispatchVisibility() {
-    const title = document.getElementById('dispatchTitle').value.trim();
-    let hasSteps = false;
-    document.querySelectorAll('#dispatchStepsContainer .step-text').forEach(input => {
-      if (input.value.trim()) hasSteps = true;
-    });
-    const section = document.getElementById('dispatchSection');
-    if (!title && !hasSteps) {
-      section.classList.add('print-empty-hide');
-    } else {
-      section.classList.remove('print-empty-hide');
-    }
-  }
-
   function updateStandbyVisibility() {
     const section = document.getElementById('standbySection');
     let hasContent = false;
@@ -1682,7 +1541,6 @@
   // 初期化
   reorganizeStepBlocks();
   updateStandbyBlockNumbers();
-  updateDispatchVisibility();
   updateStandbyVisibility();
 
   // --- 3.6 Master Data Processing & Spreadsheet Synchronization ---
@@ -1717,16 +1575,33 @@
   function processMasterRows(rows, sourceLabel) {
     const statusDiv = document.getElementById('masterStatus');
     menuMaster = {};
-    
+
     let headerIdx = -1;
-    for (let i = 0; i < rows.length; i++) {
-      if (rows[i] && (rows[i].includes('業務形態区分') || rows[i].includes('業態区分'))) {
+    let colMap = {};
+    
+    for (let i = 0; i < Math.min(rows.length, 20); i++) {
+      if (!rows[i]) continue;
+      const rowStr = rows[i].map(c => String(c || '')).join('');
+      if (rowStr.includes("メニュー名称") || rowStr.includes("商品名称") || rowStr.includes("商品コード") || rowStr.includes("メニューコード")) {
         headerIdx = i;
+        for (let j = 0; j < rows[i].length; j++) {
+          const hName = String(rows[i][j] || '').trim();
+          if (hName === "メニューコード" || hName === "ﾒﾆｭｰｺｰﾄﾞ") colMap.menuCode = j;
+          else if (hName === "メニュー名称" || hName === "ﾒﾆｭｰ名称") colMap.menuName = j;
+          else if (hName === "商品コード") colMap.ingCode = j;
+          else if (hName === "商品名称") colMap.ingName = j;
+          else if (hName === "正味使用量" || hName === "使用量") colMap.ingAmount = j;
+          else if (hName === "正味単位" || hName === "単位") colMap.ingUnit = j;
+        }
         break;
       }
     }
     
-    if (headerIdx === -1) {
+    // もしどうしても見つからなければ、従来の固定インデックスにフォールバックする
+    if (headerIdx === -1 || colMap.menuCode === undefined) {
+      colMap = {
+        menuCode: 3, menuName: 4, ingCode: 10, ingName: 11, ingAmount: 12, ingUnit: 13
+      };
       headerIdx = 0;
     }
     
@@ -1734,12 +1609,12 @@
       const cols = rows[i];
       if (!cols || cols.length === 0) continue;
       
-      let menuCode = cols[3] ? String(cols[3]).trim() : "";
-      let menuName = cols[4] ? String(cols[4]).trim() : "";
-      const ingCode = cols[10] ? String(cols[10]).trim() : "";
-      const ingName = cols[11] ? String(cols[11]).trim() : "";
-      const ingAmount = cols[12] ? String(cols[12]).trim() : "";
-      const ingUnit = cols[13] ? String(cols[13]).trim() : "";
+      let menuCode = cols[colMap.menuCode] ? String(cols[colMap.menuCode]).trim() : "";
+      let menuName = cols[colMap.menuName] ? String(cols[colMap.menuName]).trim() : "";
+      const ingCode = cols[colMap.ingCode] ? String(cols[colMap.ingCode]).trim() : "";
+      const ingName = cols[colMap.ingName] ? String(cols[colMap.ingName]).trim() : "";
+      const ingAmount = cols[colMap.ingAmount] ? String(cols[colMap.ingAmount]).trim() : "";
+      const ingUnit = cols[colMap.ingUnit] ? String(cols[colMap.ingUnit]).trim() : "";
       
       if (!menuCode || menuCode === "ﾒﾆｭｰｺｰﾄﾞ" || menuCode === "メニューコード") continue;
       
@@ -1846,7 +1721,7 @@
     
     ingredients.forEach(ing => {
       const tr = document.createElement('tr');
-      tr.className = 'ing-row';
+      tr.className = ing.standby ? 'ing-row is-standby' : 'ing-row';
       
       const units = ["g", "kg", "ml", "L", "個", "枚", "本", "尾", "杯", "種", "人前", "円", "適量"];
       let unitOptions = "";
@@ -1892,7 +1767,22 @@
   document.addEventListener('DOMContentLoaded', () => {
     reorganizeStepBlocks();
     updateStandbyBlockNumbers();
-    updateDispatchVisibility();
+    updateStandbyVisibility();
+
+    // SortableJS Drag-and-Drop
+    if (typeof Sortable !== 'undefined') {
+      const sortableOptions = {
+        group: 'steps',
+        animation: 150,
+        handle: '.step-block-header',
+        onEnd: function() {
+          reorganizeStepBlocks();
+        }
+      };
+      new Sortable(document.getElementById('outStepsLeft'), sortableOptions);
+      new Sortable(document.getElementById('outStepsRight'), sortableOptions);
+      new Sortable(document.getElementById('outStepsFull'), sortableOptions);
+    }
     updateStandbyVisibility();
 
     // 初期時にすでにあるテキストエリアのサイズを調整
@@ -2138,7 +2028,7 @@
             statusDiv.style.color = "#c62828";
           }
         };
-        reader.readAsText(file, 'utf-8');
+        reader.readAsText(file, 'Shift_JIS');
       }
     });
   }
@@ -2346,13 +2236,7 @@
     const bakeH = document.getElementById('bakeH').value;
     const bakeTime = document.getElementById('bakeTime').value;
 
-    const dispatchTitle = document.getElementById('dispatchTitle').value.trim();
-
-    // 出庫手順
-    const dispatchSteps = [];
-    document.querySelectorAll('#dispatchStepsContainer .dispatch-step-row textarea').forEach(ta => {
-      dispatchSteps.push(ta.value);
-    });
+    const servingText = document.getElementById('servingText') ? document.getElementById('servingText').value.trim() : "";
 
     // 使用食材
     const ingredients = [];
@@ -2401,8 +2285,7 @@
       moldL, moldW, moldH, maxLoad,
       proofL, proofW, proofH, proofTime,
       bakeL, bakeW, bakeH, bakeTime,
-      dispatchTitle,
-      dispatchSteps,
+      servingText,
       ingredients,
       manualSteps,
       standbySteps,
@@ -2438,34 +2321,16 @@
     document.getElementById('bakeH').value = recipe.bakeH || 0;
     document.getElementById('bakeTime').value = recipe.bakeTime || "10";
 
-    document.getElementById('dispatchTitle').value = recipe.dispatchTitle || "";
-
     // 画像の復元
     restoreImageHelper('mainImage', recipe.mainImageBlob);
     restoreImageHelper('moldImg', recipe.moldImageBlob);
     restoreImageHelper('proofImg', recipe.proofImageBlob);
     restoreImageHelper('bakeImg', recipe.bakeImageBlob);
 
-    // 出庫手順の復元
-    const dispatchContainer = document.getElementById('dispatchStepsContainer');
-    dispatchContainer.innerHTML = '';
-    if (recipe.dispatchSteps && recipe.dispatchSteps.length > 0) {
-      recipe.dispatchSteps.forEach(text => {
-        const div = document.createElement('div');
-        div.className = 'step-input-row dispatch-step-row';
-        div.style.alignItems = 'stretch';
-        div.innerHTML = `
-          <span class="step-num-label" style="display: flex; align-items: center; justify-content: center; height: auto;"></span>
-          <textarea class="step-text step-textarea" placeholder="出庫手順を入力" rows="1" oninput="autoResizeTextarea(this); updateDispatchVisibility();" style="flex: 1; min-height: 18px; height: 18px; padding: 2px 4px; resize: none; overflow-y: hidden;">${text}</textarea>
-          <div style="display: flex; align-items: center; padding-left: 2px;">
-            <button type="button" class="del-btn edit-only-btn" onclick="removeRow(this, 'dispatch')">🗑️</button>
-          </div>`;
-        dispatchContainer.appendChild(div);
-        autoResizeTextarea(div.querySelector('textarea'));
-      });
+    if (document.getElementById('servingText')) {
+      document.getElementById('servingText').value = recipe.servingText || "";
+      autoResizeTextarea(document.getElementById('servingText'));
     }
-    updateNumbers('dispatchStepsContainer', 'dispatch-step-row');
-    updateDispatchVisibility();
 
     // 食材テーブルの復元
     populateIngredients(recipe.ingredients || []);
@@ -2712,8 +2577,10 @@
     document.getElementById('bakeH').value = 0;
     document.getElementById('bakeTime').value = "10";
 
-    document.getElementById('dispatchTitle').value = '';
-    document.getElementById('dispatchStepsContainer').innerHTML = '';
+    if (document.getElementById('servingText')) {
+      document.getElementById('servingText').value = '';
+      autoResizeTextarea(document.getElementById('servingText'));
+    }
     document.getElementById('ingredientsContainer').innerHTML = '';
     
     document.getElementById('outStepsLeft').innerHTML = '';
@@ -2732,7 +2599,6 @@
     restoreImageHelper('proofImg', null);
     restoreImageHelper('bakeImg', null);
 
-    updateDispatchVisibility();
     updateStandbyVisibility();
     updateDBStatusLabel(keepMetadata ? document.getElementById('menuCode').value.trim() : null);
     adjustPreviewScale();
