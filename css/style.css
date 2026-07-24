@@ -1,0 +1,679 @@
+  /* ==========================================================================
+     ■ SECTION 1: STYLE SHEETS (CSS)
+     ========================================================================== */
+
+  /* --- 1.1 Base HTML & App Layout Styles --- */
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background-color: #f1f5f9; margin: 0; padding: 0; color: #333; }
+  
+  /* ユーティリティ操作パネル */
+  .utility-bar {
+    position: sticky;
+    top: 0;
+    z-index: 10000;
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(8px);
+    border-bottom: 1px solid #cbd5e1;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+    padding: 8px 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 15px;
+    flex-wrap: wrap;
+  }
+  .utility-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .utility-left h1 {
+    font-size: 1.05rem;
+    margin: 0;
+    color: #1e293b;
+    border: none;
+    padding: 0;
+    font-weight: bold;
+  }
+  .utility-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .file-input-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: #f8fafc;
+    border: 1px solid #cbd5e1;
+    padding: 4px 8px;
+    border-radius: 6px;
+    font-size: 0.75rem;
+  }
+  .file-input-wrapper input[type="file"] {
+    width: auto;
+    max-width: 180px;
+    padding: 0;
+    border: none;
+    background: transparent;
+  }
+
+  /* エディタ全体の背景 */
+  #editorWrapper {
+    width: 100%;
+    background-color: #f1f5f9;
+    padding: 15px;
+    box-sizing: border-box;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    min-height: calc(100vh - 60px);
+  }
+
+  /* ボタン類 */
+  button {
+    padding: 6px 12px;
+    background-color: #4CAF50;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    font-weight: bold;
+    cursor: pointer;
+    transition: background-color 0.15s ease;
+  }
+  button:hover { background-color: #45a049; }
+  button.add-btn { background-color: #2196F3; font-size: 0.75rem; padding: 4px 8px; width: auto; margin-top: 5px; }
+  button.add-btn:hover { background-color: #1e88e5; }
+  button.print-btn { background-color: #607D8B; }
+  button.print-btn:hover { background-color: #546e7a; }
+  button.excel-btn { background-color: #009688; }
+  button.excel-btn:hover { background-color: #00897b; }
+  button.del-btn { background-color: #ef4444; padding: 4px 8px; font-size: 0.75rem; font-weight: normal; border-radius: 3px; }
+  button.del-btn:hover { background-color: #dc2626; }
+  
+  /* --- 1.2 A4 Page Preview Layout Styles --- */
+  /* A4用紙風レイアウト */
+  #outputArea { 
+    display: block; 
+    background: #fff; 
+    border: 1px solid #e2e8f0;
+    font-size: 11px; 
+    width: 210mm;
+    min-height: 297mm;
+    padding: 5mm 8mm;
+    box-sizing: border-box;
+    box-shadow: 0 10px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.1);
+    margin: 0 auto;
+    position: relative;
+  }
+  
+  /* ヘッダーレイアウト */
+  .preview-header { display: flex; gap: 10px; align-items: stretch; margin-bottom: 4px; border-bottom: 1px solid #333; padding-bottom: 3px; }
+  .preview-left { flex: 2; display: flex; flex-direction: column; }
+  .preview-right.main-image-container { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; }
+  
+  .preview-title-area { margin-bottom: 3px; display: flex; flex-direction: column; gap: 3px; font-size: 10px;}
+  
+  .product-title-row {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    font-weight: bold;
+    width: 100%;
+  }
+  .product-title-row input {
+    font-size: 11px !important;
+  }
+  
+  /* 規格と工程条件 */
+  .specs-container { display: flex; gap: 4px; margin-bottom: 4px; }
+  .spec-box { flex: 1; border: 1px solid #333; padding: 2px; font-size: 10px; display: flex; flex-direction: column; background: #fff; }
+  .spec-box h4 { margin: 0 0 2px 0; background: #e8f5e9; padding: 1px 1px; text-align: center; font-size: 11px; font-weight: bold; border-bottom: 1px solid #333; display: flex; align-items: center; justify-content: center; gap: 2px; }
+  .spec-box h4 input, .spec-box h4 select { font-size: 11px !important; font-weight: bold !important; text-align: center; border: 1px dashed transparent; background: transparent; cursor: pointer; }
+  .spec-box h4 input { width: 35px; }
+  .spec-box h4 input:hover, .spec-box h4 select:hover { border-color: #94a3b8; background-color: #f8fafc; }
+  .spec-box h4 input:focus, .spec-box h4 select:focus { border-color: #2196F3; background-color: #fff; outline: none; }
+  .spec-info { margin-bottom: 2px; font-size: 9px; }
+  .spec-dimension-row { display: flex; align-items: center; gap: 2px; flex-wrap: wrap; margin-bottom: 1px; }
+  .spec-dimension-row input {
+    width: 32px; /* 幅を25pxから32pxに少し広げて数値が見えやすく調整 */
+    font-size: 9px;
+    text-align: center;
+  }
+  
+  /* 寸法等の数値スピンボタンを非表示化 */
+  .spec-dimension-row input[type="number"]::-webkit-outer-spin-button,
+  .spec-dimension-row input[type="number"]::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  /* Chrome, Safari, Edge, Opera */
+  input::-webkit-outer-spin-button,
+  input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  input[type="number"] {
+    -moz-appearance: textfield;
+  }
+  .print-text {
+    display: none;
+  }
+  .output-table { width: 100%; border-collapse: collapse; margin-bottom: 3px; font-size: 8.5px; }
+  .output-table th, .output-table td {
+    border: 1px solid #ccc;
+    padding: 1px 3px;
+    text-align: left;
+    font-size: 8.5px;
+    vertical-align: middle;
+  }
+  .output-table th { background-color: #f2f2f2; font-weight: bold; }
+  .output-table input[type="text"],
+  .output-table input[type="number"],
+  .output-table select {
+    width: 100% !important;
+    box-sizing: border-box;
+    text-align: inherit;
+  }
+  .ing-standby {
+    font-size: 8.5px !important;
+    padding: 2px 1px !important;
+  }
+  
+  /* --- 1.4 Step Blocks Styles --- */
+  
+  /* 手順リストとグリッド */
+  .steps-grid { display: flex; gap: 8px; margin-bottom: 4px; }
+  .steps-col { flex: 1; display: flex; flex-direction: column; gap: 4px; }
+  .steps-full { display: flex; flex-direction: column; gap: 4px; }
+  
+  .step-block { border: 1px dashed #cbd5e1; padding: 4px; background: #fff; margin-bottom: 3px; border-radius: 4px; }
+  .step-block-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 3px; font-size: 11px; background: #f8fafc; padding: 1px 3px; border-radius: 3px; cursor: move; }
+  .step-preview-block { display: flex; gap: 6px; font-size: 10px; align-items: flex-start; }
+  .step-img-out { flex: 0 0 120px; text-align: center; display: flex; flex-direction: column; }
+  .step-texts-out { flex: 1; display: flex; flex-direction: column; }
+  
+  /* 手順テキストボックス */
+  .step-textarea {
+    width: 100%;
+    min-height: 60px;
+    border: 1px dashed transparent;
+    background: transparent;
+    font-family: inherit;
+    font-size: 10px;
+    line-height: 1.3;
+    padding: 2px;
+    box-sizing: border-box;
+    resize: none;
+    overflow-y: hidden;
+    transition: all 0.15s ease;
+  }
+  .step-textarea:hover {
+    border-color: #cbd5e1;
+    background-color: #f8fafc;
+  }
+  .step-textarea:focus {
+    border-color: #2196F3;
+    background-color: #fff;
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(33, 150, 243, 0.15);
+  }
+
+  .step-input-row { display: flex; gap: 4px; align-items: center; margin-bottom: 2px; background: #f8fafc; padding: 2px; border: 1px solid #e2e8f0; border-radius: 3px; }
+  .step-num-label { font-weight: bold; width: 15px; text-align: center; font-size: 10px; }
+  
+  /* スタンバイ */
+  #standbySection { margin-top: 6px; border-top: 1px solid #ccc; padding-top: 4px; }
+  
+  /* 画像アップローダーのスタイリング */
+  .image-upload-box {
+    position: relative;
+    border: 1px dashed #cbd5e1;
+    background-color: #f8fafc;
+    border-radius: 4px;
+    cursor: pointer;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s ease;
+    width: 100%;
+    box-sizing: border-box;
+  }
+  .image-upload-box:hover {
+    border-color: #2196F3;
+    background-color: #eff6ff;
+  }
+  .image-upload-box.dragover {
+    border-color: #2196F3;
+    background-color: #eff6ff;
+    border-style: solid;
+    box-shadow: 0 0 0 2px rgba(33, 150, 243, 0.15);
+    transform: scale(1.01);
+  }
+  .image-upload-box.dragover * {
+    pointer-events: none;
+  }
+  .image-placeholder {
+    color: #64748b;
+    font-size: 0.7rem;
+    font-weight: bold;
+    text-align: center;
+    pointer-events: none;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+  }
+  .image-preview {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+  }
+  .image-preview img {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+  }
+  .del-image-btn {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    background-color: rgba(239, 68, 68, 0.9);
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 18px;
+    height: 18px;
+    font-size: 0.7rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    line-height: 1;
+    z-index: 10;
+  }
+  .del-image-btn:hover { background-color: #dc2626; }
+  
+  .spec-box .image-upload-box { height: 110px; margin-top: auto; }
+  .main-image-container .image-upload-box { height: 140px; margin-top: 5px; }
+  .step-img-out .image-upload-box { height: 100px; }
+  .image-file-input { display: none; }
+
+  /* WYSIWYG直接編集用インプットのブレンドスタイル */
+  #outputArea input, #outputArea select {
+    border: 1px dashed transparent;
+    background: transparent;
+    padding: 2px 4px;
+    font-family: inherit;
+    font-size: inherit;
+    color: inherit;
+    box-sizing: border-box;
+    transition: all 0.15s ease;
+  }
+  #outputArea input[type="checkbox"] {
+    width: auto;
+    border: none;
+  }
+  #outputArea input:hover, #outputArea select:hover {
+    border-color: #94a3b8;
+    background-color: #f8fafc;
+  }
+  #outputArea input:focus, #outputArea select:focus {
+    border-color: #2196F3;
+    background-color: #fff;
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(33, 150, 243, 0.15);
+  }
+  
+  /* オートコンプリート */
+  .autocomplete-wrapper {
+    position: relative;
+    width: 100%;
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+  }
+  .autocomplete-wrapper input {
+    padding-right: 16px !important;
+  }
+  .autocomplete-wrapper .dropdown-arrow {
+    position: absolute;
+    right: 4px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 0.5rem;
+    color: #64748b;
+    pointer-events: auto; /* クリックイベントを受け取るように変更 */
+    cursor: pointer; /* マウスホバーでポインターを表示 */
+    user-select: none;
+  }
+  /* --- 1.5 Suggest List & Autocomplete Dropdown Styles --- */
+  .suggest-list {
+    position: absolute;
+    background: #fff;
+    border: 1px solid #cbd5e1;
+    box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1);
+    z-index: 9999;
+    max-height: 200px;
+    overflow-y: auto;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    width: 100%;
+    min-width: 260px; /* メニューコードなどの狭い入力欄でも商品名が見えるよう最低幅を確保 */
+    box-sizing: border-box;
+    left: 0;
+    top: 100%;
+    margin-top: 2px;
+  }
+  .suggest-item {
+    padding: 6px 8px;
+    cursor: pointer;
+    border-bottom: 1px solid #f1f5f9;
+    text-align: left;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .suggest-item:hover { background: #eff6ff; color: #1d4ed8; }
+  .suggest-item:last-child { border-bottom: none; }
+
+  /* 印刷非表示クラス */
+  .print-hide { display: none !important; }
+  .print-only-block-title { display: none; }
+  .print-standby-check { display: none; }
+
+  /* スマホ向けレスポンシブ表示（編集画面時） */
+  @media (max-width: 600px) {
+    .utility-bar { padding: 8px; justify-content: center; flex-direction: column; gap: 8px; }
+    .utility-right { justify-content: center; }
+    #editorWrapper { padding: 5px; }
+    #outputArea { width: 100%; min-height: auto; padding: 8px; box-shadow: none; border: none; }
+    
+    .preview-header { flex-direction: column; align-items: stretch; gap: 10px; }
+    .preview-left { width: 100%; }
+    .preview-right { width: 100%; }
+    .specs-container { flex-direction: column; gap: 8px; }
+    .steps-grid { flex-direction: column; gap: 10px; }
+    .step-preview-block { flex-direction: column; align-items: stretch; gap: 8px; }
+    .step-img-out { width: 100%; flex: auto; }
+    
+    .output-table th, .output-table td { padding: 4px; }
+    .output-table th:nth-child(6), .output-table td:nth-child(6) { width: 30px; } /* del-btn col */
+  }
+
+  /* 印刷用スタイル設定 */
+  /* --- 1.6 Print Media Query Overrides (Ctrl+P Styles) --- */
+  @media print {
+    * {
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+    body { background: #fff; margin: 0; padding: 0; font-family: "Meiryo", sans-serif; }
+    .utility-bar, .edit-only-btn, .edit-only-col, .edit-only-row, .dropdown-arrow, .image-placeholder, .del-image-btn, .step-block-header {
+      display: none !important;
+    }
+    #editorWrapper { background: none; padding: 0; margin: 0; display: block; }
+    #outputArea { 
+      display: block !important; 
+      border: none !important; 
+      padding: 0 !important; 
+      margin: 0 !important; 
+      width: 100% !important; 
+      box-sizing: border-box !important; 
+      box-shadow: none !important; 
+      transform: none !important; 
+      min-height: auto !important; 
+    }
+    @page { margin: 8mm 10mm; size: A4 portrait; }
+    
+    #outputArea { font-size: 7.5pt; }
+    #outputArea input, #outputArea select {
+      border: none !important;
+      background: transparent !important;
+      box-shadow: none !important;
+      padding: 0 !important;
+      outline: none !important;
+      pointer-events: none;
+      -webkit-appearance: none;
+      -moz-appearance: none;
+      appearance: none;
+    }
+    
+    /* 日付ピッカーの矢印やカレンダーマークを非表示 */
+    input[type="date"]::-webkit-calendar-picker-indicator {
+      display: none !important;
+      -webkit-appearance: none;
+    }
+
+    /* 空の入力行を印刷時に隠す */
+    .ing-row:has(.ing-code:placeholder-shown):has(.ing-name:placeholder-shown):has(.ing-amount:placeholder-shown) {
+      display: none !important;
+    }
+    #ingredientsContainer input {
+      display: none !important;
+    }
+    .print-text {
+      display: block !important;
+      word-break: break-all;
+      white-space: normal;
+      font-size: 8.5px !important;
+    }
+    
+    /* スタンバイ選択時の印刷スタイル */
+    .ing-standby { display: none !important; }
+    .ing-row.is-standby .print-standby-check {
+      display: block !important;
+      color: #1565c0;
+      font-weight: bold;
+      text-align: center;
+    }
+    .ing-row.is-standby {
+      background-color: #e3f2fd !important;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    /* 印刷時のタイトルを出す */
+    .print-only-block-title {
+      display: block !important;
+    }
+    .step-block {
+      padding: 0 !important;
+      border: 1px solid #cbd5e1 !important;
+    }
+    .step-texts-out {
+      padding: 4px !important;
+    }
+
+    .preview-header { margin-bottom: 3px; padding-bottom: 3px; }
+    .main-image-container .image-upload-box { height: 120px; border: none !important; }
+    .spec-box .image-upload-box { height: 85px; border: none !important; }
+    .step-img-out .image-upload-box { height: 85px; border: none !important; }
+    
+    /* 画像がない枠自体を非表示 */
+    .image-upload-box:not(:has(img)) {
+      display: none !important;
+    }
+
+    /* 手順テキストボックスの印刷時スタイル */
+    .step-textarea {
+      border: none !important;
+      background: transparent !important;
+      padding: 0 !important;
+      outline: none !important;
+      box-shadow: none !important;
+      overflow: hidden !important;
+      resize: none !important;
+    }
+    
+    /* 空の手順ブロックを非表示 */
+    .step-block:has(.step-textarea:placeholder-shown):not(:has(img)) {
+      display: none !important;
+    }
+
+    .specs-container { gap: 4px; margin-bottom: 4px; }
+    .step-preview-block { margin-bottom: 2px; padding-bottom: 2px; }
+    .step-img-out { flex: 0 0 120px; }
+    
+    /* 空のセクションを印刷時に隠す */
+    .print-empty-hide {
+      display: none !important;
+    }
+  }
+
+  /* --- 1.7 保存済み手順書一覧モーダル Styles --- */
+  .modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(15, 23, 42, 0.6);
+    backdrop-filter: blur(4px);
+    z-index: 20000;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    animation: modalFadeIn 0.2s ease-out;
+  }
+  .modal-content {
+    background: #ffffff;
+    border-radius: 12px;
+    width: 90%;
+    max-width: 600px;
+    max-height: 80vh;
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+    display: flex;
+    flex-direction: column;
+    animation: modalScaleUp 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+    overflow: hidden;
+  }
+  .modal-header {
+    padding: 12px 16px;
+    background: #f8fafc;
+    border-bottom: 1px solid #cbd5e1;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .modal-header h3 {
+    margin: 0;
+    font-size: 1rem;
+    color: #1e293b;
+    font-weight: bold;
+  }
+  .close-modal-btn {
+    background: transparent;
+    color: #64748b;
+    border: none;
+    font-size: 1.5rem;
+    cursor: pointer;
+    padding: 0 4px;
+    line-height: 1;
+  }
+  .close-modal-btn:hover {
+    color: #0f172a;
+  }
+  .modal-body {
+    padding: 16px;
+    overflow-y: auto;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+  }
+  .modal-recipe-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: 55vh;
+    overflow-y: auto;
+    padding-right: 4px;
+  }
+  .recipe-card {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 12px;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    background: #fff;
+    transition: all 0.15s ease;
+    cursor: pointer;
+    box-sizing: border-box;
+  }
+  .recipe-card:hover {
+    border-color: #3b82f6;
+    background: #f8fafc;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+  }
+  .recipe-card-thumb {
+    width: 48px;
+    height: 48px;
+    border-radius: 6px;
+    object-fit: cover;
+    background: #f1f5f9;
+    border: 1px solid #cbd5e1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    overflow: hidden;
+    flex-shrink: 0;
+  }
+  .recipe-card-thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  .recipe-card-info {
+    flex: 1;
+    min-width: 0;
+    text-align: left;
+  }
+  .recipe-card-title {
+    font-weight: bold;
+    font-size: 0.85rem;
+    color: #1e293b;
+    margin: 0 0 2px 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .recipe-card-meta {
+    font-size: 0.7rem;
+    color: #64748b;
+    display: flex;
+    gap: 12px;
+    margin: 0;
+  }
+  .recipe-card-actions {
+    display: flex;
+    gap: 6px;
+    flex-shrink: 0;
+  }
+  .recipe-card-actions button {
+    padding: 4px 8px;
+    font-size: 0.7rem;
+    border-radius: 4px;
+    font-weight: bold;
+  }
+  @keyframes modalFadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  @keyframes modalScaleUp {
+    from { transform: scale(0.95); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+  }
+  @media print {
+    .modal-overlay {
+      display: none !important;
+    }
+  }
