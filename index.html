@@ -62,6 +62,21 @@
               <span class="dropdown-arrow">▼</span>
             </div>
           </div>
+          <div class="category-title-row edit-only-row" style="display: flex; gap: 10px; align-items: center; font-size: 11px; margin-top: 4px;">
+            <strong style="white-space: nowrap; color: #475569;">ブランド区分:</strong>
+            <select id="brandCategory" style="padding: 1px; font-size: 11px; width: 150px;">
+              <option value="">--選択--</option>
+              <option value="BAQET">BAQET</option>
+              <option value="BAKERY RESTAURANT C">BAKERY RESTAURANT C</option>
+              <option value="BAKERY CAFE C">BAKERY CAFE C</option>
+            </select>
+            <strong style="white-space: nowrap; margin-left: 10px; color: #475569;">メニュー区分:</strong>
+            <select id="menuCategory" style="padding: 1px; font-size: 11px; width: 100px;">
+              <option value="">--選択--</option>
+              <option value="期間限定">期間限定</option>
+              <option value="グランド">グランド</option>
+            </select>
+          </div>
         </div>
         
         <!-- 使用食材テーブル -->
@@ -144,6 +159,7 @@
       <div class="spec-box">
         <h4>成形：最大のせ数 
           <select id="maxLoad" style="width: auto; padding: 1px; font-size: 11px;">
+            <option value="0">0</option>
             <option value="1">1</option>
             <option value="2">2</option>
             <option value="3">3</option>
@@ -366,7 +382,20 @@
     </div>
     <div class="modal-body">
       <div class="search-wrapper" style="margin-bottom: 12px; position: relative;">
-        <input type="text" id="modalSearchInput" placeholder="メニューコードまたは商品名称で検索..." oninput="filterModalRecipes()" style="width: 100%; padding: 6px 12px; font-size: 0.85rem; border: 1px solid #cbd5e1; border-radius: 6px; box-sizing: border-box;">
+        <input type="text" id="modalSearchInput" placeholder="メニューコードまたは商品名で検索..." oninput="filterModalRecipes()" style="width: 100%; padding: 6px 12px; font-size: 0.85rem; border: 1px solid #cbd5e1; border-radius: 6px; box-sizing: border-box;">
+        <div style="display: flex; gap: 8px; margin-top: 8px;">
+          <select id="modalBrandFilter" onchange="filterModalRecipes()" style="padding: 4px; font-size: 0.8rem; border: 1px solid #cbd5e1; border-radius: 4px; flex: 1;">
+            <option value="">ブランド: すべて</option>
+            <option value="BAQET">BAQET</option>
+            <option value="BAKERY RESTAURANT C">BAKERY RESTAURANT C</option>
+            <option value="BAKERY CAFE C">BAKERY CAFE C</option>
+          </select>
+          <select id="modalMenuFilter" onchange="filterModalRecipes()" style="padding: 4px; font-size: 0.8rem; border: 1px solid #cbd5e1; border-radius: 4px; flex: 1;">
+            <option value="">メニュー: すべて</option>
+            <option value="期間限定">期間限定</option>
+            <option value="グランド">グランド</option>
+          </select>
+        </div>
       </div>
       <div id="modalRecipeGrid" class="modal-recipe-grid">
         <!-- レシピカードが動的に生成されます -->
