@@ -1326,6 +1326,8 @@
     document.getElementById('productName').value = recipe.productName || "";
     document.getElementById('periodStart').value = recipe.periodStart || "";
     document.getElementById('periodEnd').value = recipe.periodEnd || "";
+    if (document.getElementById('brandCategory')) document.getElementById('brandCategory').value = recipe.brandCategory || "";
+    if (document.getElementById('menuCategory')) document.getElementById('menuCategory').value = recipe.menuCategory || "";
 
     document.getElementById('moldL').value = recipe.moldL || 0;
     document.getElementById('moldW').value = recipe.moldW || 0;
@@ -1585,6 +1587,8 @@
     }
     document.getElementById('periodStart').value = '';
     document.getElementById('periodEnd').value = '';
+    if (document.getElementById('brandCategory')) document.getElementById('brandCategory').value = '';
+    if (document.getElementById('menuCategory')) document.getElementById('menuCategory').value = '';
 
     document.getElementById('moldL').value = 0;
     document.getElementById('moldW').value = 0;
@@ -1949,10 +1953,23 @@
             dateStr = `${y}/${m}/${day} ${h}:${min}`;
           }
 
+          card.setAttribute('data-brand', r.brandCategory || '');
+          card.setAttribute('data-menu', r.menuCategory || '');
+          
+          let labelsHtml = '';
+          if (r.brandCategory) {
+            labelsHtml += `<span style="background-color:#f1f5f9; color:#475569; padding:2px 6px; border-radius:4px; font-size:0.65rem; margin-right:4px; border:1px solid #cbd5e1;">${r.brandCategory}</span>`;
+          }
+          if (r.menuCategory) {
+            labelsHtml += `<span style="background-color:#eff6ff; color:#1d4ed8; padding:2px 6px; border-radius:4px; font-size:0.65rem; border:1px solid #bfdbfe;">${r.menuCategory}</span>`;
+          }
+          if (labelsHtml) labelsHtml = `<div style="margin-top:2px; margin-bottom:4px;">${labelsHtml}</div>`;
+
           card.innerHTML = `
             ${thumbHTML}
             <div class="recipe-card-info">
               <h4 class="recipe-card-title">${r.menuCode} : ${r.productName || '無題の商品'}</h4>
+              ${labelsHtml}
               <p class="recipe-card-meta">
                 <span>📅 更新: ${dateStr}</span>
                 <span>📋 原料: ${(r.ingredients || []).length}件</span>
@@ -2001,13 +2018,21 @@
 
   function filterModalRecipes() {
     const query = document.getElementById('modalSearchInput').value.trim().toLowerCase();
+    const brandFilter = document.getElementById('modalBrandFilter') ? document.getElementById('modalBrandFilter').value : "";
+    const menuFilter = document.getElementById('modalMenuFilter') ? document.getElementById('modalMenuFilter').value : "";
     const cards = document.querySelectorAll('#modalRecipeGrid .recipe-card');
     
     cards.forEach(card => {
       const code = card.getAttribute('data-code').toLowerCase();
       const name = card.getAttribute('data-name').toLowerCase();
+      const brand = card.getAttribute('data-brand');
+      const menu = card.getAttribute('data-menu');
       
-      if (code.includes(query) || name.includes(query)) {
+      const matchQuery = code.includes(query) || name.includes(query);
+      const matchBrand = brandFilter === "" || brand === brandFilter;
+      const matchMenu = menuFilter === "" || menu === menuFilter;
+      
+      if (matchQuery && matchBrand && matchMenu) {
         card.style.display = 'flex';
       } else {
         card.style.display = 'none';
