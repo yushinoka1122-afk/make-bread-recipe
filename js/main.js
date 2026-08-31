@@ -1270,6 +1270,8 @@
 
     const periodStart = document.getElementById('periodStart').value;
     const periodEnd = document.getElementById('periodEnd').value;
+    const brandCategory = document.getElementById('brandCategory') ? document.getElementById('brandCategory').value : "";
+    const menuCategory = document.getElementById('menuCategory') ? document.getElementById('menuCategory').value : "";
 
     const moldL = document.getElementById('moldL').value;
     const moldW = document.getElementById('moldW').value;
@@ -1332,6 +1334,8 @@
       productName,
       periodStart,
       periodEnd,
+      brandCategory,
+      menuCategory,
       moldL, moldW, moldH, maxLoad,
       proofL, proofW, proofH, proofTime,
       bakeL, bakeW, bakeH, bakeTime,
