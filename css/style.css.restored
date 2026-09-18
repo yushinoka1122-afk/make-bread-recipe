@@ -1,0 +1,118 @@
+/* =========================================
+   料理モード (Cooking Mode) 専用スタイル (PDF準拠レイアウト)
+   ========================================= */
+body.mode-cooking .editor-container {
+  display: flex;
+  flex-direction: row;
+  gap: 20px;
+  align-items: flex-start;
+}
+
+/* 左側カラム (約30%) */
+body.mode-cooking #layoutTopLeft {
+  flex: 0 0 32%;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 250px;
+}
+body.mode-cooking #topRowContainer {
+  flex-direction: column; 
+  align-items: stretch !important;
+  gap: 20px;
+}
+
+/* 右側カラム (約70%) */
+body.mode-cooking #layoutBottomRight {
+  flex: 1;
+  min-width: 500px;
+}
+
+/* 作成手順・スタンバイの4列グリッド化 */
+body.mode-cooking .steps-grid,
+body.mode-cooking .steps-col,
+body.mode-cooking .steps-full {
+  display: contents; /* ラッパーを無視して直接グリッドアイテムにする魔法のCSS */
+}
+body.mode-cooking #outputArea {
+  display: grid !important;
+  grid-template-columns: repeat(4, 1fr) !important;
+  gap: 15px !important;
+  margin-bottom: 20px;
+}
+body.mode-cooking #standbyContainer {
+  display: grid !important;
+  grid-template-columns: repeat(4, 1fr) !important;
+  gap: 15px !important;
+}
+
+/* 各ブロック内を「上写真・下テキスト」に強制 */
+body.mode-cooking .step-preview-block,
+body.mode-cooking .standby-preview-block {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 8px !important;
+  height: 100%;
+}
+body.mode-cooking .step-img-out,
+body.mode-cooking .s-block-img-out {
+  width: 100% !important;
+  height: 120px !important;
+}
+body.mode-cooking .image-upload-box {
+  height: 100%;
+}
+body.mode-cooking .step-texts-out,
+body.mode-cooking .s-block-texts-out {
+  width: 100% !important;
+  flex: 1; /* 残りの高さを埋める */
+  display: flex;
+  flex-direction: column;
+}
+body.mode-cooking .step-textarea,
+body.mode-cooking .standby-textarea {
+  flex: 1;
+  resize: vertical;
+}
+
+/* 提供方法をプレートとしてスタイル */
+body.mode-cooking #servingMethodSection {
+  border: 2px solid #e2e8f0;
+  background: #f8fafc;
+  padding: 10px !important;
+}
+body.mode-cooking #servingMethodSection > div {
+  font-size: 14px !important;
+  margin-bottom: 8px !important;
+}
+body.mode-cooking #servingMethodSection textarea {
+  min-height: 60px !important;
+}
+
+/* パン専用の要素を非表示にする */
+body.mode-cooking .bread-only {
+  display: none !important;
+}
+/* モードボタンのアクティブ表示 */
+.mode-btn.active {
+  background-color: #3b82f6 !important;
+  color: #ffffff !important;
+  border-color: #2563eb !important;
+}
+/* 印刷時の設定 */
+@media print {
+  body.mode-cooking @page {
+    size: landscape;
+  }
+  body.mode-cooking .editor-container {
+    flex-direction: row;
+  }
+  body.mode-cooking #outputArea,
+  body.mode-cooking #standbyContainer {
+    grid-template-columns: repeat(4, 1fr) !important;
+  }
+  body.mode-cooking .step-img-out,
+  body.mode-cooking .s-block-img-out {
+    height: 100px !important; /* 印刷用に少し縮める */
+  }
+}

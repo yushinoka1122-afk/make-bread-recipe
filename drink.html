@@ -3,12 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>パン手順書作成ツール</title>
+<title>ドリンク手順書作成ツール</title>
 <!-- SheetJS -->
 <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
 <!-- SortableJS -->
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
-  <link rel="stylesheet" href="css/style.css?v=9700">
+  <link rel="stylesheet" href="css/drink.css?v=9700">
 </head>
 <body>
 
@@ -34,7 +34,7 @@
   <div class="utility-left">
     <div style="display: flex; align-items: center; gap: 12px;">
       <button id="hamburgerMenuBtn" onclick="toggleSidebar()" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #1e293b; padding: 0;">≡</button>
-      <h1 style="margin: 0; font-size: 1.25rem;">🍞 手順書作成ツール <span id="modeBadge" style="font-size: 0.8rem; background-color: #f59e0b; color: white; padding: 2px 8px; border-radius: 12px; margin-left: 8px; vertical-align: middle;">パンモード</span></h1>
+      <h1 style="margin: 0; font-size: 1.25rem;">🥤 手順書作成ツール <span id="modeBadge" style="font-size: 0.8rem; background-color: #3b82f6; color: white; padding: 2px 8px; border-radius: 12px; margin-left: 8px; vertical-align: middle;">ドリンクモード</span></h1>
     </div>
     <div id="masterStatus">マスタデータを読み込んでいます...</div>
     <div id="dbStatus" style="font-size: 0.75rem; font-weight: bold; padding: 3px 8px; border-radius: 4px; background-color: #e2e8f0; color: #475569; display: inline-block; margin-left: 8px;">✏️ 新規手順書</div>
@@ -185,135 +185,7 @@
       </div>
     </div>
 
-    <!-- 規格・工程条件 -->
-    <div class="specs-container bread-only">
-      <div class="spec-box">
-        <h4>成形：最大のせ数 
-          <select id="maxLoad" style="width: auto; padding: 1px; font-size: 11px;">
-            <option value="1">1</option>
-            <option value="2">2</option>
-            <option value="3">3</option>
-            <option value="4">4</option>
-            <option value="5">5</option>
-            <option value="6" selected>6</option>
-            <option value="7">7</option>
-            <option value="8">8</option>
-            <option value="9">9</option>
-            <option value="10">10</option>
-            <option value="11">11</option>
-            <option value="12">12</option>
-            <option value="13">13</option>
-            <option value="14">14</option>
-            <option value="15">15</option>
-            <option value="16">16</option>
-            <option value="17">17</option>
-            <option value="18">18</option>
-            <option value="19">19</option>
-            <option value="20">20</option>
-          </select> 個</h4>
-        <div class="spec-info">
-          <div class="spec-dimension-row">
-            寸法: 縦<input type="number" id="moldL" value="0" min="0">×横<input type="number" id="moldW" value="0" min="0">×高さ<input type="number" id="moldH" value="0" min="0">cm
-          </div>
-        </div>
-        <div class="image-upload-box" onclick="triggerFileInput(this)">
-          <input type="file" id="moldImg" class="image-file-input" accept="image/*" onchange="previewImage(this)">
-          <div class="image-placeholder">
-            <span>📷 写真を選択</span>
-          </div>
-          <div class="image-preview" style="display: none;">
-            <img>
-            <button type="button" class="del-image-btn edit-only-btn" onclick="clearImage(event, this)">×</button>
-          </div>
-        </div>
-      </div>
-      
-
-      <div class="spec-box">
-        <h4>ホイロ：
-          <select id="proofTime" style="width: auto; padding: 1px; font-size: 11px;">
-            <option value="0">0</option>
-            <option value="5">5</option>
-            <option value="10">10</option>
-            <option value="15">15</option>
-            <option value="20">20</option>
-            <option value="25">25</option>
-            <option value="30">30</option>
-            <option value="35">35</option>
-            <option value="40" selected>40</option>
-            <option value="45">45</option>
-            <option value="50">50</option>
-            <option value="55">55</option>
-            <option value="60">60</option>
-            <option value="70">70</option>
-            <option value="80">80</option>
-            <option value="90">90</option>
-          </select> 分</h4>
-        <div class="spec-info">
-          <div class="spec-dimension-row">
-            寸法: 縦<input type="number" id="proofL" value="0" min="0">×横<input type="number" id="proofW" value="0" min="0">×高さ<input type="number" id="proofH" value="0" min="0">cm
-          </div>
-        </div>
-        <div class="image-upload-box" onclick="triggerFileInput(this)">
-          <input type="file" id="proofImg" class="image-file-input" accept="image/*" onchange="previewImage(this)">
-          <div class="image-placeholder">
-            <span>📷 写真を選択</span>
-          </div>
-          <div class="image-preview" style="display: none;">
-            <img>
-            <button type="button" class="del-image-btn edit-only-btn" onclick="clearImage(event, this)">×</button>
-          </div>
-        </div>
-      </div>
-      
-      <div class="spec-box">
-        <h4>焼成：
-          <select id="bakeTime" style="width: auto; padding: 1px; font-size: 11px;">
-            <option value="1">1</option>
-            <option value="2">2</option>
-            <option value="3">3</option>
-            <option value="4">4</option>
-            <option value="5">5</option>
-            <option value="6">6</option>
-            <option value="7">7</option>
-            <option value="8">8</option>
-            <option value="9">9</option>
-            <option value="10" selected>10</option>
-            <option value="11">11</option>
-            <option value="12">12</option>
-            <option value="13">13</option>
-            <option value="14">14</option>
-            <option value="15">15</option>
-            <option value="16">16</option>
-            <option value="17">17</option>
-            <option value="18">18</option>
-            <option value="19">19</option>
-            <option value="20">20</option>
-            <option value="25">25</option>
-            <option value="30">30</option>
-            <option value="35">35</option>
-            <option value="40">40</option>
-            <option value="45">45</option>
-            <option value="50">50</option>
-            <option value="60">60</option>
-          </select> 分</h4>
-        <div class="spec-info">
-          <div class="spec-dimension-row">
-            寸法: 縦<input type="number" id="bakeL" value="0" min="0">×横<input type="number" id="bakeW" value="0" min="0">×高さ<input type="number" id="bakeH" value="0" min="0">cm
-          </div>
-        </div>
-        <div class="image-upload-box" onclick="triggerFileInput(this)">
-          <input type="file" id="bakeImg" class="image-file-input" accept="image/*" onchange="previewImage(this)">
-          <div class="image-placeholder">
-            <span>📷 写真を選択</span>
-          </div>
-          <div class="image-preview" style="display: none;">
-            <img>
-            <button type="button" class="del-image-btn edit-only-btn" onclick="clearImage(event, this)">×</button>
-          </div>
-        </div>
-      </div>
-    </div>
+    <!-- 規格・工程条件枠はドリンクモードでは削除 -->
 
 
 
@@ -418,7 +290,7 @@
   </div> <!-- /outputArea -->
 </div> <!-- /editorWrapper -->
 
-  <script src="js/main.js"></script>
+  <script src="js/drink.js"></script>
 <!-- ==========================================================================
      ■ SECTION 2.1: DIALOGS & MODALS
      ========================================================================== -->

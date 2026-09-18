@@ -8,7 +8,7 @@
 <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
 <!-- SortableJS -->
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
-  <link rel="stylesheet" href="css/style.css?v=9700">
+  <link rel="stylesheet" href="css/cooking.css?v=1000">
 </head>
 <body>
 
@@ -109,8 +109,8 @@
               <span class="print-text category-print" style="font-size: 0.85rem; color: #333;"></span>
             </div>
           </div>
-        
-        <!-- 使用食材テーブル -->
+
+          <!-- テーブル（食材リスト） -->
         <table class="output-table">
           <thead>
             <tr>
@@ -349,6 +349,9 @@
       <div class="step-block" data-block-type="step">
         <div class="step-block-header edit-only-row">
           <span class="block-title" style="color:#e91e63;">手順①</span>
+          <label style="margin-left: 10px; font-size: 0.8rem; cursor: pointer; color: #1565c0; font-weight: bold;">
+            <input type="checkbox" class="standby-toggle" onchange="updateBlockNumbers()"> スタンバイ
+          </label>
           <select class="step-template-select edit-only-btn" onchange="applyStepTemplate(this)" style="margin-left: 10px; font-size: 0.8rem; padding: 2px;">
             <option value="">-- 定型文挿入 --</option>
             <option value="proof">ホイロ</option>
@@ -356,6 +359,20 @@
             <option value="bake2">焼成②（スチーム）</option>
             <option value="bake3">焼成③（2重天板）</option>
             <option value="bake4">焼成④（クッキングシート）</option>
+          </select>
+          <select class="tool-template-select edit-only-btn" onchange="applyToolTemplate(this)" style="margin-left: 5px; font-size: 0.8rem; padding: 2px;">
+            <option value="">-- 🛠道具挿入 --</option>
+            <option value="ボウル">ボウル</option>
+            <option value="ホイッパー">ホイッパー</option>
+            <option value="ゴムベラ">ゴムベラ</option>
+            <option value="スケッパー">スケッパー</option>
+            <option value="天板">天板</option>
+            <option value="クッキングシート">クッキングシート</option>
+            <option value="温度計">温度計</option>
+            <option value="刷毛">刷毛</option>
+            <option value="絞り袋">絞り袋</option>
+            <option value="口金">口金</option>
+            <option value="めん棒">めん棒</option>
           </select>
           <button type="button" class="del-btn edit-only-btn" style="width:auto; padding:2px 5px;" onclick="removeStepBlock(this)">ブロック削除</button>
         </div>
@@ -418,7 +435,7 @@
   </div> <!-- /outputArea -->
 </div> <!-- /editorWrapper -->
 
-  <script src="js/main.js"></script>
+  <script src="js/cooking.js?v=1000"></script>
 <!-- ==========================================================================
      ■ SECTION 2.1: DIALOGS & MODALS
      ========================================================================== -->

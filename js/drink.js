@@ -5,7 +5,7 @@
   // --- 3.1 Base Utilities & Browser Cache Storage ---
   const circleNums = ["①","②","③","④","⑤","⑥","⑦","⑧","⑨","⑩","⑪","⑫","⑬","⑭","⑮","⑯","⑰","⑱","⑲","⑳"];
 
-  let currentMode = 'bread';
+  let currentMode = 'drink';
 
   // 安全なlocalStorageアクセスラッパー (SecurityError等によるJSクラッシュの防止)
   const safeStorage = {
@@ -426,15 +426,14 @@
     data.push([]);
     
     // 食材
-    data.push(["コード", "品名", "使用量", "スタンバイ"]);
+    data.push(["品名", "使用量", "スタンバイ"]);
     document.querySelectorAll('#ingredientsContainer .ing-row').forEach(row => {
-      const code = row.querySelector('.ing-code').value;
       const name = row.querySelector('.ing-name').value;
       const amount = row.querySelector('.ing-amount').value;
       const unit = row.querySelector('.ing-unit').value;
       const standby = row.querySelector('.ing-standby').value === 'スタンバイ';
-      if(code || name || amount) {
-        data.push([code, name, `${amount}${unit}`, standby ? "〇" : ""]);
+      if(name || amount) {
+        data.push([name, `${amount}${unit}`, standby ? "〇" : ""]);
       }
     });
     data.push([]);
@@ -1303,21 +1302,6 @@
     const brandCategory = document.getElementById('brandCategory') ? document.getElementById('brandCategory').value : "";
     const menuCategory = document.getElementById('menuCategory') ? document.getElementById('menuCategory').value : "";
 
-    const moldL = document.getElementById('moldL').value;
-    const moldW = document.getElementById('moldW').value;
-    const moldH = document.getElementById('moldH').value;
-    const maxLoad = document.getElementById('maxLoad').value;
-
-    const proofL = document.getElementById('proofL').value;
-    const proofW = document.getElementById('proofW').value;
-    const proofH = document.getElementById('proofH').value;
-    const proofTime = document.getElementById('proofTime').value;
-
-    const bakeL = document.getElementById('bakeL').value;
-    const bakeW = document.getElementById('bakeW').value;
-    const bakeH = document.getElementById('bakeH').value;
-    const bakeTime = document.getElementById('bakeTime').value;
-
     const servingText = document.getElementById('servingText') ? document.getElementById('servingText').value.trim() : "";
 
     // 使用食材
@@ -1355,9 +1339,6 @@
 
     // 固定位置の画像
     const mainImageBlob = document.getElementById('mainImage').closest('.image-upload-box').fileData || null;
-    const moldImageBlob = document.getElementById('moldImg').closest('.image-upload-box').fileData || null;
-    const proofImageBlob = document.getElementById('proofImg').closest('.image-upload-box').fileData || null;
-    const bakeImageBlob = document.getElementById('bakeImg').closest('.image-upload-box').fileData || null;
 
     return {
       menuCode,
@@ -1366,17 +1347,11 @@
       periodEnd,
       brandCategory,
       menuCategory,
-      moldL, moldW, moldH, maxLoad,
-      proofL, proofW, proofH, proofTime,
-      bakeL, bakeW, bakeH, bakeTime,
       servingText,
       ingredients,
       manualSteps,
       standbySteps,
       mainImageBlob,
-      moldImageBlob,
-      proofImageBlob,
-      bakeImageBlob,
       lastUpdated: Date.now()
     };
   }
@@ -1464,20 +1439,7 @@
       }
     }
 
-    document.getElementById('moldL').value = recipe.moldL || 0;
-    document.getElementById('moldW').value = recipe.moldW || 0;
-    document.getElementById('moldH').value = recipe.moldH || 0;
-    document.getElementById('maxLoad').value = recipe.maxLoad || "6";
-
-    document.getElementById('proofL').value = recipe.proofL || 0;
-    document.getElementById('proofW').value = recipe.proofW || 0;
-    document.getElementById('proofH').value = recipe.proofH || 0;
-    document.getElementById('proofTime').value = recipe.proofTime || "40";
-
-    document.getElementById('bakeL').value = recipe.bakeL || 0;
-    document.getElementById('bakeW').value = recipe.bakeW || 0;
-    document.getElementById('bakeH').value = recipe.bakeH || 0;
-    document.getElementById('bakeTime').value = recipe.bakeTime || "10";
+    // ドリンク用項目の読み込み（今後追加予定）
 
     // 画像の復元
     restoreImageHelper('mainImage', recipe.mainImageBlob);
@@ -1728,20 +1690,7 @@
     document.getElementById('periodStart').value = '';
     document.getElementById('periodEnd').value = '';
 
-    document.getElementById('moldL').value = 0;
-    document.getElementById('moldW').value = 0;
-    document.getElementById('moldH').value = 0;
-    document.getElementById('maxLoad').value = "6";
-
-    document.getElementById('proofL').value = 0;
-    document.getElementById('proofW').value = 0;
-    document.getElementById('proofH').value = 0;
-    document.getElementById('proofTime').value = "40";
-
-    document.getElementById('bakeL').value = 0;
-    document.getElementById('bakeW').value = 0;
-    document.getElementById('bakeH').value = 0;
-    document.getElementById('bakeTime').value = "10";
+    // ドリンク用項目のクリア（今後追加予定）
 
     if (document.getElementById('servingText')) {
       document.getElementById('servingText').value = '';

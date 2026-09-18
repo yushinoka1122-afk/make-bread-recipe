@@ -5,8 +5,6 @@
   // --- 3.1 Base Utilities & Browser Cache Storage ---
   const circleNums = ["①","②","③","④","⑤","⑥","⑦","⑧","⑨","⑩","⑪","⑫","⑬","⑭","⑮","⑯","⑰","⑱","⑲","⑳"];
 
-  let currentMode = 'bread';
-
   // 安全なlocalStorageアクセスラッパー (SecurityError等によるJSクラッシュの防止)
   const safeStorage = {
     getItem(key) {
@@ -1298,8 +1296,8 @@
     const productName = document.getElementById('productName').value.trim();
     if (!menuCode) return null;
 
-    const periodStart = document.getElementById('periodStart') ? document.getElementById('periodStart').value : "";
-    const periodEnd = document.getElementById('periodEnd') ? document.getElementById('periodEnd').value : "";
+    const periodStart = document.getElementById('periodStart').value;
+    const periodEnd = document.getElementById('periodEnd').value;
     const brandCategory = document.getElementById('brandCategory') ? document.getElementById('brandCategory').value : "";
     const menuCategory = document.getElementById('menuCategory') ? document.getElementById('menuCategory').value : "";
 
@@ -1439,30 +1437,8 @@
 
     document.getElementById('menuCode').value = recipe.menuCode || "";
     document.getElementById('productName').value = recipe.productName || "";
-    if (document.getElementById('manufacturingSlipName')) {
-      document.getElementById('manufacturingSlipName').value = recipe.manufacturingSlipName || "";
-    }
-    if (document.getElementById('periodStart')) {
-      document.getElementById('periodStart').value = recipe.periodStart || "";
-    }
-    if (document.getElementById('periodEnd')) {
-      document.getElementById('periodEnd').value = recipe.periodEnd || "";
-    }
-
-    if (document.getElementById('brandCategory')) {
-      const val = recipe.brandCategory || "--選択--";
-      document.getElementById('brandCategory').value = val;
-      if (document.querySelector('.brand-print')) {
-        document.querySelector('.brand-print').innerText = (val === '--選択--') ? '' : val;
-      }
-    }
-    if (document.getElementById('menuCategory')) {
-      const val = recipe.menuCategory || "--選択--";
-      document.getElementById('menuCategory').value = val;
-      if (document.querySelector('.category-print')) {
-        document.querySelector('.category-print').innerText = (val === '--選択--') ? '' : val;
-      }
-    }
+    document.getElementById('periodStart').value = recipe.periodStart || "";
+    document.getElementById('periodEnd').value = recipe.periodEnd || "";
 
     document.getElementById('moldL').value = recipe.moldL || 0;
     document.getElementById('moldW').value = recipe.moldW || 0;
@@ -1601,9 +1577,9 @@
       insertBlankStandbyBlock();
     }
     updateStandbyBlockNumbers();
-    updateSavedCount();
-    updateDBStatusLabel(recipe.menuCode);
     updateStandbyVisibility();
+
+    updateDBStatusLabel(recipe.menuCode);
     adjustPreviewScale();
   }
 
@@ -2072,8 +2048,6 @@
           card.className = 'recipe-card';
           card.setAttribute('data-code', r.menuCode);
           card.setAttribute('data-name', r.productName || '');
-          card.setAttribute('data-brand', r.brandCategory || '');
-          card.setAttribute('data-category', r.menuCategory || '');
 
           let thumbHTML = '<div class="recipe-card-thumb">🍞</div>';
           if (r.mainImageBlob) {
@@ -2093,19 +2067,10 @@
             dateStr = `${y}/${m}/${day} ${h}:${min}`;
           }
 
-          let tagsHTML = '';
-          if (r.brandCategory) {
-             tagsHTML += `<span style="display:inline-block; border: 1px solid #cbd5e1; background: #f8fafc; color: #475569; padding: 1px 6px; border-radius: 4px; font-size: 0.75rem; margin-right: 5px;">${r.brandCategory}</span>`;
-          }
-          if (r.menuCategory) {
-             tagsHTML += `<span style="display:inline-block; border: 1px solid #93c5fd; background: #eff6ff; color: #2563eb; padding: 1px 6px; border-radius: 4px; font-size: 0.75rem;">${r.menuCategory}</span>`;
-          }
-
           card.innerHTML = `
             ${thumbHTML}
             <div class="recipe-card-info">
               <h4 class="recipe-card-title">${r.menuCode} : ${r.productName || '無題の商品'}</h4>
-              <div style="margin: 4px 0 6px 0;">${tagsHTML}</div>
               <p class="recipe-card-meta">
                 <span>📅 更新: ${dateStr}</span>
                 <span>📋 原料: ${(r.ingredients || []).length}件</span>
@@ -2154,21 +2119,13 @@
 
   function filterModalRecipes() {
     const query = document.getElementById('modalSearchInput').value.trim().toLowerCase();
-    const brandFilter = document.getElementById('modalBrandFilter') ? document.getElementById('modalBrandFilter').value : '';
-    const categoryFilter = document.getElementById('modalCategoryFilter') ? document.getElementById('modalCategoryFilter').value : '';
     const cards = document.querySelectorAll('#modalRecipeGrid .recipe-card');
     
     cards.forEach(card => {
       const code = card.getAttribute('data-code').toLowerCase();
       const name = card.getAttribute('data-name').toLowerCase();
-      const brand = card.getAttribute('data-brand') || '';
-      const category = card.getAttribute('data-category') || '';
       
-      let matchQuery = (code.includes(query) || name.includes(query));
-      let matchBrand = (!brandFilter || brandFilter === '--選択--' || brand === brandFilter);
-      let matchCategory = (!categoryFilter || categoryFilter === '--選択--' || category === categoryFilter);
-      
-      if (matchQuery && matchBrand && matchCategory) {
+      if (code.includes(query) || name.includes(query)) {
         card.style.display = 'flex';
       } else {
         card.style.display = 'none';

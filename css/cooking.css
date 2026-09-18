@@ -689,7 +689,7 @@ body.mode-cooking #editorWrapper {
 }
 body.mode-cooking #outputArea {
   width: 100% !important;
-  max-width: none !important;
+  max-width: 1188px !important; /* 横に広がりすぎて巨大化するのを防ぐためA4横サイズに制限 */
   min-height: 100vh !important;
   box-sizing: border-box;
 }
@@ -989,11 +989,11 @@ body.mode-cooking .editor-container {
   align-items: flex-start !important;
 }
 body.mode-cooking #layoutTopLeft {
-  width: 33% !important;
+  width: calc(33% - 7.5px) !important; /* 隙間の分を引いてピッタリ収める */
   display: block !important;
 }
 body.mode-cooking #layoutBottomRight {
-  width: 67% !important;
+  width: calc(67% - 7.5px) !important; /* 隙間の分を引いてピッタリ収める */
   display: block !important;
 }
 
@@ -1008,4 +1008,13 @@ body.mode-cooking .preview-left {
 body.mode-cooking .preview-right {
   width: 100% !important;
   min-height: 150px !important;
+}
+
+/* 料理モード専用の非表示設定（タスク5・6） */
+#servingMethodSection {
+  display: none !important;
+}
+
+button[onclick="addStandbyBlock()"] {
+  display: none !important;
 }

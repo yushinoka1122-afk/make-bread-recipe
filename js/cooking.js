@@ -4,8 +4,7 @@
 
   // --- 3.1 Base Utilities & Browser Cache Storage ---
   const circleNums = ["①","②","③","④","⑤","⑥","⑦","⑧","⑨","⑩","⑪","⑫","⑬","⑭","⑮","⑯","⑰","⑱","⑲","⑳"];
-
-  let currentMode = 'bread';
+  let currentMode = 'cooking';
 
   // 安全なlocalStorageアクセスラッパー (SecurityError等によるJSクラッシュの防止)
   const safeStorage = {
@@ -77,21 +76,35 @@
       const titleSpan = block.querySelector('.block-title');
       const printTitle = block.querySelector('.print-only-block-title');
       const numStr = index < circleNums.length ? circleNums[index] : `(${index + 1})`;
-      if(titleSpan) titleSpan.innerText = `手順${numStr}`;
-      if(printTitle) printTitle.innerText = `手順${numStr}`;
-      
-      // 料理モード専用の特殊な順序配置（ジグザグ配置）
-      if (typeof currentMode !== 'undefined' && currentMode === 'cooking') {
-          let order = index;
-          if (index < 8) {
-              if (index % 2 === 0) {
-                  order = index / 2; // 0, 2, 4, 6 -> row 1
-              } else {
-                  order = 4 + Math.floor(index / 2); // 1, 3, 5, 7 -> row 2
-              }
-          }
-          block.style.order = order;
+      const standbyCheckbox = block.querySelector('.standby-toggle');
+      if (standbyCheckbox && standbyCheckbox.checked) {
+          if(titleSpan) { titleSpan.innerText = 'スタンバイ'; titleSpan.style.color = '#1565c0'; }
+          if(printTitle) { printTitle.innerText = 'スタンバイ'; printTitle.style.color = '#1565c0'; }
       } else {
+          if(titleSpan) { titleSpan.innerText = `手順${numStr}`; titleSpan.style.color = '#e91e63'; }
+          if(printTitle) { printTitle.innerText = `手順${numStr}`; printTitle.style.color = '#333'; }
+      }
+      
+      // 料理モード専用の動的座標配置（総数に基づくジグザグ配置）
+      if (typeof currentMode !== 'undefined' && currentMode === 'cooking') {
+          if (index < 8) {
+              const totalForGrid = Math.min(blocks.length, 8);
+              const nTop = Math.ceil(totalForGrid / 2);
+              if (index < nTop) {
+                  block.style.gridRow = '1';
+                  block.style.gridColumn = (index + 1).toString();
+              } else {
+                  block.style.gridRow = '2';
+                  block.style.gridColumn = (index - nTop + 1).toString();
+              }
+          } else {
+              block.style.gridRow = '3';
+              block.style.gridColumn = (index - 8 + 1).toString();
+          }
+          block.style.order = ''; // Reset order just in case
+      } else {
+          block.style.gridRow = '';
+          block.style.gridColumn = '';
           block.style.order = '';
       }
     });
@@ -188,6 +201,9 @@
     div.innerHTML = `
       <div class="step-block-header edit-only-row">
         <span class="block-title" style="color:#e91e63;">手順</span>
+        <label style="margin-left: 10px; font-size: 0.8rem; cursor: pointer; color: #1565c0; font-weight: bold;">
+          <input type="checkbox" class="standby-toggle" onchange="updateBlockNumbers()"> スタンバイ
+        </label>
         <select class="step-template-select edit-only-btn" onchange="applyStepTemplate(this)" style="margin-left: 10px; font-size: 0.8rem; padding: 2px;">
           <option value="">-- 定型文挿入 --</option>
           <option value="proof">ホイロ</option>
@@ -195,6 +211,20 @@
           <option value="bake2">焼成②（スチーム）</option>
           <option value="bake3">焼成③（2重天板）</option>
           <option value="bake4">焼成④（クッキングシート）</option>
+        </select>
+        <select class="tool-template-select edit-only-btn" onchange="applyToolTemplate(this)" style="margin-left: 5px; font-size: 0.8rem; padding: 2px;">
+          <option value="">-- 🛠道具挿入 --</option>
+          <option value="ボウル">ボウル</option>
+          <option value="ホイッパー">ホイッパー</option>
+          <option value="ゴムベラ">ゴムベラ</option>
+          <option value="スケッパー">スケッパー</option>
+          <option value="天板">天板</option>
+          <option value="クッキングシート">クッキングシート</option>
+          <option value="温度計">温度計</option>
+          <option value="刷毛">刷毛</option>
+          <option value="絞り袋">絞り袋</option>
+          <option value="口金">口金</option>
+          <option value="めん棒">めん棒</option>
         </select>
         <button type="button" class="del-btn edit-only-btn" style="width:auto; padding:2px 5px;" onclick="removeStepBlock(this)">ブロック削除</button>
       </div>
@@ -376,8 +406,18 @@
     }
     
     const wrapperWidth = wrapper.clientWidth;
-    const pageTargetWidth = 840;
-    const scale = Math.min(1, (wrapperWidth - 20) / pageTargetWidth);
+    // 料理モードは横長（A4横相当）のため、ターゲット幅を広く設定して全体を縮小させる
+    const pageTargetWidth = (typeof currentMode !== 'undefined' && currentMode === 'cooking') ? 1188 : 840;
+    let scale = Math.min(1, (wrapperWidth - 20) / pageTargetWidth);
+    
+    if (typeof currentMode !== 'undefined' && currentMode === 'cooking') {
+      // 一旦スケールをリセットして本来の高さを取得する
+      outputArea.style.transform = 'none';
+      const actualHeight = outputArea.scrollHeight || 800;
+      // 画面の高さにギリギリ収まるように倍率を計算（上下の余裕を80px確保）
+      const heightScale = (window.innerHeight - 80) / actualHeight;
+      scale = Math.min(scale, heightScale);
+    }
     
     outputArea.style.transform = `scale(${scale})`;
     outputArea.style.transformOrigin = 'top center';
@@ -563,10 +603,34 @@
     const textarea = block.querySelector('.step-textarea');
     
     if (textarea) {
-      textarea.value = lines.join('\n');
+      const newText = lines.join('\n');
+      if (textarea.value) {
+        textarea.value = textarea.value + '\n' + newText;
+      } else {
+        textarea.value = newText;
+      }
       autoResizeTextarea(textarea);
     }
 
+    selectObj.value = "";
+    adjustPreviewScale();
+  }
+
+  function applyToolTemplate(selectObj) {
+    const tool = selectObj.value;
+    if (!tool) return;
+    
+    const block = selectObj.closest('.step-block');
+    const textarea = block.querySelector('.step-textarea');
+    
+    if (textarea) {
+      if (textarea.value) {
+        textarea.value = textarea.value + '\n・' + tool;
+      } else {
+        textarea.value = '・' + tool;
+      }
+      autoResizeTextarea(textarea);
+    }
     selectObj.value = "";
     adjustPreviewScale();
   }
@@ -925,6 +989,9 @@
         }
       });
     }
+    
+    // 強制的に料理モードとして初期化
+    switchMode('cooking');
   });
 
   // サジェスト機能
@@ -1340,7 +1407,8 @@
       const text = block.querySelector('.step-textarea').value;
       const uploadBox = block.querySelector('.image-upload-box');
       const imageBlob = uploadBox.fileData || null;
-      manualSteps.push({ text, imageBlob });
+      const isStandby = block.querySelector('.standby-toggle') ? block.querySelector('.standby-toggle').checked : false;
+      manualSteps.push({ text, imageBlob, isStandby });
     }
 
     // スタンバイブロック
@@ -1355,13 +1423,15 @@
 
     // 固定位置の画像
     const mainImageBlob = document.getElementById('mainImage').closest('.image-upload-box').fileData || null;
-    const moldImageBlob = document.getElementById('moldImg').closest('.image-upload-box').fileData || null;
+        const moldImageBlob = document.getElementById('moldImg').closest('.image-upload-box').fileData || null;
     const proofImageBlob = document.getElementById('proofImg').closest('.image-upload-box').fileData || null;
     const bakeImageBlob = document.getElementById('bakeImg').closest('.image-upload-box').fileData || null;
 
     return {
+      mode: typeof currentMode !== 'undefined' ? currentMode : 'bread',
       menuCode,
       productName,
+      manufacturingSlipName: document.getElementById('manufacturingSlipName') ? document.getElementById('manufacturingSlipName').value : "",
       periodStart,
       periodEnd,
       brandCategory,
@@ -1450,17 +1520,15 @@
     }
 
     if (document.getElementById('brandCategory')) {
-      const val = recipe.brandCategory || "--選択--";
-      document.getElementById('brandCategory').value = val;
+      document.getElementById('brandCategory').value = recipe.brandCategory || "";
       if (document.querySelector('.brand-print')) {
-        document.querySelector('.brand-print').innerText = (val === '--選択--') ? '' : val;
+        document.querySelector('.brand-print').innerText = recipe.brandCategory || "";
       }
     }
     if (document.getElementById('menuCategory')) {
-      const val = recipe.menuCategory || "--選択--";
-      document.getElementById('menuCategory').value = val;
+      document.getElementById('menuCategory').value = recipe.menuCategory || "";
       if (document.querySelector('.category-print')) {
-        document.querySelector('.category-print').innerText = (val === '--選択--') ? '' : val;
+        document.querySelector('.category-print').innerText = recipe.menuCategory || "";
       }
     }
 
@@ -1516,6 +1584,9 @@
         div.innerHTML = `
           <div class="step-block-header edit-only-row">
             <span class="block-title" style="color:#e91e63;">手順</span>
+            <label style="margin-left: 10px; font-size: 0.8rem; cursor: pointer; color: #1565c0; font-weight: bold;">
+              <input type="checkbox" class="standby-toggle" onchange="updateBlockNumbers()"> スタンバイ
+            </label>
             <select class="step-template-select edit-only-btn" onchange="applyStepTemplate(this)" style="margin-left: 10px; font-size: 0.8rem; padding: 2px;">
               <option value="">-- 定型文挿入 --</option>
               <option value="proof">ホイロ</option>
@@ -1523,6 +1594,20 @@
               <option value="bake2">焼成②（スチーム）</option>
               <option value="bake3">焼成③（2重天板）</option>
               <option value="bake4">焼成④（クッキングシート）</option>
+            </select>
+            <select class="tool-template-select edit-only-btn" onchange="applyToolTemplate(this)" style="margin-left: 5px; font-size: 0.8rem; padding: 2px;">
+              <option value="">-- 🛠道具挿入 --</option>
+              <option value="ボウル">ボウル</option>
+              <option value="ホイッパー">ホイッパー</option>
+              <option value="ゴムベラ">ゴムベラ</option>
+              <option value="スケッパー">スケッパー</option>
+              <option value="天板">天板</option>
+              <option value="クッキングシート">クッキングシート</option>
+              <option value="温度計">温度計</option>
+              <option value="刷毛">刷毛</option>
+              <option value="絞り袋">絞り袋</option>
+              <option value="口金">口金</option>
+              <option value="めん棒">めん棒</option>
             </select>
             <button type="button" class="del-btn edit-only-btn" style="width:auto; padding:2px 5px;" onclick="removeStepBlock(this)">ブロック削除</button>
           </div>
@@ -1549,6 +1634,11 @@
         const box = div.querySelector('.image-upload-box');
         if (step.imageBlob) {
           restoreImageHelperOnBox(box, step.imageBlob);
+        }
+        
+        const standbyCheckbox = div.querySelector('.standby-toggle');
+        if (standbyCheckbox && step.isStandby) {
+            standbyCheckbox.checked = true;
         }
         
         stepsFull.appendChild(div);
@@ -1601,9 +1691,9 @@
       insertBlankStandbyBlock();
     }
     updateStandbyBlockNumbers();
-    updateSavedCount();
-    updateDBStatusLabel(recipe.menuCode);
     updateStandbyVisibility();
+
+    updateDBStatusLabel(recipe.menuCode);
     adjustPreviewScale();
   }
 
@@ -2154,21 +2244,13 @@
 
   function filterModalRecipes() {
     const query = document.getElementById('modalSearchInput').value.trim().toLowerCase();
-    const brandFilter = document.getElementById('modalBrandFilter') ? document.getElementById('modalBrandFilter').value : '';
-    const categoryFilter = document.getElementById('modalCategoryFilter') ? document.getElementById('modalCategoryFilter').value : '';
     const cards = document.querySelectorAll('#modalRecipeGrid .recipe-card');
     
     cards.forEach(card => {
       const code = card.getAttribute('data-code').toLowerCase();
       const name = card.getAttribute('data-name').toLowerCase();
-      const brand = card.getAttribute('data-brand') || '';
-      const category = card.getAttribute('data-category') || '';
       
-      let matchQuery = (code.includes(query) || name.includes(query));
-      let matchBrand = (!brandFilter || brandFilter === '--選択--' || brand === brandFilter);
-      let matchCategory = (!categoryFilter || categoryFilter === '--選択--' || category === categoryFilter);
-      
-      if (matchQuery && matchBrand && matchCategory) {
+      if (code.includes(query) || name.includes(query)) {
         card.style.display = 'flex';
       } else {
         card.style.display = 'none';
@@ -2315,4 +2397,7 @@
       if (activeBtn) activeBtn.classList.add('active');
     }
     toggleSidebar();
+    if (typeof reorganizeStepBlocks === 'function') {
+      reorganizeStepBlocks();
+    }
   }

@@ -20,9 +20,8 @@
       <button onclick="toggleSidebar()" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #64748b; padding: 0;">×</button>
     </div>
     <div style="padding: 20px; display: flex; flex-direction: column; gap: 15px;">
-      <button onclick="window.location.href='index.html'" class="mode-btn" style="padding: 12px; background-color: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 8px; cursor: pointer; text-align: left; font-size: 1rem; color: #334155; font-weight: bold;">🍞 パン手順書ツール</button>
-      <button onclick="window.location.href='cooking.html'" class="mode-btn" style="padding: 12px; background-color: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 8px; cursor: pointer; text-align: left; font-size: 1rem; color: #334155; font-weight: bold;">🍳 料理・デザート手順書</button>
-      <button onclick="window.location.href='drink.html'" class="mode-btn" style="padding: 12px; background-color: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 8px; cursor: pointer; text-align: left; font-size: 1rem; color: #334155; font-weight: bold;">🥤 ドリンク手順書</button>
+      <button onclick="switchMode('bread')" class="mode-btn" style="padding: 12px; background-color: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 8px; cursor: pointer; text-align: left; font-size: 1rem; color: #334155; font-weight: bold;">🍞 パン手順書ツール</button>
+      <button onclick="switchMode('cooking')" class="mode-btn" style="padding: 12px; background-color: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 8px; cursor: pointer; text-align: left; font-size: 1rem; color: #334155; font-weight: bold;">🍳 料理・デザート手順書</button>
     </div>
   </div>
 
@@ -85,30 +84,7 @@
               <span class="dropdown-arrow">▼</span>
             </div>
           </div>
-          </div>
-
-          <!-- 第3行：ブランド区分・メニュー区分 -->
-          <div class="category-title-row" style="display: flex; gap: 15px; margin-bottom: 5px; align-items: baseline;">
-            <div style="display: flex; align-items: baseline; gap: 5px;">
-              <span style="font-weight: bold; font-size: 0.85rem; color: #334155;">ブランド区分:</span>
-              <select id="brandCategory" class="edit-only-btn" style="font-size: 0.85rem; padding: 2px 4px; border: 1px dashed #94a3b8; background: transparent; cursor: pointer;" onchange="document.querySelector('.brand-print').innerText = this.value === '--選択--' ? '' : this.value;">
-                <option value="--選択--">--選択--</option>
-                <option value="BAQET">BAQET</option>
-                <option value="BAKERY RESTAURANT C">BAKERY RESTAURANT C</option>
-                <option value="BAKERY CAFE C">BAKERY CAFE C</option>
-              </select>
-              <span class="print-text brand-print" style="font-size: 0.85rem; color: #333;"></span>
-            </div>
-            <div style="display: flex; align-items: baseline; gap: 5px;">
-              <span style="font-weight: bold; font-size: 0.85rem; color: #334155;">メニュー区分:</span>
-              <select id="menuCategory" class="edit-only-btn" style="font-size: 0.85rem; padding: 2px 4px; border: 1px dashed #94a3b8; background: transparent; cursor: pointer;" onchange="document.querySelector('.category-print').innerText = this.value === '--選択--' ? '' : this.value;">
-                <option value="--選択--">--選択--</option>
-                <option value="期間限定">期間限定</option>
-                <option value="グランド">グランド</option>
-              </select>
-              <span class="print-text category-print" style="font-size: 0.85rem; color: #333;"></span>
-            </div>
-          </div>
+        </div>
         
         <!-- 使用食材テーブル -->
         <table class="output-table">
@@ -430,26 +406,7 @@
     </div>
     <div class="modal-body">
       <div class="search-wrapper" style="margin-bottom: 12px; position: relative;">
-        <input type="text" id="modalSearchInput" placeholder="メニューコードまたは商品名称で検索..." oninput="filterModalRecipes()" style="width: 100%; padding: 6px 12px; font-size: 0.85rem; border: 1px solid #cbd5e1; border-radius: 6px; box-sizing: border-box; margin-bottom: 8px;">
-        <div style="display: flex; gap: 10px;">
-          <div style="flex: 1; display: flex; align-items: center; gap: 5px;">
-            <span style="font-size: 0.85rem; color: #475569;">ブランド:</span>
-            <select id="modalBrandFilter" onchange="filterModalRecipes()" style="flex: 1; font-size: 0.85rem; padding: 4px; border: 1px solid #cbd5e1; border-radius: 4px; background: #fff;">
-              <option value="">すべて</option>
-              <option value="BAQET">BAQET</option>
-              <option value="BAKERY RESTAURANT C">BAKERY RESTAURANT C</option>
-              <option value="BAKERY CAFE C">BAKERY CAFE C</option>
-            </select>
-          </div>
-          <div style="flex: 1; display: flex; align-items: center; gap: 5px;">
-            <span style="font-size: 0.85rem; color: #475569;">メニュー:</span>
-            <select id="modalCategoryFilter" onchange="filterModalRecipes()" style="flex: 1; font-size: 0.85rem; padding: 4px; border: 1px solid #cbd5e1; border-radius: 4px; background: #fff;">
-              <option value="">すべて</option>
-              <option value="期間限定">期間限定</option>
-              <option value="グランド">グランド</option>
-            </select>
-          </div>
-        </div>
+        <input type="text" id="modalSearchInput" placeholder="メニューコードまたは商品名称で検索..." oninput="filterModalRecipes()" style="width: 100%; padding: 6px 12px; font-size: 0.85rem; border: 1px solid #cbd5e1; border-radius: 6px; box-sizing: border-box;">
       </div>
       <div id="modalRecipeGrid" class="modal-recipe-grid">
         <!-- レシピカードが動的に生成されます -->
