@@ -221,11 +221,7 @@
           <span class="block-title" style="color:#e91e63;">手順①</span>
           <select class="step-template-select edit-only-btn" onchange="applyStepTemplate(this)" style="margin-left: 10px; font-size: 0.8rem; padding: 2px;">
             <option value="">-- 定型文挿入 --</option>
-            <option value="proof">ホイロ</option>
-            <option value="bake1">焼成①</option>
-            <option value="bake2">焼成②（スチーム）</option>
-            <option value="bake3">焼成③（2重天板）</option>
-            <option value="bake4">焼成④（クッキングシート）</option>
+            <option value="drink_prep">準備</option>
           </select>
           <button type="button" class="del-btn edit-only-btn" style="width:auto; padding:2px 5px;" onclick="removeStepBlock(this)">ブロック削除</button>
         </div>
@@ -258,10 +254,7 @@
             <span style="color:#e91e63;">■ 提供方法</span>
             <select id="servingTemplate" class="edit-only-btn" style="font-size: 9px; padding: 1px 4px;" onchange="document.getElementById('servingText').value = this.value; autoResizeTextarea(document.getElementById('servingText'));">
               <option value="">-- 提供方法テンプレ --</option>
-              <option value="商品の向きをそろえて、焼きたてを提供します。">① 焼きたて</option>
-              <option value="チョコが完全に固まってから、商品の向きをそろえて提供します。">② チョコ固め</option>
-              <option value="粗熱が取れてから、商品の向きをそろえて提供します。">③ 粗熱取り</option>
-              <option value="商品は重ねずに向きをそろえて提供します。">④ 重ねない</option>
+              <option value="淵を確認し、提供します。（TO：蓋をして提供します。）">① 淵確認・TO蓋</option>
             </select>
           </div>
           <textarea id="servingText" class="step-textarea" placeholder="提供方法" rows="1" oninput="autoResizeTextarea(this)" style="min-height: 18px; height: 18px; padding: 2px;"></textarea>

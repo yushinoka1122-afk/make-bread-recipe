@@ -190,11 +190,7 @@
         <span class="block-title" style="color:#e91e63;">手順</span>
         <select class="step-template-select edit-only-btn" onchange="applyStepTemplate(this)" style="margin-left: 10px; font-size: 0.8rem; padding: 2px;">
           <option value="">-- 定型文挿入 --</option>
-          <option value="proof">ホイロ</option>
-          <option value="bake1">焼成①</option>
-          <option value="bake2">焼成②（スチーム）</option>
-          <option value="bake3">焼成③（2重天板）</option>
-          <option value="bake4">焼成④（クッキングシート）</option>
+          <option value="drink_prep">準備</option>
         </select>
         <button type="button" class="del-btn edit-only-btn" style="width:auto; padding:2px 5px;" onclick="removeStepBlock(this)">ブロック削除</button>
       </div>
@@ -522,40 +518,10 @@
   function applyStepTemplate(selectObj) {
     const tempKey = selectObj.value;
     if (!tempKey) return;
-
-    let proofTimeVal = document.getElementById('proofTime').value.trim() || "40";
-    let bakeTimeVal = document.getElementById('bakeTime').value.trim() || "10";
     
-    // 分マークをあらかじめ除去して統一
-    proofTimeVal = proofTimeVal.replace(/分/g, "");
-    bakeTimeVal = bakeTimeVal.replace(/分/g, "");
-
     let lines = [];
-    if (tempKey === "proof") {
-      lines = [
-        `ホイロ：${proofTimeVal}分`,
-        "※室温や生地状態により変化するため、最終判断はホイロ規格を基準にしてください。"
-      ];
-    } else if (tempKey === "bake1") {
-      lines = [
-        `焼成：${bakeTimeVal}分（数が少ない場合は短縮）`,
-        "※オーブンや生地状態により変化するため、焼き色を基準にしてください。"
-      ];
-    } else if (tempKey === "bake2") {
-      lines = [
-        `スチームをかけて焼成：${bakeTimeVal}分（数が少ない場合は短縮）`,
-        "※オーブンや生地状態により変化するため、焼き色を基準にしてください。"
-      ];
-    } else if (tempKey === "bake3") {
-      lines = [
-        `2重鉄板にして焼成：${bakeTimeVal}分（数が少ない場合は短縮）`,
-        "※オーブンや生地状態により変化するため、焼き色を基準にしてください。"
-      ];
-    } else if (tempKey === "bake4") {
-      lines = [
-        `クッキングシートを被せ、上に鉄板をのせて焼成：${bakeTimeVal}分（数が少ない場合は短縮）`,
-        "※オーブンや生地状態により変化するため、焼き色を基準にしてください。"
-      ];
+    if (tempKey === "drink_prep") {
+      lines = ["手洗い・アルコール・カップ確認"];
     }
 
     const block = selectObj.closest('.step-block');
