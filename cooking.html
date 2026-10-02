@@ -79,16 +79,18 @@
               <input type="text" id="productName" autocomplete="off" placeholder="例: ざくざく枝豆チーズスティック" style="font-size: 11px; font-weight: bold; width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 1px 2px;">
               <span class="dropdown-arrow">▼</span>
             </div>
-            <span style="white-space: nowrap; margin-left: 10px; font-size: 11px;">メニューコード:</span>
-            <div class="autocomplete-wrapper" style="width: 70px;">
-              <input type="text" id="menuCode" autocomplete="off" placeholder="例: 1001" style="font-size: 11px; font-weight: bold; text-align: center; width: 100%; padding: 1px 2px;">
-              <span class="dropdown-arrow">▼</span>
-            </div>
           </div>
           </div>
 
-          <!-- 第3行：ブランド区分・メニュー区分 -->
+          <!-- 第3行：メニューコード・ブランド区分・メニュー区分 -->
           <div class="category-title-row" style="display: flex; gap: 15px; margin-bottom: 5px; align-items: baseline;">
+            <div style="display: flex; align-items: center; gap: 5px;">
+              <span style="font-weight: bold; font-size: 0.85rem; color: #334155;">メニューコード:</span>
+              <div class="autocomplete-wrapper" style="width: 70px;">
+                <input type="text" id="menuCode" autocomplete="off" placeholder="例: 1001" style="font-size: 11px; font-weight: bold; text-align: center; width: 100%; padding: 1px 2px;">
+                <span class="dropdown-arrow">▼</span>
+              </div>
+            </div>
             <div style="display: flex; align-items: baseline; gap: 5px;">
               <span style="font-weight: bold; font-size: 0.85rem; color: #334155;">ブランド区分:</span>
               <select id="brandCategory" class="edit-only-btn" style="font-size: 0.85rem; padding: 2px 4px; border: 1px dashed #94a3b8; background: transparent; cursor: pointer;" onchange="document.querySelector('.brand-print').innerText = this.value === '--選択--' ? '' : this.value;">
@@ -110,6 +112,21 @@
               <span class="print-text category-print" style="font-size: 0.85rem; color: #333;"></span>
             </div>
           </div>
+
+      <!-- 完成写真 -->
+      <div class="preview-right main-image-container" style="margin-bottom: 5px;">
+        <div style="font-weight:bold; font-size:0.8rem; margin-bottom:2px; background:#e8f5e9; width:100%; text-align:center; border: 1px solid #333;">完成写真</div>
+        <div class="image-upload-box" onclick="triggerFileInput(this)" style="width: 100%; min-height: 120px;">
+          <input type="file" id="mainImage" class="image-file-input" accept="image/*" onchange="previewImage(this)">
+          <div class="image-placeholder">
+            <span>📷 写真を選択</span>
+          </div>
+          <div class="image-preview" style="display: none;">
+            <img>
+            <button type="button" class="del-image-btn edit-only-btn" onclick="clearImage(event, this)">×</button>
+          </div>
+        </div>
+      </div>
 
           <!-- テーブル（食材リスト） -->
         <table class="output-table">
@@ -170,20 +187,7 @@
         <button type="button" class="add-btn edit-only-btn" onclick="addIngredient()">＋ 食材の行を追加</button>
       </div>
       
-      <!-- 完成写真 -->
-      <div class="preview-right main-image-container">
-        <div style="font-weight:bold; font-size:0.8rem; margin-bottom:2px; background:#e8f5e9; width:100%; text-align:center; border: 1px solid #333;">完成写真</div>
-        <div class="image-upload-box" onclick="triggerFileInput(this)" style="flex: 1; min-height: 120px;">
-          <input type="file" id="mainImage" class="image-file-input" accept="image/*" onchange="previewImage(this)">
-          <div class="image-placeholder">
-            <span>📷 写真を選択</span>
-          </div>
-          <div class="image-preview" style="display: none;">
-            <img>
-            <button type="button" class="del-image-btn edit-only-btn" onclick="clearImage(event, this)">×</button>
-          </div>
-        </div>
-      </div>
+
     </div>
 
     <!-- 規格・工程条件 -->
@@ -350,31 +354,32 @@
       <div class="step-block" data-block-type="step">
         <div class="step-block-header edit-only-row">
           <span class="block-title" style="color:#e91e63;">手順①</span>
+          <button type="button" class="font-adjust-btn edit-only-btn" onclick="adjustFontSize(this, -1)" style="margin-left: 5px; padding: 1px 4px; font-size: 10px;" title="文字を小さく">A-</button>
+          <button type="button" class="font-adjust-btn edit-only-btn" onclick="adjustFontSize(this, 1)" style="margin-left: 2px; padding: 1px 4px; font-size: 10px;" title="文字を大きく">A+</button>
           <label style="margin-left: 10px; font-size: 0.8rem; cursor: pointer; color: #1565c0; font-weight: bold;">
             <input type="checkbox" class="standby-toggle" onchange="updateBlockNumbers()"> スタンバイ
           </label>
           <select class="step-template-select edit-only-btn" onchange="applyStepTemplate(this)" style="margin-left: 10px; font-size: 0.8rem; padding: 2px;">
             <option value="">-- 定型文挿入 --</option>
-            <option value="proof">ホイロ</option>
-            <option value="bake1">焼成①</option>
-            <option value="bake2">焼成②（スチーム）</option>
-            <option value="bake3">焼成③（2重天板）</option>
-            <option value="bake4">焼成④（クッキングシート）</option>
+            <option value="format1">本文フォーマット①</option>
           </select>
-          <select class="tool-template-select edit-only-btn" onchange="applyToolTemplate(this)" style="margin-left: 5px; font-size: 0.8rem; padding: 2px;">
-            <option value="">-- 🛠道具挿入 --</option>
-            <option value="ボウル">ボウル</option>
-            <option value="ホイッパー">ホイッパー</option>
-            <option value="ゴムベラ">ゴムベラ</option>
-            <option value="スケッパー">スケッパー</option>
-            <option value="天板">天板</option>
-            <option value="クッキングシート">クッキングシート</option>
-            <option value="温度計">温度計</option>
-            <option value="刷毛">刷毛</option>
-            <option value="絞り袋">絞り袋</option>
-            <option value="口金">口金</option>
-            <option value="めん棒">めん棒</option>
-          </select>
+          <div class="tool-dropdown-container edit-only-btn" style="position: relative; display: inline-block; margin-left: 5px;">
+            <button type="button" class="tool-dropdown-btn" onclick="toggleToolMenu(this)" style="font-size: 0.8rem; padding: 2px;">-- 🛠道具挿入 -- ▼</button>
+            <div class="tool-dropdown-menu" style="display: none; position: absolute; left: 0; top: 100%; z-index: 100; background: white; border: 1px solid #ccc; padding: 5px; box-shadow: 0 2px 5px rgba(0,0,0,0.2); white-space: nowrap; font-size: 0.85rem; max-height: 250px; overflow-y: auto;">
+              <label style="display:block; cursor:pointer;"><input type="checkbox" value="ボウル"> ボウル</label>
+              <label style="display:block; cursor:pointer;"><input type="checkbox" value="ホイッパー"> ホイッパー</label>
+              <label style="display:block; cursor:pointer;"><input type="checkbox" value="ゴムベラ"> ゴムベラ</label>
+              <label style="display:block; cursor:pointer;"><input type="checkbox" value="スケッパー"> スケッパー</label>
+              <label style="display:block; cursor:pointer;"><input type="checkbox" value="天板"> 天板</label>
+              <label style="display:block; cursor:pointer;"><input type="checkbox" value="クッキングシート"> クッキングシート</label>
+              <label style="display:block; cursor:pointer;"><input type="checkbox" value="温度計"> 温度計</label>
+              <label style="display:block; cursor:pointer;"><input type="checkbox" value="刷毛"> 刷毛</label>
+              <label style="display:block; cursor:pointer;"><input type="checkbox" value="絞り袋"> 絞り袋</label>
+              <label style="display:block; cursor:pointer;"><input type="checkbox" value="口金"> 口金</label>
+              <label style="display:block; cursor:pointer;"><input type="checkbox" value="めん棒"> めん棒</label>
+              <button type="button" onclick="insertCheckedTools(this)" style="margin-top: 5px; width: 100%; font-size: 0.85rem; padding: 2px; background: #e0e0e0; cursor: pointer; border: 1px solid #999;">挿入する</button>
+            </div>
+          </div>
           <button type="button" class="del-btn edit-only-btn" style="width:auto; padding:2px 5px;" onclick="removeStepBlock(this)">ブロック削除</button>
         </div>
         <div class="step-preview-block">

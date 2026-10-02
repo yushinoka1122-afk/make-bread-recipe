@@ -201,31 +201,32 @@
     div.innerHTML = `
       <div class="step-block-header edit-only-row">
         <span class="block-title" style="color:#e91e63;">手順</span>
+        <button type="button" class="font-adjust-btn edit-only-btn" onclick="adjustFontSize(this, -1)" style="margin-left: 5px; padding: 1px 4px; font-size: 10px;" title="文字を小さく">A-</button>
+        <button type="button" class="font-adjust-btn edit-only-btn" onclick="adjustFontSize(this, 1)" style="margin-left: 2px; padding: 1px 4px; font-size: 10px;" title="文字を大きく">A+</button>
         <label style="margin-left: 10px; font-size: 0.8rem; cursor: pointer; color: #1565c0; font-weight: bold;">
           <input type="checkbox" class="standby-toggle" onchange="updateBlockNumbers()"> スタンバイ
         </label>
         <select class="step-template-select edit-only-btn" onchange="applyStepTemplate(this)" style="margin-left: 10px; font-size: 0.8rem; padding: 2px;">
           <option value="">-- 定型文挿入 --</option>
-          <option value="proof">ホイロ</option>
-          <option value="bake1">焼成①</option>
-          <option value="bake2">焼成②（スチーム）</option>
-          <option value="bake3">焼成③（2重天板）</option>
-          <option value="bake4">焼成④（クッキングシート）</option>
+          <option value="format1">本文フォーマット①</option>
         </select>
-        <select class="tool-template-select edit-only-btn" onchange="applyToolTemplate(this)" style="margin-left: 5px; font-size: 0.8rem; padding: 2px;">
-          <option value="">-- 🛠道具挿入 --</option>
-          <option value="ボウル">ボウル</option>
-          <option value="ホイッパー">ホイッパー</option>
-          <option value="ゴムベラ">ゴムベラ</option>
-          <option value="スケッパー">スケッパー</option>
-          <option value="天板">天板</option>
-          <option value="クッキングシート">クッキングシート</option>
-          <option value="温度計">温度計</option>
-          <option value="刷毛">刷毛</option>
-          <option value="絞り袋">絞り袋</option>
-          <option value="口金">口金</option>
-          <option value="めん棒">めん棒</option>
-        </select>
+        <div class="tool-dropdown-container edit-only-btn" style="position: relative; display: inline-block; margin-left: 5px;">
+          <button type="button" class="tool-dropdown-btn" onclick="toggleToolMenu(this)" style="font-size: 0.8rem; padding: 2px;">-- 🛠道具挿入 -- ▼</button>
+          <div class="tool-dropdown-menu" style="display: none; position: absolute; left: 0; top: 100%; z-index: 100; background: white; border: 1px solid #ccc; padding: 5px; box-shadow: 0 2px 5px rgba(0,0,0,0.2); white-space: nowrap; font-size: 0.85rem; max-height: 250px; overflow-y: auto;">
+            <label style="display:block; cursor:pointer;"><input type="checkbox" value="ボウル"> ボウル</label>
+            <label style="display:block; cursor:pointer;"><input type="checkbox" value="ホイッパー"> ホイッパー</label>
+            <label style="display:block; cursor:pointer;"><input type="checkbox" value="ゴムベラ"> ゴムベラ</label>
+            <label style="display:block; cursor:pointer;"><input type="checkbox" value="スケッパー"> スケッパー</label>
+            <label style="display:block; cursor:pointer;"><input type="checkbox" value="天板"> 天板</label>
+            <label style="display:block; cursor:pointer;"><input type="checkbox" value="クッキングシート"> クッキングシート</label>
+            <label style="display:block; cursor:pointer;"><input type="checkbox" value="温度計"> 温度計</label>
+            <label style="display:block; cursor:pointer;"><input type="checkbox" value="刷毛"> 刷毛</label>
+            <label style="display:block; cursor:pointer;"><input type="checkbox" value="絞り袋"> 絞り袋</label>
+            <label style="display:block; cursor:pointer;"><input type="checkbox" value="口金"> 口金</label>
+            <label style="display:block; cursor:pointer;"><input type="checkbox" value="めん棒"> めん棒</label>
+            <button type="button" onclick="insertCheckedTools(this)" style="margin-top: 5px; width: 100%; font-size: 0.85rem; padding: 2px; background: #e0e0e0; cursor: pointer; border: 1px solid #999;">挿入する</button>
+          </div>
+        </div>
         <button type="button" class="del-btn edit-only-btn" style="width:auto; padding:2px 5px;" onclick="removeStepBlock(this)">ブロック削除</button>
       </div>
       <div class="step-preview-block">
@@ -564,38 +565,11 @@
     const tempKey = selectObj.value;
     if (!tempKey) return;
 
-    let proofTimeVal = document.getElementById('proofTime').value.trim() || "40";
-    let bakeTimeVal = document.getElementById('bakeTime').value.trim() || "10";
-    
-    // 分マークをあらかじめ除去して統一
-    proofTimeVal = proofTimeVal.replace(/分/g, "");
-    bakeTimeVal = bakeTimeVal.replace(/分/g, "");
-
     let lines = [];
-    if (tempKey === "proof") {
+    if (tempKey === "format1") {
       lines = [
-        `ホイロ：${proofTimeVal}分`,
-        "※室温や生地状態により変化するため、最終判断はホイロ規格を基準にしてください。"
-      ];
-    } else if (tempKey === "bake1") {
-      lines = [
-        `焼成：${bakeTimeVal}分（数が少ない場合は短縮）`,
-        "※オーブンや生地状態により変化するため、焼き色を基準にしてください。"
-      ];
-    } else if (tempKey === "bake2") {
-      lines = [
-        `スチームをかけて焼成：${bakeTimeVal}分（数が少ない場合は短縮）`,
-        "※オーブンや生地状態により変化するため、焼き色を基準にしてください。"
-      ];
-    } else if (tempKey === "bake3") {
-      lines = [
-        `2重鉄板にして焼成：${bakeTimeVal}分（数が少ない場合は短縮）`,
-        "※オーブンや生地状態により変化するため、焼き色を基準にしてください。"
-      ];
-    } else if (tempKey === "bake4") {
-      lines = [
-        `クッキングシートを被せ、上に鉄板をのせて焼成：${bakeTimeVal}分（数が少ない場合は短縮）`,
-        "※オーブンや生地状態により変化するため、焼き色を基準にしてください。"
+        "手を洗いアルコールをします。",
+        "使用する備品に汚れが付いていないことを確認します。"
       ];
     }
 
@@ -616,22 +590,49 @@
     adjustPreviewScale();
   }
 
-  function applyToolTemplate(selectObj) {
-    const tool = selectObj.value;
-    if (!tool) return;
+  function toggleToolMenu(btn) {
+    const container = btn.closest('.tool-dropdown-container');
+    const menu = container.querySelector('.tool-dropdown-menu');
+    const isVisible = menu.style.display === 'block';
     
-    const block = selectObj.closest('.step-block');
+    // 他の開いているメニューをすべて閉じる
+    document.querySelectorAll('.tool-dropdown-menu').forEach(m => m.style.display = 'none');
+    
+    if (!isVisible) {
+      menu.style.display = 'block';
+      // メニューを開いたときにチェックボックスをリセットする
+      menu.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = false);
+    }
+  }
+
+  // メニュー外をクリックしたら閉じる処理
+  document.addEventListener('click', function(e) {
+    if (!e.target.closest('.tool-dropdown-container')) {
+      document.querySelectorAll('.tool-dropdown-menu').forEach(m => m.style.display = 'none');
+    }
+  });
+
+  function insertCheckedTools(insertBtn) {
+    const menu = insertBtn.closest('.tool-dropdown-menu');
+    const checkboxes = menu.querySelectorAll('input[type="checkbox"]:checked');
+    const container = insertBtn.closest('.tool-dropdown-container');
+    const block = container.closest('.step-block');
     const textarea = block.querySelector('.step-textarea');
     
-    if (textarea) {
+    if (checkboxes.length > 0 && textarea) {
+      const selectedTools = Array.from(checkboxes).map(cb => cb.value);
+      const insertText = selectedTools.join('、') + 'を準備します。';
+      
       if (textarea.value) {
-        textarea.value = textarea.value + '\n・' + tool;
+        textarea.value = textarea.value + '\n' + insertText;
       } else {
-        textarea.value = '・' + tool;
+        textarea.value = insertText;
       }
       autoResizeTextarea(textarea);
     }
-    selectObj.value = "";
+    
+    // メニューを閉じる
+    menu.style.display = 'none';
     adjustPreviewScale();
   }
 
@@ -1584,31 +1585,32 @@
         div.innerHTML = `
           <div class="step-block-header edit-only-row">
             <span class="block-title" style="color:#e91e63;">手順</span>
+            <button type="button" class="font-adjust-btn edit-only-btn" onclick="adjustFontSize(this, -1)" style="margin-left: 5px; padding: 1px 4px; font-size: 10px;" title="文字を小さく">A-</button>
+            <button type="button" class="font-adjust-btn edit-only-btn" onclick="adjustFontSize(this, 1)" style="margin-left: 2px; padding: 1px 4px; font-size: 10px;" title="文字を大きく">A+</button>
             <label style="margin-left: 10px; font-size: 0.8rem; cursor: pointer; color: #1565c0; font-weight: bold;">
               <input type="checkbox" class="standby-toggle" onchange="updateBlockNumbers()"> スタンバイ
             </label>
             <select class="step-template-select edit-only-btn" onchange="applyStepTemplate(this)" style="margin-left: 10px; font-size: 0.8rem; padding: 2px;">
               <option value="">-- 定型文挿入 --</option>
-              <option value="proof">ホイロ</option>
-              <option value="bake1">焼成①</option>
-              <option value="bake2">焼成②（スチーム）</option>
-              <option value="bake3">焼成③（2重天板）</option>
-              <option value="bake4">焼成④（クッキングシート）</option>
+              <option value="format1">本文フォーマット①</option>
             </select>
-            <select class="tool-template-select edit-only-btn" onchange="applyToolTemplate(this)" style="margin-left: 5px; font-size: 0.8rem; padding: 2px;">
-              <option value="">-- 🛠道具挿入 --</option>
-              <option value="ボウル">ボウル</option>
-              <option value="ホイッパー">ホイッパー</option>
-              <option value="ゴムベラ">ゴムベラ</option>
-              <option value="スケッパー">スケッパー</option>
-              <option value="天板">天板</option>
-              <option value="クッキングシート">クッキングシート</option>
-              <option value="温度計">温度計</option>
-              <option value="刷毛">刷毛</option>
-              <option value="絞り袋">絞り袋</option>
-              <option value="口金">口金</option>
-              <option value="めん棒">めん棒</option>
-            </select>
+            <div class="tool-dropdown-container edit-only-btn" style="position: relative; display: inline-block; margin-left: 5px;">
+              <button type="button" class="tool-dropdown-btn" onclick="toggleToolMenu(this)" style="font-size: 0.8rem; padding: 2px;">-- 🛠道具挿入 -- ▼</button>
+              <div class="tool-dropdown-menu" style="display: none; position: absolute; left: 0; top: 100%; z-index: 100; background: white; border: 1px solid #ccc; padding: 5px; box-shadow: 0 2px 5px rgba(0,0,0,0.2); white-space: nowrap; font-size: 0.85rem; max-height: 250px; overflow-y: auto;">
+                <label style="display:block; cursor:pointer;"><input type="checkbox" value="ボウル"> ボウル</label>
+                <label style="display:block; cursor:pointer;"><input type="checkbox" value="ホイッパー"> ホイッパー</label>
+                <label style="display:block; cursor:pointer;"><input type="checkbox" value="ゴムベラ"> ゴムベラ</label>
+                <label style="display:block; cursor:pointer;"><input type="checkbox" value="スケッパー"> スケッパー</label>
+                <label style="display:block; cursor:pointer;"><input type="checkbox" value="天板"> 天板</label>
+                <label style="display:block; cursor:pointer;"><input type="checkbox" value="クッキングシート"> クッキングシート</label>
+                <label style="display:block; cursor:pointer;"><input type="checkbox" value="温度計"> 温度計</label>
+                <label style="display:block; cursor:pointer;"><input type="checkbox" value="刷毛"> 刷毛</label>
+                <label style="display:block; cursor:pointer;"><input type="checkbox" value="絞り袋"> 絞り袋</label>
+                <label style="display:block; cursor:pointer;"><input type="checkbox" value="口金"> 口金</label>
+                <label style="display:block; cursor:pointer;"><input type="checkbox" value="めん棒"> めん棒</label>
+                <button type="button" onclick="insertCheckedTools(this)" style="margin-top: 5px; width: 100%; font-size: 0.85rem; padding: 2px; background: #e0e0e0; cursor: pointer; border: 1px solid #999;">挿入する</button>
+              </div>
+            </div>
             <button type="button" class="del-btn edit-only-btn" style="width:auto; padding:2px 5px;" onclick="removeStepBlock(this)">ブロック削除</button>
           </div>
           <div class="step-preview-block">
@@ -1747,14 +1749,29 @@
     div.innerHTML = `
       <div class="step-block-header edit-only-row">
         <span class="block-title" style="color:#e91e63;">手順①</span>
+        <button type="button" class="font-adjust-btn edit-only-btn" onclick="adjustFontSize(this, -1)" style="margin-left: 5px; padding: 1px 4px; font-size: 10px;" title="文字を小さく">A-</button>
+        <button type="button" class="font-adjust-btn edit-only-btn" onclick="adjustFontSize(this, 1)" style="margin-left: 2px; padding: 1px 4px; font-size: 10px;" title="文字を大きく">A+</button>
         <select class="step-template-select edit-only-btn" onchange="applyStepTemplate(this)" style="margin-left: 10px; font-size: 0.8rem; padding: 2px;">
           <option value="">-- 定型文挿入 --</option>
-          <option value="proof">ホイロ</option>
-          <option value="bake1">焼成①</option>
-          <option value="bake2">焼成②（スチーム）</option>
-          <option value="bake3">焼成③（2重天板）</option>
-          <option value="bake4">焼成④（クッキングシート）</option>
+          <option value="format1">本文フォーマット①</option>
         </select>
+        <div class="tool-dropdown-container edit-only-btn" style="position: relative; display: inline-block; margin-left: 5px;">
+          <button type="button" class="tool-dropdown-btn" onclick="toggleToolMenu(this)" style="font-size: 0.8rem; padding: 2px;">-- 🛠道具挿入 -- ▼</button>
+          <div class="tool-dropdown-menu" style="display: none; position: absolute; left: 0; top: 100%; z-index: 100; background: white; border: 1px solid #ccc; padding: 5px; box-shadow: 0 2px 5px rgba(0,0,0,0.2); white-space: nowrap; font-size: 0.85rem; max-height: 250px; overflow-y: auto;">
+            <label style="display:block; cursor:pointer;"><input type="checkbox" value="ボウル"> ボウル</label>
+            <label style="display:block; cursor:pointer;"><input type="checkbox" value="ホイッパー"> ホイッパー</label>
+            <label style="display:block; cursor:pointer;"><input type="checkbox" value="ゴムベラ"> ゴムベラ</label>
+            <label style="display:block; cursor:pointer;"><input type="checkbox" value="スケッパー"> スケッパー</label>
+            <label style="display:block; cursor:pointer;"><input type="checkbox" value="天板"> 天板</label>
+            <label style="display:block; cursor:pointer;"><input type="checkbox" value="クッキングシート"> クッキングシート</label>
+            <label style="display:block; cursor:pointer;"><input type="checkbox" value="温度計"> 温度計</label>
+            <label style="display:block; cursor:pointer;"><input type="checkbox" value="刷毛"> 刷毛</label>
+            <label style="display:block; cursor:pointer;"><input type="checkbox" value="絞り袋"> 絞り袋</label>
+            <label style="display:block; cursor:pointer;"><input type="checkbox" value="口金"> 口金</label>
+            <label style="display:block; cursor:pointer;"><input type="checkbox" value="めん棒"> めん棒</label>
+            <button type="button" onclick="insertCheckedTools(this)" style="margin-top: 5px; width: 100%; font-size: 0.85rem; padding: 2px; background: #e0e0e0; cursor: pointer; border: 1px solid #999;">挿入する</button>
+          </div>
+        </div>
         <button type="button" class="del-btn edit-only-btn" style="width:auto; padding:2px 5px;" onclick="removeStepBlock(this)">ブロック削除</button>
       </div>
       <div class="step-preview-block">
@@ -2401,3 +2418,26 @@
       reorganizeStepBlocks();
     }
   }
+
+
+// フォントサイズ調整機能
+function adjustFontSize(btn, delta) {
+    const textarea = btn.closest('.step-block').querySelector('.step-textarea');
+    if (!textarea) return;
+    
+    // 現在のフォントサイズを取得（デフォルトは12pxとする）
+    let currentSize = parseInt(textarea.style.fontSize) || 12;
+    currentSize += delta;
+    
+    // 上下限を設定（8px ～ 16px）
+    if (currentSize < 8) currentSize = 8;
+    if (currentSize > 16) currentSize = 16;
+    
+    textarea.style.fontSize = currentSize + 'px';
+    
+    // 印刷時にも反映されるように、カスタムプロパティまたはインラインスタイルで調整
+    // classListなどで特定サイズ用のクラスを付けるのもありだが、インラインでそのまま効くようにする
+    textarea.setAttribute('data-font-size', currentSize);
+    if (typeof autoResizeTextarea === 'function') autoResizeTextarea(textarea);
+}
+
