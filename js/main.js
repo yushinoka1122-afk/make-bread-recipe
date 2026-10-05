@@ -845,6 +845,11 @@
   }
 
   document.addEventListener('DOMContentLoaded', () => {
+    const modeSelectInit = document.getElementById('recipeModeSelect');
+    if (modeSelectInit && typeof currentMode !== 'undefined') {
+        modeSelectInit.value = currentMode;
+    }
+
     reorganizeStepBlocks();
     updateStandbyBlockNumbers();
     updateStandbyVisibility();
@@ -1362,6 +1367,7 @@
     return {
       menuCode,
       productName,
+  mode: document.getElementById('recipeModeSelect') ? document.getElementById('recipeModeSelect').value : (typeof currentMode !== 'undefined' ? currentMode : 'bread'),
       periodStart,
       periodEnd,
       brandCategory,
@@ -1387,55 +1393,19 @@
 
     // モード切替を復元
     if (recipe.mode && recipe.mode !== currentMode) {
-      // suppress sidebar toggle visually if needed, but since sidebar is closed by default, it's fine.
-      // 実際には switchMode() を呼ぶとサイドバーがトグルされてしまう問題があるため、
-      // ここではUIの直接操作と変数代入のみ行う。
-      currentMode = recipe.mode;
-      const body = document.body;
-      const badge = document.getElementById('modeBadge');
-      document.querySelectorAll('.mode-btn').forEach(btn => btn.classList.remove('active'));
-    // 動的に印刷向きを変更
-    let printStyle = document.getElementById('dynamicPrintStyle');
-    if (!printStyle) {
-      printStyle = document.createElement('style');
-      printStyle.id = 'dynamicPrintStyle';
-      document.head.appendChild(printStyle);
+      localStorage.setItem('pendingLoadRecipe', recipe.menuCode);
+      if (recipe.mode === 'cooking') window.location.href = 'cooking.html';
+      else if (recipe.mode === 'drink') window.location.href = 'drink.html';
+      else window.location.href = 'index.html';
+      return;
+    } else if (!recipe.mode && currentMode !== 'bread') {
+      localStorage.setItem('pendingLoadRecipe', recipe.menuCode);
+      window.location.href = 'index.html';
+      return;
     }
 
-      
-      if (currentMode === 'cooking') {
-        if (printStyle) printStyle.innerHTML = "@page { size: A4 landscape; margin: 5mm; }";
-        body.classList.add('mode-cooking');
-        if (badge) { badge.innerText = '料理・デザートモード'; badge.style.backgroundColor = '#ef4444'; }
-        const activeBtn = document.querySelector('.mode-btn[onclick*="cooking"]');
-        if (activeBtn) activeBtn.classList.add('active');
-      } else {
-        if (printStyle) printStyle.innerHTML = "@page { size: A4 portrait; margin: 5mm; }";
-        body.classList.remove('mode-cooking');
-        if (badge) { badge.innerText = 'パンモード'; badge.style.backgroundColor = '#f59e0b'; }
-        const activeBtn = document.querySelector('.mode-btn[onclick*="bread"]');
-        if (activeBtn) activeBtn.classList.add('active');
-      }
-    } else if (!recipe.mode && currentMode === 'cooking') {
-       // 過去のレシピ（パンモード限定だった頃のもの）ならパンモードに戻す
-       currentMode = 'bread';
-       const body = document.body;
-       const badge = document.getElementById('modeBadge');
-       document.querySelectorAll('.mode-btn').forEach(btn => btn.classList.remove('active'));
-    // 動的に印刷向きを変更
-    let printStyle = document.getElementById('dynamicPrintStyle');
-    if (!printStyle) {
-      printStyle = document.createElement('style');
-      printStyle.id = 'dynamicPrintStyle';
-      document.head.appendChild(printStyle);
-    }
-
-       if (printStyle) printStyle.innerHTML = "@page { size: A4 portrait; margin: 5mm; }";
-       body.classList.remove('mode-cooking');
-       if (badge) { badge.innerText = 'パンモード'; badge.style.backgroundColor = '#f59e0b'; }
-       const activeBtn = document.querySelector('.mode-btn[onclick*="bread"]');
-       if (activeBtn) activeBtn.classList.add('active');
-    }
+    const modeSelect = document.getElementById('recipeModeSelect');
+    if (modeSelect) modeSelect.value = recipe.mode || 'bread';
 
     document.getElementById('menuCode').value = recipe.menuCode || "";
     document.getElementById('productName').value = recipe.productName || "";

@@ -83,7 +83,7 @@
           </div>
 
           <!-- 第3行：メニューコード・ブランド区分・メニュー区分 -->
-          <div class="category-title-row" style="display: flex; gap: 15px; margin-bottom: 5px; align-items: baseline;">
+          <div class="category-title-row" style="display: flex; gap: 15px; margin-bottom: 5px; align-items: baseline; flex-wrap: wrap;">
             <div style="display: flex; align-items: center; gap: 5px;">
               <span style="font-weight: bold; font-size: 0.85rem; color: #334155;">メニューコード:</span>
               <div class="autocomplete-wrapper" style="width: 70px;">
@@ -110,6 +110,14 @@
                 <option value="個店販促">個店販促</option>
               </select>
               <span class="print-text category-print" style="font-size: 0.85rem; color: #333;"></span>
+            </div>
+            <div class="edit-only-row" style="display: flex; align-items: baseline; gap: 5px;">
+              <span style="font-weight: bold; font-size: 0.85rem; color: #334155;">手順書区分:</span>
+              <select id="recipeModeSelect" class="edit-only-btn" style="font-size: 0.85rem; padding: 2px 4px; border: 1px dashed #94a3b8; background: transparent; cursor: pointer;">
+                <option value="bread">パン</option>
+                <option value="cooking">料理・デザート</option>
+                <option value="drink">ドリンク</option>
+              </select>
             </div>
           </div>
 

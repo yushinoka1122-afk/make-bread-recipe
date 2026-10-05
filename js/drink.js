@@ -189,9 +189,10 @@
       <div class="step-block-header edit-only-row">
         <span class="block-title" style="color:#e91e63;">手順</span>
         <select class="step-template-select edit-only-btn" onchange="applyStepTemplate(this)" style="margin-left: 10px; font-size: 0.8rem; padding: 2px;">
-          <option value="">-- 定型文挿入 --</option>
-          <option value="drink_prep">準備</option>
-        </select>
+              <option value="">-- 定型文挿入 --</option>
+              <option value="drink_prep">準備・アルコール・カップ確認</option>
+              <option value="espuma">エスプーマ生クリーム</option>
+            </select>
         <button type="button" class="del-btn edit-only-btn" style="width:auto; padding:2px 5px;" onclick="removeStepBlock(this)">ブロック削除</button>
       </div>
       <div class="step-preview-block">
@@ -515,23 +516,26 @@
   // テンプレートデータ
 
 
-  function applyStepTemplate(selectObj) {
+    function applyStepTemplate(selectObj) {
     const tempKey = selectObj.value;
     if (!tempKey) return;
-    
-    let lines = [];
-    if (tempKey === "drink_prep") {
-      lines = ["手洗い・アルコール・カップ確認"];
-    }
-
     const block = selectObj.closest('.step-block');
     const textarea = block.querySelector('.step-textarea');
+    let lines = [];
+    if (tempKey === 'drink_prep') {
+      lines.push("手洗い・アルコール・カップ確認");
+    } else if (tempKey === 'espuma') {
+      lines.push("エスプーマを使用して、生クリーム（25g）をカップの淵に着けて一周し、その後、中も隙間なく搾ります。");
+    }
     
     if (textarea) {
-      textarea.value = lines.join('\n');
+      if (textarea.value) {
+        textarea.value = textarea.value + '\\n' + lines.join('\\n');
+      } else {
+        textarea.value = lines.join('\\n');
+      }
       autoResizeTextarea(textarea);
     }
-
     selectObj.value = "";
     adjustPreviewScale();
   }
@@ -810,6 +814,11 @@
   }
 
   document.addEventListener('DOMContentLoaded', () => {
+    const modeSelectInit = document.getElementById('recipeModeSelect');
+    if (modeSelectInit && typeof currentMode !== 'undefined') {
+        modeSelectInit.value = currentMode;
+    }
+
     reorganizeStepBlocks();
     updateStandbyBlockNumbers();
     updateStandbyVisibility();
@@ -1309,6 +1318,7 @@
     return {
       menuCode,
       productName,
+  mode: document.getElementById('recipeModeSelect') ? document.getElementById('recipeModeSelect').value : (typeof currentMode !== 'undefined' ? currentMode : 'bread'),
       periodStart,
       periodEnd,
       brandCategory,
@@ -1328,55 +1338,19 @@
 
     // モード切替を復元
     if (recipe.mode && recipe.mode !== currentMode) {
-      // suppress sidebar toggle visually if needed, but since sidebar is closed by default, it's fine.
-      // 実際には switchMode() を呼ぶとサイドバーがトグルされてしまう問題があるため、
-      // ここではUIの直接操作と変数代入のみ行う。
-      currentMode = recipe.mode;
-      const body = document.body;
-      const badge = document.getElementById('modeBadge');
-      document.querySelectorAll('.mode-btn').forEach(btn => btn.classList.remove('active'));
-    // 動的に印刷向きを変更
-    let printStyle = document.getElementById('dynamicPrintStyle');
-    if (!printStyle) {
-      printStyle = document.createElement('style');
-      printStyle.id = 'dynamicPrintStyle';
-      document.head.appendChild(printStyle);
+      localStorage.setItem('pendingLoadRecipe', recipe.menuCode);
+      if (recipe.mode === 'cooking') window.location.href = 'cooking.html';
+      else if (recipe.mode === 'drink') window.location.href = 'drink.html';
+      else window.location.href = 'index.html';
+      return;
+    } else if (!recipe.mode && currentMode !== 'bread') {
+      localStorage.setItem('pendingLoadRecipe', recipe.menuCode);
+      window.location.href = 'index.html';
+      return;
     }
 
-      
-      if (currentMode === 'cooking') {
-        if (printStyle) printStyle.innerHTML = "@page { size: A4 landscape; margin: 5mm; }";
-        body.classList.add('mode-cooking');
-        if (badge) { badge.innerText = '料理・デザートモード'; badge.style.backgroundColor = '#ef4444'; }
-        const activeBtn = document.querySelector('.mode-btn[onclick*="cooking"]');
-        if (activeBtn) activeBtn.classList.add('active');
-      } else {
-        if (printStyle) printStyle.innerHTML = "@page { size: A4 portrait; margin: 5mm; }";
-        body.classList.remove('mode-cooking');
-        if (badge) { badge.innerText = 'パンモード'; badge.style.backgroundColor = '#f59e0b'; }
-        const activeBtn = document.querySelector('.mode-btn[onclick*="bread"]');
-        if (activeBtn) activeBtn.classList.add('active');
-      }
-    } else if (!recipe.mode && currentMode === 'cooking') {
-       // 過去のレシピ（パンモード限定だった頃のもの）ならパンモードに戻す
-       currentMode = 'bread';
-       const body = document.body;
-       const badge = document.getElementById('modeBadge');
-       document.querySelectorAll('.mode-btn').forEach(btn => btn.classList.remove('active'));
-    // 動的に印刷向きを変更
-    let printStyle = document.getElementById('dynamicPrintStyle');
-    if (!printStyle) {
-      printStyle = document.createElement('style');
-      printStyle.id = 'dynamicPrintStyle';
-      document.head.appendChild(printStyle);
-    }
-
-       if (printStyle) printStyle.innerHTML = "@page { size: A4 portrait; margin: 5mm; }";
-       body.classList.remove('mode-cooking');
-       if (badge) { badge.innerText = 'パンモード'; badge.style.backgroundColor = '#f59e0b'; }
-       const activeBtn = document.querySelector('.mode-btn[onclick*="bread"]');
-       if (activeBtn) activeBtn.classList.add('active');
-    }
+    const modeSelect = document.getElementById('recipeModeSelect');
+    if (modeSelect) modeSelect.value = recipe.mode || 'bread';
 
     document.getElementById('menuCode').value = recipe.menuCode || "";
     document.getElementById('productName').value = recipe.productName || "";
@@ -1446,11 +1420,8 @@
             <span class="block-title" style="color:#e91e63;">手順</span>
             <select class="step-template-select edit-only-btn" onchange="applyStepTemplate(this)" style="margin-left: 10px; font-size: 0.8rem; padding: 2px;">
               <option value="">-- 定型文挿入 --</option>
-              <option value="proof">ホイロ</option>
-              <option value="bake1">焼成①</option>
-              <option value="bake2">焼成②（スチーム）</option>
-              <option value="bake3">焼成③（2重天板）</option>
-              <option value="bake4">焼成④（クッキングシート）</option>
+              <option value="drink_prep">準備・アルコール・カップ確認</option>
+              <option value="espuma">エスプーマ生クリーム</option>
             </select>
             <button type="button" class="del-btn edit-only-btn" style="width:auto; padding:2px 5px;" onclick="removeStepBlock(this)">ブロック削除</button>
           </div>
@@ -1586,13 +1557,10 @@
       <div class="step-block-header edit-only-row">
         <span class="block-title" style="color:#e91e63;">手順①</span>
         <select class="step-template-select edit-only-btn" onchange="applyStepTemplate(this)" style="margin-left: 10px; font-size: 0.8rem; padding: 2px;">
-          <option value="">-- 定型文挿入 --</option>
-          <option value="proof">ホイロ</option>
-          <option value="bake1">焼成①</option>
-          <option value="bake2">焼成②（スチーム）</option>
-          <option value="bake3">焼成③（2重天板）</option>
-          <option value="bake4">焼成④（クッキングシート）</option>
-        </select>
+              <option value="">-- 定型文挿入 --</option>
+              <option value="drink_prep">準備・アルコール・カップ確認</option>
+              <option value="espuma">エスプーマ生クリーム</option>
+            </select>
         <button type="button" class="del-btn edit-only-btn" style="width:auto; padding:2px 5px;" onclick="removeStepBlock(this)">ブロック削除</button>
       </div>
       <div class="step-preview-block">

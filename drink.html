@@ -85,7 +85,7 @@
           </div>
 
           <!-- 第3行：ブランド区分・メニュー区分 -->
-          <div class="category-title-row" style="display: flex; gap: 15px; margin-bottom: 5px; align-items: baseline;">
+          <div class="category-title-row" style="display: flex; gap: 15px; margin-bottom: 5px; align-items: baseline; flex-wrap: wrap;">
             <div style="display: flex; align-items: baseline; gap: 5px;">
               <span style="font-weight: bold; font-size: 0.85rem; color: #334155;">ブランド区分:</span>
               <select id="brandCategory" class="edit-only-btn" style="font-size: 0.85rem; padding: 2px 4px; border: 1px dashed #94a3b8; background: transparent; cursor: pointer;" onchange="document.querySelector('.brand-print').innerText = this.value === '--選択--' ? '' : this.value;">
@@ -105,6 +105,14 @@
                 <option value="個店販促">個店販促</option>
               </select>
               <span class="print-text category-print" style="font-size: 0.85rem; color: #333;"></span>
+            </div>
+            <div class="edit-only-row" style="display: flex; align-items: baseline; gap: 5px;">
+              <span style="font-weight: bold; font-size: 0.85rem; color: #334155;">手順書区分:</span>
+              <select id="recipeModeSelect" class="edit-only-btn" style="font-size: 0.85rem; padding: 2px 4px; border: 1px dashed #94a3b8; background: transparent; cursor: pointer;">
+                <option value="bread">パン</option>
+                <option value="cooking">料理・デザート</option>
+                <option value="drink">ドリンク</option>
+              </select>
             </div>
           </div>
         
@@ -255,7 +263,8 @@
             <select id="servingTemplate" class="edit-only-btn" style="font-size: 9px; padding: 1px 4px;" onchange="document.getElementById('servingText').value = this.value; autoResizeTextarea(document.getElementById('servingText'));">
               <option value="">-- 提供方法テンプレ --</option>
               <option value="淵を確認し、提供します。（TO：蓋をして提供します。）">① 淵確認・TO蓋</option>
-            </select>
+                            <option value="エスプーマを使用して、生クリーム（25g）をカップの淵に着けて一周し、その後、中も隙間なく搾ります。">② クリーム</option>
+</select>
           </div>
           <textarea id="servingText" class="step-textarea" placeholder="提供方法" rows="1" oninput="autoResizeTextarea(this)" style="min-height: 18px; height: 18px; padding: 2px;"></textarea>
         </div>
