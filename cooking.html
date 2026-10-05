@@ -360,35 +360,37 @@
       
       <!-- Initial block on load -->
       <div class="step-block" data-block-type="step">
-        <div class="step-block-header edit-only-row">
+        <div class="step-block-header edit-only-row" style="position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; padding-right: 25px;">
+          <button type="button" class="del-btn edit-only-btn" style="position: absolute; top: 2px; right: 2px; width: 24px; height: 24px; padding: 0; font-size: 14px; display: flex; justify-content: center; align-items: center; border-radius: 4px;" onclick="removeStepBlock(this)">✖</button>
           <span class="block-title" style="color:#e91e63;">手順①</span>
-          <button type="button" class="font-adjust-btn edit-only-btn" onclick="adjustFontSize(this, -1)" style="margin-left: 5px; padding: 1px 4px; font-size: 10px;" title="文字を小さく">A-</button>
-          <button type="button" class="font-adjust-btn edit-only-btn" onclick="adjustFontSize(this, 1)" style="margin-left: 2px; padding: 1px 4px; font-size: 10px;" title="文字を大きく">A+</button>
-          <label style="margin-left: 10px; font-size: 0.8rem; cursor: pointer; color: #1565c0; font-weight: bold;">
+          <label style="font-size: 0.8rem; cursor: pointer; color: #1565c0; font-weight: bold;">
             <input type="checkbox" class="standby-toggle" onchange="updateBlockNumbers()"> スタンバイ
           </label>
-          <select class="step-template-select edit-only-btn" onchange="applyStepTemplate(this)" style="margin-left: 10px; font-size: 0.8rem; padding: 2px;">
+          <select class="step-template-select edit-only-btn" onchange="applyStepTemplate(this)" style="font-size: 0.8rem; padding: 2px; width: 100%;">
             <option value="">-- 定型文挿入 --</option>
             <option value="format1">本文フォーマット①</option>
           </select>
-          <div class="tool-dropdown-container edit-only-btn" style="position: relative; display: inline-block; margin-left: 5px;">
-            <button type="button" class="tool-dropdown-btn" onclick="toggleToolMenu(this)" style="font-size: 0.8rem; padding: 2px;">-- 🛠道具挿入 -- ▼</button>
+          <div class="tool-dropdown-container edit-only-btn" style="position: relative; display: inline-block; width: 100%;">
+            <button type="button" class="tool-dropdown-btn" onclick="toggleToolMenu(this)" style="font-size: 0.8rem; padding: 2px; width: 100%;">-- 道具挿入 -- ▼</button>
             <div class="tool-dropdown-menu" style="display: none; position: absolute; left: 0; top: 100%; z-index: 100; background: white; border: 1px solid #ccc; padding: 5px; box-shadow: 0 2px 5px rgba(0,0,0,0.2); white-space: nowrap; font-size: 0.85rem; max-height: 250px; overflow-y: auto;">
-              <label style="display:block; cursor:pointer;"><input type="checkbox" value="ボウル"> ボウル</label>
-              <label style="display:block; cursor:pointer;"><input type="checkbox" value="ホイッパー"> ホイッパー</label>
-              <label style="display:block; cursor:pointer;"><input type="checkbox" value="ゴムベラ"> ゴムベラ</label>
-              <label style="display:block; cursor:pointer;"><input type="checkbox" value="スケッパー"> スケッパー</label>
-              <label style="display:block; cursor:pointer;"><input type="checkbox" value="天板"> 天板</label>
-              <label style="display:block; cursor:pointer;"><input type="checkbox" value="クッキングシート"> クッキングシート</label>
-              <label style="display:block; cursor:pointer;"><input type="checkbox" value="温度計"> 温度計</label>
-              <label style="display:block; cursor:pointer;"><input type="checkbox" value="刷毛"> 刷毛</label>
-              <label style="display:block; cursor:pointer;"><input type="checkbox" value="絞り袋"> 絞り袋</label>
-              <label style="display:block; cursor:pointer;"><input type="checkbox" value="口金"> 口金</label>
-              <label style="display:block; cursor:pointer;"><input type="checkbox" value="めん棒"> めん棒</label>
-              <button type="button" onclick="insertCheckedTools(this)" style="margin-top: 5px; width: 100%; font-size: 0.85rem; padding: 2px; background: #e0e0e0; cursor: pointer; border: 1px solid #999;">挿入する</button>
+              <label style="display:block; cursor:pointer;"><input type="checkbox" value="[IH]"> [IH]</label>
+              <label style="display:block; cursor:pointer;"><input type="checkbox" value="[電子レンジ]"> [電子レンジ]</label>
+              <label style="display:block; cursor:pointer;"><input type="checkbox" value="[ブレンダー]"> [ブレンダー]</label>
+              <label style="display:block; cursor:pointer;"><input type="checkbox" value="[片手鍋]"> [片手鍋]</label>
+              <label style="display:block; cursor:pointer;"><input type="checkbox" value="[ボール]"> [ボール]</label>
+              <label style="display:block; cursor:pointer;"><input type="checkbox" value="[コランダー]"> [コランダー]</label>
+              <label style="display:block; cursor:pointer;"><input type="checkbox" value="[ゴムベラ]"> [ゴムベラ]</label>
+              <label style="display:block; cursor:pointer;"><input type="checkbox" value="[トング]"> [トング]</label>
+              <label style="display:block; cursor:pointer;"><input type="checkbox" value="[レードル]"> [レードル]</label>
+              <label style="display:block; cursor:pointer;"><input type="checkbox" value="[ディッシャー]"> [ディッシャー]</label>
+              <label style="display:block; cursor:pointer;"><input type="checkbox" value="[スプーン]"> [スプーン]</label>
+              <button type="button" onclick="insertCheckedTools(this)" style="margin-top: 5px; width: 100%; font-size: 0.85rem; padding: 2px; background: #e0e0e0; cursor: pointer; border: 1px solid #999;">挿入</button>
             </div>
           </div>
-          <button type="button" class="del-btn edit-only-btn" style="width:auto; padding:2px 5px;" onclick="removeStepBlock(this)">ブロック削除</button>
+          <div style="display: flex; gap: 5px;">
+            <button type="button" class="font-adjust-btn edit-only-btn" onclick="adjustFontSize(this, -1)" style="padding: 1px 4px; font-size: 10px;" title="縮小">A-</button>
+            <button type="button" class="font-adjust-btn edit-only-btn" onclick="adjustFontSize(this, 1)" style="padding: 1px 4px; font-size: 10px;" title="拡大">A+</button>
+          </div>
         </div>
         <div class="step-preview-block">
           <div class="step-img-out">
@@ -449,7 +451,7 @@
   </div> <!-- /outputArea -->
 </div> <!-- /editorWrapper -->
 
-  <script src="js/cooking.js?v=1000"></script>
+  <script src="js/cooking.js?v=1001"></script>
 <!-- ==========================================================================
      ■ SECTION 2.1: DIALOGS & MODALS
      ========================================================================== -->
