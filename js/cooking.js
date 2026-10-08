@@ -1416,7 +1416,7 @@
       const uploadBox = block.querySelector('.image-upload-box');
       const imageBlob = uploadBox.fileData || null;
       const isStandby = block.querySelector('.standby-toggle') ? block.querySelector('.standby-toggle').checked : false;
-      manualSteps.push({ text, imageBlob, isStandby });
+      manualSteps.push({ text, imageBlob, isStandby, imgHeight: uploadBox.style.height || "" });
     }
 
     // スタンバイブロック
@@ -1610,6 +1610,14 @@
         if (step.imageBlob) {
           restoreImageHelperOnBox(box, step.imageBlob);
         }
+        if (step.imgHeight) {
+          box.style.setProperty('height', step.imgHeight, 'important');
+          const img = box.querySelector('img');
+          if (img) {
+            img.style.setProperty('height', '100%', 'important');
+            img.style.setProperty('object-fit', 'contain', 'important');
+          }
+        }
         
         const standbyCheckbox = div.querySelector('.standby-toggle');
         if (standbyCheckbox && step.isStandby) {
@@ -1658,6 +1666,14 @@
         const box = div.querySelector('.image-upload-box');
         if (step.imageBlob) {
           restoreImageHelperOnBox(box, step.imageBlob);
+        }
+        if (step.imgHeight) {
+          box.style.setProperty('height', step.imgHeight, 'important');
+          const img = box.querySelector('img');
+          if (img) {
+            img.style.setProperty('height', '100%', 'important');
+            img.style.setProperty('object-fit', 'contain', 'important');
+          }
         }
         standbyContainer.appendChild(div);
         autoResizeTextarea(div.querySelector('.step-textarea'));
@@ -2418,4 +2434,3 @@ function adjustFontSize(btn, delta) {
     textarea.setAttribute('data-font-size', currentSize);
     if (typeof autoResizeTextarea === 'function') autoResizeTextarea(textarea);
 }
-

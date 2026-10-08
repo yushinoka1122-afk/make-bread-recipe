@@ -936,7 +936,7 @@ body.mode-cooking .step-img-out {
 }
 body.mode-cooking .step-img-out img {
   max-width: 100% !important;
-  height: 90px !important;
+  height: 160px !important;
   object-fit: contain !important;
 }
 
