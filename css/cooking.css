@@ -181,6 +181,14 @@
     font-size: 8.5px !important;
     padding: 2px 1px !important;
   }
+  .output-table td:has(.ing-amount) {
+    text-align: right !important;
+  }
+  .output-table input.ing-amount,
+  .output-table .ing-amount-print {
+    text-align: right !important;
+    padding-right: 3px !important;
+  }
   
   /* --- 1.4 Step Blocks Styles --- */
   
@@ -190,12 +198,12 @@
   .steps-full { display: flex; flex-direction: column; gap: 4px; }
   
   .step-block { border: 1px dashed #cbd5e1; padding: 4px; background: #fff; margin-bottom: 3px; border-radius: 4px; }
-  .step-block-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 3px; font-size: 11px; background: #f8fafc; padding: 1px 3px; border-radius: 3px; cursor: move; }
+  .step-block-header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; margin-bottom: 3px; font-size: 11px; background: #f8fafc; padding: 1px 3px; border-radius: 3px; cursor: move; }
   .step-preview-block { display: flex; gap: 6px; font-size: 10px; align-items: flex-start; }
   .step-img-out { flex: 0 0 120px; text-align: center; display: flex; flex-direction: column; }
   .step-texts-out { flex: 1; display: flex; flex-direction: column; }
   
-  /* 手順テキストボックス */
+  /* 手順テキストボックス & リッチテキストエディタ */
   .step-textarea {
     width: 100%;
     min-height: 50px;
@@ -210,18 +218,178 @@
     overflow-y: hidden;
     transition: border-color 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
   }
-  .step-text-print {
-    display: none;
+  .step-textarea.has-rich-editor {
+    display: none !important;
   }
+  .step-text-print {
+    display: none !important;
+  }
+  .step-rich-editor {
+    width: 100%;
+    min-height: 50px;
+    height: auto !important;
+    border: 1px dashed transparent;
+    border-radius: 3px;
+    background: transparent;
+    font-family: inherit;
+    font-size: 9.5px;
+    line-height: 1.4;
+    padding: 2px 3px 6px 3px;
+    box-sizing: border-box;
+    white-space: pre-wrap;
+    word-break: break-word;
+    overflow-wrap: break-word;
+    overflow: visible !important;
+    cursor: text;
+    color: #0f172a;
+    transition: border-color 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
+  }
+  .step-rich-editor:hover,
   .step-textarea:hover {
     border-color: #cbd5e1;
     background-color: #f8fafc;
   }
+  .step-rich-editor:focus,
   .step-textarea:focus {
     border-color: #2196F3;
     background-color: #fff;
     outline: none;
     box-shadow: 0 0 0 2px rgba(33, 150, 243, 0.15);
+  }
+  .step-rich-editor[data-empty="true"]::before {
+    content: attr(data-placeholder);
+    color: #94a3b8;
+    pointer-events: none;
+  }
+  body.mode-cooking #plateSection .step-rich-editor {
+    min-height: 85px !important;
+    padding: 4px !important;
+    line-height: 1.45 !important;
+  }
+  #servingMethodSection .step-rich-editor {
+    min-height: 22px !important;
+    padding: 2px !important;
+  }
+
+  /* リッチテキストツールバー（太字・下線・斜体・取消線・文字サイズ・文字色・ハイライト・書式クリア） */
+  .step-rich-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 2px;
+    width: 100%;
+    background: #f8fafc;
+    border: 1px solid #cbd5e1;
+    border-radius: 3px;
+    padding: 2px 3px;
+    box-sizing: border-box;
+    margin-top: 2px;
+    margin-bottom: 2px;
+    cursor: default;
+  }
+  .rt-btn-wrap {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+  }
+  .rt-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 3px;
+    border: 1px solid transparent;
+    border-radius: 2px;
+    background: transparent;
+    color: #334155;
+    font-size: 10.5px;
+    font-family: inherit;
+    line-height: 1;
+    cursor: pointer;
+    user-select: none;
+    box-sizing: border-box;
+  }
+  .rt-btn:hover {
+    background: #e2e8f0;
+    border-color: #94a3b8;
+    color: #0f172a;
+  }
+  .rt-sep {
+    width: 1px;
+    height: 14px;
+    background: #cbd5e1;
+    margin: 0 1px;
+  }
+  .rt-color-indicator {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+  }
+  .rt-color-bar {
+    width: 12px;
+    height: 3px;
+    margin-top: 1px;
+    border-radius: 1px;
+  }
+  .rt-hl-badge {
+    display: inline-block;
+    padding: 0 2px;
+    border-radius: 2px;
+    font-weight: bold;
+    font-size: 10px;
+    line-height: 1.1;
+  }
+  .rt-arrow {
+    font-size: 7px;
+    margin-left: 1px;
+    color: #64748b;
+  }
+  .rt-dropdown-menu {
+    display: none;
+    position: absolute;
+    left: 0;
+    top: calc(100% + 2px);
+    z-index: 99999;
+    background: #ffffff;
+    border: 1px solid #cbd5e1;
+    border-radius: 4px;
+    padding: 4px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
+    min-width: 115px;
+  }
+  .rt-dropdown-menu.open {
+    display: block;
+  }
+  .rt-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    width: 100%;
+    padding: 4px 6px;
+    border: none;
+    background: transparent;
+    text-align: left;
+    font-size: 11px;
+    color: #1e293b;
+    cursor: pointer;
+    border-radius: 3px;
+    white-space: nowrap;
+    box-sizing: border-box;
+  }
+  .rt-menu-item:hover {
+    background: #eff6ff;
+    color: #1d4ed8;
+  }
+  .rt-swatch {
+    width: 12px;
+    height: 12px;
+    border-radius: 2px;
+    border: 1px solid rgba(0, 0, 0, 0.25);
+    flex-shrink: 0;
+    box-sizing: border-box;
   }
 
   .step-input-row { display: flex; gap: 4px; align-items: center; margin-bottom: 2px; background: #f8fafc; padding: 2px; border: 1px solid #e2e8f0; border-radius: 3px; }
@@ -468,6 +636,41 @@
       white-space: normal;
       font-size: 8.5px !important;
     }
+    .output-table {
+      table-layout: auto !important;
+      width: 100% !important;
+    }
+    .output-table th:nth-child(1),
+    .output-table td:nth-child(1),
+    .output-table th:nth-child(3),
+    .output-table td:nth-child(3),
+    .output-table th:nth-child(4),
+    .output-table td:nth-child(4),
+    .output-table th:nth-child(5),
+    .output-table td:nth-child(5) {
+      width: 1% !important;
+      white-space: nowrap !important;
+    }
+    .output-table th:nth-child(2),
+    .output-table td:nth-child(2) {
+      width: auto !important;
+    }
+    .ing-code-print,
+    .ing-amount-print,
+    .ing-unit-print {
+      white-space: nowrap !important;
+      word-break: normal !important;
+    }
+    .ing-amount-print {
+      text-align: right !important;
+      padding-right: 2px !important;
+    }
+    .ing-unit-print {
+      text-align: center !important;
+    }
+    .ing-unit:has(+ .ing-unit-print) {
+      display: none !important;
+    }
     
     /* スタンバイ選択時の印刷スタイル */
     .ing-standby { display: none !important; }
@@ -505,7 +708,10 @@
       display: none !important;
     }
 
-    /* 手順テキストボックスの印刷時スタイル（見切れ防止のためdiv表示に切替） */
+    /* 手順テキストボックスの印刷時スタイル（リッチテキスト対応・見切れ防止） */
+    .step-rich-toolbar {
+      display: none !important;
+    }
     .step-textarea {
       border: none !important;
       background: transparent !important;
@@ -515,11 +721,14 @@
       overflow: visible !important;
       resize: none !important;
     }
-    .step-textarea:has(+ .step-text-print) {
+    .step-textarea.has-rich-editor,
+    .step-text-print {
       display: none !important;
     }
-    .step-text-print {
+    .step-rich-editor {
       display: block !important;
+      border: none !important;
+      background: transparent !important;
       white-space: pre-wrap !important;
       word-break: break-word !important;
       overflow-wrap: break-word !important;
@@ -528,12 +737,21 @@
       line-height: 1.4 !important;
       padding: 2px 0 4px 0 !important;
       margin: 0 !important;
+      min-height: 0 !important;
       height: auto !important;
+      max-height: none !important;
       overflow: visible !important;
+      box-shadow: none !important;
+      outline: none !important;
+    }
+    .step-rich-editor::before {
+      display: none !important;
+      content: none !important;
     }
     
     /* 空の手順ブロックを非表示 */
-    .step-block:has(.step-textarea:placeholder-shown):not(:has(img)) {
+    .step-block:has(.step-textarea:placeholder-shown):not(:has(img)),
+    .step-block:has(.step-rich-editor[data-empty="true"]):not(:has(img)) {
       display: none !important;
     }
 

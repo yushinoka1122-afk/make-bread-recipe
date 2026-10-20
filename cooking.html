@@ -8,7 +8,7 @@
 <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
 <!-- SortableJS -->
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
-  <link rel="stylesheet" href="css/cooking.css?v=1007">
+  <link rel="stylesheet" href="css/cooking.css?v=1010">
 </head>
 <body>
 
@@ -368,7 +368,10 @@
           </label>
           <select class="step-template-select edit-only-btn" onchange="applyStepTemplate(this)" style="font-size: 0.8rem; padding: 2px; width: 100%;">
             <option value="">-- 定型文挿入 --</option>
-            <option value="format1">本文フォーマット①</option>
+            <option value="format1">① 手洗い・備品確認</option>
+            <option value="format2">② ゴム敷きプレート・熱々提供</option>
+            <option value="format3">③ 皿の淵汚れ確認・熱々提供</option>
+            <option value="format4">④ 木台・丸鉄板（五徳着火）提供</option>
           </select>
           <div class="tool-dropdown-container edit-only-btn" style="position: relative; display: inline-block; width: 100%;">
             <button type="button" class="tool-dropdown-btn" onclick="toggleToolMenu(this)" style="font-size: 0.8rem; padding: 2px; width: 100%;">-- 道具挿入 -- ▼</button>
@@ -386,10 +389,6 @@
               <label style="display:block; cursor:pointer;"><input type="checkbox" value="[スプーン]"> [スプーン]</label>
               <button type="button" onclick="insertCheckedTools(this)" style="margin-top: 5px; width: 100%; font-size: 0.85rem; padding: 2px; background: #e0e0e0; cursor: pointer; border: 1px solid #999;">挿入</button>
             </div>
-          </div>
-          <div style="display: flex; gap: 5px;">
-            <button type="button" class="font-adjust-btn edit-only-btn" onclick="adjustFontSize(this, -1)" style="padding: 1px 4px; font-size: 10px;" title="縮小">A-</button>
-            <button type="button" class="font-adjust-btn edit-only-btn" onclick="adjustFontSize(this, 1)" style="padding: 1px 4px; font-size: 10px;" title="拡大">A+</button>
           </div>
         </div>
         <div class="step-preview-block">
@@ -451,7 +450,7 @@
   </div> <!-- /outputArea -->
 </div> <!-- /editorWrapper -->
 
-  <script src="js/cooking.js?v=1007"></script>
+  <script src="js/cooking.js?v=1010"></script>
 <!-- ==========================================================================
      ■ SECTION 2.1: DIALOGS & MODALS
      ========================================================================== -->

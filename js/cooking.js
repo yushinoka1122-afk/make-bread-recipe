@@ -19,38 +19,342 @@
     }
   };
 
-  // 印刷用ミラー要素の同期（印刷時の文字見切れ完全防止）
-  function syncStepPrintText(textarea) {
-    if (!textarea || !textarea.parentElement) return;
-    if (!textarea.closest('.step-block, #plateSection')) return;
-    let printDiv = textarea.nextElementSibling;
-    if (!printDiv || !printDiv.classList.contains('step-text-print')) {
-      printDiv = document.createElement('div');
-      printDiv.className = 'step-text-print';
-      textarea.insertAdjacentElement('afterend', printDiv);
-    }
-    printDiv.textContent = textarea.value || '';
-    if (textarea.style.fontSize) {
-      printDiv.style.fontSize = textarea.style.fontSize;
-    } else {
-      printDiv.style.fontSize = '';
+  // --- Rich Text Editor & Toolbar Engine (太字・下線・斜体・取消線・文字サイズ・文字色・ハイライト・書式クリア) ---
+  let activeRichEditor = null;
+
+  function valueToRichHTML(val) {
+    if (!val) return '';
+    return String(val).replace(/\r?\n/g, '<br>');
+  }
+
+  function stripRichHTML(val) {
+    if (!val) return '';
+    const tmp = document.createElement('div');
+    tmp.innerHTML = String(val)
+      .replace(/<br\s*\/?>/gi, '\n')
+      .replace(/<\/(div|p)>/gi, '\n');
+    return tmp.textContent || tmp.innerText || '';
+  }
+
+  function saveEditorSelection(editor) {
+    if (!editor) return;
+    const sel = window.getSelection();
+    if (sel && sel.rangeCount > 0) {
+      const range = sel.getRangeAt(0);
+      if (editor.contains(range.commonAncestorContainer)) {
+        editor._savedRange = range.cloneRange();
+        activeRichEditor = editor;
+      }
     }
   }
 
-  // テキストエリアの高さ自動調整（デスクトップ環境や複数行での下部見切れ防止バッファ付き）
+  function restoreEditorSelection(editor) {
+    if (!editor) return;
+    editor.focus();
+    if (editor._savedRange) {
+      const sel = window.getSelection();
+      if (sel) {
+        sel.removeAllRanges();
+        sel.addRange(editor._savedRange);
+      }
+    }
+  }
+
+  function applyRichFontSize(editor, sizePx) {
+    restoreEditorSelection(editor);
+    const sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0) return;
+    const range = sel.getRangeAt(0);
+    if (!editor.contains(range.commonAncestorContainer)) return;
+
+    if (range.collapsed) {
+      const span = document.createElement('span');
+      span.style.fontSize = sizePx;
+      span.innerHTML = '&#8203;';
+      range.insertNode(span);
+      const newRange = document.createRange();
+      newRange.setStart(span.firstChild, 1);
+      newRange.collapse(true);
+      sel.removeAllRanges();
+      sel.addRange(newRange);
+      saveEditorSelection(editor);
+      return;
+    }
+
+    document.execCommand('styleWithCSS', false, false);
+    document.execCommand('fontSize', false, '7');
+    editor.querySelectorAll('font[size="7"]').forEach(fontEl => {
+      fontEl.removeAttribute('size');
+      fontEl.style.fontSize = sizePx;
+      fontEl.querySelectorAll('[style*="font-size"]').forEach(child => {
+        child.style.fontSize = '';
+      });
+    });
+    saveEditorSelection(editor);
+  }
+
+  function clearRichFormattingOnSelection(editor) {
+    const sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0) return;
+    const range = sel.getRangeAt(0);
+    if (range.collapsed) {
+      document.execCommand('removeFormat', false, null);
+      return;
+    }
+    document.execCommand('removeFormat', false, null);
+    document.execCommand('styleWithCSS', false, true);
+    document.execCommand('hiliteColor', false, 'transparent');
+    editor.querySelectorAll('font, span').forEach(el => {
+      if (sel.containsNode(el, true)) {
+        el.style.fontSize = '';
+        el.style.color = '';
+        el.style.backgroundColor = '';
+        el.removeAttribute('color');
+        el.removeAttribute('size');
+      }
+    });
+  }
+
+  function syncStepPrintText(textarea) {
+    if (!textarea || !textarea.parentElement) return;
+  }
+
+  function syncEditorToTextarea(editor, textarea) {
+    if (!editor || !textarea) return;
+    const plain = (editor.innerText || '').replace(/\u200B/g, '').trim();
+    if (!plain) {
+      textarea.value = '';
+      editor.setAttribute('data-empty', 'true');
+    } else {
+      textarea.value = editor.innerHTML;
+      editor.removeAttribute('data-empty');
+    }
+    editor._lastSyncedValue = textarea.value;
+  }
+
+  function createRichToolbar(editor, textarea) {
+    const toolbar = document.createElement('div');
+    toolbar.className = 'step-rich-toolbar edit-only-row';
+    toolbar._targetEditor = editor;
+    toolbar._targetTextarea = textarea;
+    toolbar._activeColor = '#dc2626';
+    toolbar._activeHighlight = '#fef08a';
+
+    toolbar.innerHTML = `
+      <button type="button" class="rt-btn" data-rt-action="bold" title="太字 (Ctrl+B)"><b>B</b></button>
+      <button type="button" class="rt-btn" data-rt-action="italic" title="斜体 (Ctrl+I)"><i>I</i></button>
+      <button type="button" class="rt-btn" data-rt-action="underline" title="下線 (Ctrl+U)"><u>U</u></button>
+      <button type="button" class="rt-btn" data-rt-action="strikeThrough" title="取消線"><s>abc</s></button>
+      <span class="rt-sep"></span>
+      <div class="rt-btn-wrap">
+        <button type="button" class="rt-btn" data-rt-toggle="size" title="選択文字のサイズ変更">サイズ<span class="rt-arrow">▼</span></button>
+        <div class="rt-dropdown-menu" data-rt-menu="size">
+          <button type="button" class="rt-menu-item" data-rt-size="8px"><span style="font-size:8px;">極小 (8px)</span></button>
+          <button type="button" class="rt-menu-item" data-rt-size="9.5px"><span style="font-size:9.5px;">標準 (9.5px)</span></button>
+          <button type="button" class="rt-menu-item" data-rt-size="11px"><span style="font-size:11px;">中 (11px)</span></button>
+          <button type="button" class="rt-menu-item" data-rt-size="13px"><span style="font-size:13px; font-weight:bold;">大 (13px)</span></button>
+          <button type="button" class="rt-menu-item" data-rt-size="15px"><span style="font-size:15px; font-weight:bold;">特大 (15px)</span></button>
+        </div>
+      </div>
+      <div class="rt-btn-wrap">
+        <button type="button" class="rt-btn" data-rt-action="applyColor" title="文字色変更（赤文字など）">
+          <span class="rt-color-indicator">
+            <b style="font-size:10px;">A</b>
+            <span class="rt-color-bar" style="background:#dc2626;"></span>
+          </span>
+        </button>
+        <button type="button" class="rt-btn" data-rt-toggle="color" title="文字色を選択" style="min-width:12px; padding:0 2px;"><span class="rt-arrow">▼</span></button>
+        <div class="rt-dropdown-menu" data-rt-menu="color">
+          <button type="button" class="rt-menu-item" data-rt-color="#dc2626"><span class="rt-swatch" style="background:#dc2626;"></span><span style="color:#dc2626;font-weight:bold;">赤文字 (強調)</span></button>
+          <button type="button" class="rt-menu-item" data-rt-color="#0f172a"><span class="rt-swatch" style="background:#0f172a;"></span><span style="color:#0f172a;">黒文字 (標準)</span></button>
+          <button type="button" class="rt-menu-item" data-rt-color="#2563eb"><span class="rt-swatch" style="background:#2563eb;"></span><span style="color:#2563eb;">青文字</span></button>
+          <button type="button" class="rt-menu-item" data-rt-color="#16a34a"><span class="rt-swatch" style="background:#16a34a;"></span><span style="color:#16a34a;">緑文字</span></button>
+          <button type="button" class="rt-menu-item" data-rt-color="#ea580c"><span class="rt-swatch" style="background:#ea580c;"></span><span style="color:#ea580c;">オレンジ文字</span></button>
+        </div>
+      </div>
+      <div class="rt-btn-wrap">
+        <button type="button" class="rt-btn" data-rt-action="applyHighlight" title="ハイライト（蛍光マーカー）">
+          <span class="rt-hl-badge" style="background:#fef08a; color:#0f172a;">A</span>
+        </button>
+        <button type="button" class="rt-btn" data-rt-toggle="highlight" title="ハイライト色を選択" style="min-width:12px; padding:0 2px;"><span class="rt-arrow">▼</span></button>
+        <div class="rt-dropdown-menu" data-rt-menu="highlight">
+          <button type="button" class="rt-menu-item" data-rt-hl="#fef08a"><span class="rt-swatch" style="background:#fef08a;"></span>黄ハイライト</button>
+          <button type="button" class="rt-menu-item" data-rt-hl="#fbcfe8"><span class="rt-swatch" style="background:#fbcfe8;"></span>ピンクハイライト</button>
+          <button type="button" class="rt-menu-item" data-rt-hl="#bae6fd"><span class="rt-swatch" style="background:#bae6fd;"></span>水色ハイライト</button>
+          <button type="button" class="rt-menu-item" data-rt-hl="#bbf7d0"><span class="rt-swatch" style="background:#bbf7d0;"></span>緑ハイライト</button>
+          <button type="button" class="rt-menu-item" data-rt-hl="transparent"><span class="rt-swatch" style="background:#ffffff;"></span>ハイライト解除</button>
+        </div>
+      </div>
+      <span class="rt-sep"></span>
+      <button type="button" class="rt-btn" data-rt-action="removeFormat" title="選択範囲の書式クリア">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 21-4.3-4.3c-1-1-1-2.5 0-3.4l9.6-9.6c1-1 2.5-1 3.4 0l5.6 5.6c1 1 1 2.5 0 3.4L13 21"/><path d="M22 21H7"/><path d="m5 11 9 9"/></svg>
+      </button>
+    `;
+
+    toolbar.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+    });
+
+    toolbar.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const toggleBtn = e.target.closest('[data-rt-toggle]');
+      if (toggleBtn) {
+        const menuType = toggleBtn.getAttribute('data-rt-toggle');
+        const menu = toolbar.querySelector(`[data-rt-menu="${menuType}"]`);
+        const wasOpen = menu && menu.classList.contains('open');
+        document.querySelectorAll('.rt-dropdown-menu.open').forEach(m => m.classList.remove('open'));
+        if (menu && !wasOpen) {
+          menu.classList.add('open');
+        }
+        return;
+      }
+
+      const actionBtn = e.target.closest('[data-rt-action]');
+      if (actionBtn) {
+        const action = actionBtn.getAttribute('data-rt-action');
+        document.querySelectorAll('.rt-dropdown-menu.open').forEach(m => m.classList.remove('open'));
+        restoreEditorSelection(editor);
+        if (action === 'bold' || action === 'italic' || action === 'underline' || action === 'strikeThrough') {
+          document.execCommand(action, false, null);
+        } else if (action === 'applyColor') {
+          document.execCommand('styleWithCSS', false, true);
+          document.execCommand('foreColor', false, toolbar._activeColor || '#dc2626');
+        } else if (action === 'applyHighlight') {
+          document.execCommand('styleWithCSS', false, true);
+          document.execCommand('hiliteColor', false, toolbar._activeHighlight || '#fef08a');
+        } else if (action === 'removeFormat') {
+          clearRichFormattingOnSelection(editor);
+        }
+        saveEditorSelection(editor);
+        syncEditorToTextarea(editor, textarea);
+        if (typeof adjustPreviewScale === 'function') adjustPreviewScale();
+        return;
+      }
+
+      const colorItem = e.target.closest('[data-rt-color]');
+      if (colorItem) {
+        const color = colorItem.getAttribute('data-rt-color');
+        toolbar._activeColor = color;
+        const bar = toolbar.querySelector('.rt-color-bar');
+        if (bar) bar.style.background = color;
+        document.querySelectorAll('.rt-dropdown-menu.open').forEach(m => m.classList.remove('open'));
+        restoreEditorSelection(editor);
+        document.execCommand('styleWithCSS', false, true);
+        document.execCommand('foreColor', false, color);
+        saveEditorSelection(editor);
+        syncEditorToTextarea(editor, textarea);
+        return;
+      }
+
+      const hlItem = e.target.closest('[data-rt-hl]');
+      if (hlItem) {
+        const hl = hlItem.getAttribute('data-rt-hl');
+        if (hl !== 'transparent') {
+          toolbar._activeHighlight = hl;
+          const badge = toolbar.querySelector('.rt-hl-badge');
+          if (badge) badge.style.background = hl;
+        }
+        document.querySelectorAll('.rt-dropdown-menu.open').forEach(m => m.classList.remove('open'));
+        restoreEditorSelection(editor);
+        document.execCommand('styleWithCSS', false, true);
+        document.execCommand('hiliteColor', false, hl);
+        saveEditorSelection(editor);
+        syncEditorToTextarea(editor, textarea);
+        return;
+      }
+
+      const sizeItem = e.target.closest('[data-rt-size]');
+      if (sizeItem) {
+        const sizePx = sizeItem.getAttribute('data-rt-size');
+        document.querySelectorAll('.rt-dropdown-menu.open').forEach(m => m.classList.remove('open'));
+        applyRichFontSize(editor, sizePx);
+        syncEditorToTextarea(editor, textarea);
+        if (typeof adjustPreviewScale === 'function') adjustPreviewScale();
+        return;
+      }
+    });
+
+    return toolbar;
+  }
+
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('.rt-btn-wrap')) {
+      document.querySelectorAll('.rt-dropdown-menu.open').forEach(m => m.classList.remove('open'));
+    }
+  });
+
+  function ensureRichEditor(textarea) {
+    if (!textarea || !textarea.parentElement) return null;
+    if (!textarea.closest('.step-block, #plateSection, #servingMethodSection')) return null;
+
+    let editor = textarea._richEditor;
+    if (!editor || !editor.isConnected) {
+      editor = document.createElement('div');
+      editor.className = 'step-rich-editor';
+      editor.contentEditable = 'true';
+      editor.setAttribute('data-placeholder', textarea.getAttribute('placeholder') || '手順を自由に入力してください');
+      textarea.classList.add('has-rich-editor');
+      textarea.insertAdjacentElement('afterend', editor);
+      textarea._richEditor = editor;
+      editor._textarea = textarea;
+
+      const block = textarea.closest('.step-block, #plateSection, #servingMethodSection');
+      if (block) {
+        const header = block.querySelector('.step-block-header');
+        const oldToolbar = block.querySelector('.step-rich-toolbar');
+        if (oldToolbar) oldToolbar.remove();
+        const toolbar = createRichToolbar(editor, textarea);
+        if (header) {
+          header.appendChild(toolbar);
+        } else {
+          editor.insertAdjacentElement('beforebegin', toolbar);
+        }
+      }
+
+      editor.addEventListener('input', () => {
+        saveEditorSelection(editor);
+        syncEditorToTextarea(editor, textarea);
+        if (textarea.closest('#standbyContainer') && typeof updateStandbyVisibility === 'function') {
+          updateStandbyVisibility();
+        }
+      });
+      editor.addEventListener('mouseup', () => saveEditorSelection(editor));
+      editor.addEventListener('keyup', () => saveEditorSelection(editor));
+      editor.addEventListener('focus', () => {
+        activeRichEditor = editor;
+        saveEditorSelection(editor);
+      });
+      editor.addEventListener('paste', (e) => {
+        e.preventDefault();
+        const text = (e.clipboardData || window.clipboardData).getData('text/plain');
+        document.execCommand('insertText', false, text);
+      });
+    }
+
+    if (textarea.value !== editor._lastSyncedValue) {
+      const html = valueToRichHTML(textarea.value || '');
+      editor.innerHTML = html;
+      const plain = (editor.innerText || '').replace(/\u200B/g, '').trim();
+      if (!plain) {
+        editor.innerHTML = '';
+        editor.setAttribute('data-empty', 'true');
+        textarea.value = '';
+      } else {
+        editor.removeAttribute('data-empty');
+      }
+      editor._lastSyncedValue = textarea.value;
+    }
+
+    return editor;
+  }
+
   function autoResizeTextarea(textarea) {
     if (!textarea) return;
-    const isPlate = Boolean(textarea.closest('#plateSection'));
-    const baseMinHeight = isPlate ? 85 : 50;
-    const prevMinHeight = textarea.style.minHeight;
-    textarea.style.minHeight = '0px';
-    textarea.style.height = '0px';
-    const lineCount = (textarea.value || '').split('\n').length;
-    const buffer = 8 + Math.min(12, lineCount * 2);
-    const targetHeight = Math.max(baseMinHeight, textarea.scrollHeight + buffer);
-    textarea.style.minHeight = prevMinHeight;
-    textarea.style.height = targetHeight + 'px';
-    syncStepPrintText(textarea);
+    const editor = ensureRichEditor(textarea);
+    if (editor) return;
+    textarea.style.height = 'auto';
+    textarea.style.height = textarea.scrollHeight + 'px';
   }
 
   function applyPlateTemplate() {
@@ -159,6 +463,8 @@
     blocks.forEach((block) => {
       const titleSpan = block.querySelector('.s-block-title');
       if(titleSpan) titleSpan.innerText = `スタンバイ`;
+      const ta = block.querySelector('.step-textarea');
+      if (ta) autoResizeTextarea(ta);
     });
   }
 
@@ -250,7 +556,10 @@
         </label>
         <select class="step-template-select edit-only-btn" onchange="applyStepTemplate(this)" style="font-size: 0.8rem; padding: 2px; width: 100%;">
           <option value="">-- 定型文挿入 --</option>
-          <option value="format1">本文フォーマット①</option>
+          <option value="format1">① 手洗い・備品確認</option>
+          <option value="format2">② ゴム敷きプレート・熱々提供</option>
+          <option value="format3">③ 皿の淵汚れ確認・熱々提供</option>
+          <option value="format4">④ 木台・丸鉄板（五徳着火）提供</option>
         </select>
         <div class="tool-dropdown-container edit-only-btn" style="position: relative; display: inline-block; width: 100%;">
           <button type="button" class="tool-dropdown-btn" onclick="toggleToolMenu(this)" style="font-size: 0.8rem; padding: 2px; width: 100%;">-- 道具挿入 -- ▼</button>
@@ -268,10 +577,6 @@
             <label style="display:block; cursor:pointer;"><input type="checkbox" value="[スプーン]"> [スプーン]</label>
             <button type="button" onclick="insertCheckedTools(this)" style="margin-top: 5px; width: 100%; font-size: 0.85rem; padding: 2px; background: #e0e0e0; cursor: pointer; border: 1px solid #999;">挿入</button>
           </div>
-        </div>
-        <div style="display: flex; gap: 5px;">
-          <button type="button" class="font-adjust-btn edit-only-btn" onclick="adjustFontSize(this, -1)" style="padding: 1px 4px; font-size: 10px;" title="縮小">A-</button>
-          <button type="button" class="font-adjust-btn edit-only-btn" onclick="adjustFontSize(this, 1)" style="padding: 1px 4px; font-size: 10px;" title="拡大">A+</button>
         </div>
       </div>
       <div class="step-preview-block">
@@ -497,6 +802,7 @@
       const codeInput = row.querySelector('.ing-code');
       const nameInput = row.querySelector('.ing-name');
       const amountInput = row.querySelector('.ing-amount');
+      const unitSelect = row.querySelector('.ing-unit');
       
       const codeSpan = row.querySelector('.ing-code-print');
       const nameSpan = row.querySelector('.ing-name-print');
@@ -505,6 +811,15 @@
       if (codeInput && codeSpan) codeSpan.innerText = codeInput.value;
       if (nameInput && nameSpan) nameSpan.innerText = nameInput.value;
       if (amountInput && amountSpan) amountSpan.innerText = amountInput.value;
+      if (unitSelect) {
+        let unitSpan = row.querySelector('.ing-unit-print');
+        if (!unitSpan) {
+          unitSpan = document.createElement('span');
+          unitSpan.className = 'print-text ing-unit-print';
+          unitSelect.insertAdjacentElement('afterend', unitSpan);
+        }
+        unitSpan.innerText = unitSelect.value;
+      }
     });
   });
 
@@ -558,7 +873,7 @@
       
       const textarea = block.querySelector('.step-textarea');
       if (textarea && textarea.value.trim()) {
-        const lines = textarea.value.trim().split('\n');
+        const lines = stripRichHTML(textarea.value).trim().split('\n');
         lines.forEach((line) => {
           let cleanedLine = line.trim();
           if (cleanedLine) {
@@ -582,7 +897,7 @@
       let hasText = false;
       const textarea = block.querySelector('.step-textarea');
       if (textarea && textarea.value.trim()) {
-        const lines = textarea.value.trim().split('\n');
+        const lines = stripRichHTML(textarea.value).trim().split('\n');
         lines.forEach((line) => {
           let cleanedLine = line.trim();
           if (cleanedLine) {
@@ -622,6 +937,18 @@
       lines = [
         "手を洗いアルコールをします。",
         "使用する備品に汚れが付いていないことを確認します。"
+      ];
+    } else if (tempKey === "format2") {
+      lines = [
+        "ゴム敷きを乗せたプレートに移し、熱い状態で提供します。"
+      ];
+    } else if (tempKey === "format3") {
+      lines = [
+        "お皿の淵に汚れが付いていないか確認して、熱い状態で提供します。"
+      ];
+    } else if (tempKey === "format4") {
+      lines = [
+        "木台に乗せ、ジュージューと熱い状態で、丸鉄板を五徳に乗せ、火をつけた状態で提供します。"
       ];
     }
 
@@ -1622,7 +1949,10 @@
         </label>
         <select class="step-template-select edit-only-btn" onchange="applyStepTemplate(this)" style="font-size: 0.8rem; padding: 2px; width: 100%;">
           <option value="">-- 定型文挿入 --</option>
-          <option value="format1">本文フォーマット①</option>
+          <option value="format1">① 手洗い・備品確認</option>
+          <option value="format2">② ゴム敷きプレート・熱々提供</option>
+          <option value="format3">③ 皿の淵汚れ確認・熱々提供</option>
+          <option value="format4">④ 木台・丸鉄板（五徳着火）提供</option>
         </select>
         <div class="tool-dropdown-container edit-only-btn" style="position: relative; display: inline-block; width: 100%;">
           <button type="button" class="tool-dropdown-btn" onclick="toggleToolMenu(this)" style="font-size: 0.8rem; padding: 2px; width: 100%;">-- 道具挿入 -- ▼</button>
@@ -1640,10 +1970,6 @@
             <label style="display:block; cursor:pointer;"><input type="checkbox" value="[スプーン]"> [スプーン]</label>
             <button type="button" onclick="insertCheckedTools(this)" style="margin-top: 5px; width: 100%; font-size: 0.85rem; padding: 2px; background: #e0e0e0; cursor: pointer; border: 1px solid #999;">挿入</button>
           </div>
-        </div>
-        <div style="display: flex; gap: 5px;">
-          <button type="button" class="font-adjust-btn edit-only-btn" onclick="adjustFontSize(this, -1)" style="padding: 1px 4px; font-size: 10px;" title="縮小">A-</button>
-          <button type="button" class="font-adjust-btn edit-only-btn" onclick="adjustFontSize(this, 1)" style="padding: 1px 4px; font-size: 10px;" title="拡大">A+</button>
         </div>
       </div>
           <div class="step-preview-block">
@@ -1800,7 +2126,10 @@
         </label>
         <select class="step-template-select edit-only-btn" onchange="applyStepTemplate(this)" style="font-size: 0.8rem; padding: 2px; width: 100%;">
           <option value="">-- 定型文挿入 --</option>
-          <option value="format1">本文フォーマット①</option>
+          <option value="format1">① 手洗い・備品確認</option>
+          <option value="format2">② ゴム敷きプレート・熱々提供</option>
+          <option value="format3">③ 皿の淵汚れ確認・熱々提供</option>
+          <option value="format4">④ 木台・丸鉄板（五徳着火）提供</option>
         </select>
         <div class="tool-dropdown-container edit-only-btn" style="position: relative; display: inline-block; width: 100%;">
           <button type="button" class="tool-dropdown-btn" onclick="toggleToolMenu(this)" style="font-size: 0.8rem; padding: 2px; width: 100%;">-- 道具挿入 -- ▼</button>
@@ -1818,10 +2147,6 @@
             <label style="display:block; cursor:pointer;"><input type="checkbox" value="[スプーン]"> [スプーン]</label>
             <button type="button" onclick="insertCheckedTools(this)" style="margin-top: 5px; width: 100%; font-size: 0.85rem; padding: 2px; background: #e0e0e0; cursor: pointer; border: 1px solid #999;">挿入</button>
           </div>
-        </div>
-        <div style="display: flex; gap: 5px;">
-          <button type="button" class="font-adjust-btn edit-only-btn" onclick="adjustFontSize(this, -1)" style="padding: 1px 4px; font-size: 10px;" title="縮小">A-</button>
-          <button type="button" class="font-adjust-btn edit-only-btn" onclick="adjustFontSize(this, 1)" style="padding: 1px 4px; font-size: 10px;" title="拡大">A+</button>
         </div>
       </div>
       <div class="step-preview-block">
@@ -2469,23 +2794,3 @@
     }
   }
 
-
-// フォントサイズ調整機能
-function adjustFontSize(btn, delta) {
-    const textarea = btn.closest('.step-block').querySelector('.step-textarea');
-    if (!textarea) return;
-    
-    // 現在のフォントサイズを取得（CSS計算値またはデフォルト9.5px）
-    const computedSize = parseFloat(window.getComputedStyle(textarea).fontSize);
-    let currentSize = parseFloat(textarea.style.fontSize) || computedSize || 9.5;
-    currentSize = Math.round((currentSize + delta * 0.5) * 10) / 10;
-    
-    // 上下限を設定（7px ～ 16px）
-    if (currentSize < 7) currentSize = 7;
-    if (currentSize > 16) currentSize = 16;
-    
-    textarea.style.fontSize = currentSize + 'px';
-    textarea.setAttribute('data-font-size', currentSize);
-    if (typeof autoResizeTextarea === 'function') autoResizeTextarea(textarea);
-    if (typeof adjustPreviewScale === 'function') adjustPreviewScale();
-}
