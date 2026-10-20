@@ -19,10 +19,52 @@
     }
   };
 
-  // テキストエリアの高さ自動調整
+  // 印刷用ミラー要素の同期（印刷時の文字見切れ完全防止）
+  function syncStepPrintText(textarea) {
+    if (!textarea || !textarea.parentElement) return;
+    if (!textarea.closest('.step-block, #plateSection')) return;
+    let printDiv = textarea.nextElementSibling;
+    if (!printDiv || !printDiv.classList.contains('step-text-print')) {
+      printDiv = document.createElement('div');
+      printDiv.className = 'step-text-print';
+      textarea.insertAdjacentElement('afterend', printDiv);
+    }
+    printDiv.textContent = textarea.value || '';
+    if (textarea.style.fontSize) {
+      printDiv.style.fontSize = textarea.style.fontSize;
+    } else {
+      printDiv.style.fontSize = '';
+    }
+  }
+
+  // テキストエリアの高さ自動調整（デスクトップ環境や複数行での下部見切れ防止バッファ付き）
   function autoResizeTextarea(textarea) {
-    textarea.style.height = 'auto';
-    textarea.style.height = textarea.scrollHeight + 'px';
+    if (!textarea) return;
+    const isPlate = Boolean(textarea.closest('#plateSection'));
+    const baseMinHeight = isPlate ? 85 : 50;
+    const prevMinHeight = textarea.style.minHeight;
+    textarea.style.minHeight = '0px';
+    textarea.style.height = '0px';
+    const lineCount = (textarea.value || '').split('\n').length;
+    const buffer = 8 + Math.min(12, lineCount * 2);
+    const targetHeight = Math.max(baseMinHeight, textarea.scrollHeight + buffer);
+    textarea.style.minHeight = prevMinHeight;
+    textarea.style.height = targetHeight + 'px';
+    syncStepPrintText(textarea);
+  }
+
+  function applyPlateTemplate() {
+    const select = document.getElementById('plateTemplateSelect');
+    const textarea = document.getElementById('plateText');
+    if (!select || !textarea || !select.value) return;
+    if (textarea.value) {
+      textarea.value = textarea.value + '\n' + select.value;
+    } else {
+      textarea.value = select.value;
+    }
+    select.value = '';
+    autoResizeTextarea(textarea);
+    if (typeof adjustPreviewScale === 'function') adjustPreviewScale();
   }
 
   // 生地の連番などの更新
@@ -66,6 +108,7 @@
     });
 
     updateBlockNumbers();
+    document.querySelectorAll('#outputArea .step-textarea').forEach(el => autoResizeTextarea(el));
     if (typeof adjustPreviewScale === 'function') adjustPreviewScale();
   }
 
@@ -414,8 +457,9 @@
     let scale = Math.min(1, (wrapperWidth - 20) / pageTargetWidth);
     
     if (typeof currentMode !== 'undefined' && currentMode === 'cooking') {
-      // 一旦スケールをリセットして本来の高さを取得する
+      // 一旦スケールをリセットして本来の高さを取得する（scale歪みなしでtextarea高さも再計算）
       outputArea.style.transform = 'none';
+      document.querySelectorAll('#outputArea .step-textarea').forEach(el => autoResizeTextarea(el));
       const actualHeight = outputArea.scrollHeight || 800;
       // 画面の高さにギリギリ収まるように倍率を計算（上下の余裕を80px確保）
       const heightScale = (window.innerHeight - 80) / actualHeight;
@@ -436,6 +480,12 @@
   window.addEventListener('resize', adjustPreviewScale);
 
   window.addEventListener('beforeprint', () => {
+    // 印刷前に全手順テキストエリアの印刷用ミラー要素と高さを同期
+    document.querySelectorAll('#outputArea .step-textarea').forEach(el => {
+      autoResizeTextarea(el);
+      syncStepPrintText(el);
+    });
+
     // 製造指示伝票の印刷用テキスト反映
     const slipInput = document.getElementById('manufacturingSlip');
     const slipPrint = document.querySelector('.slip-title-print');
@@ -1393,7 +1443,10 @@
     const bakeH = document.getElementById('bakeH').value;
     const bakeTime = document.getElementById('bakeTime').value;
 
-    const servingText = document.getElementById('servingText') ? document.getElementById('servingText').value.trim() : "";
+    const plateEl = document.getElementById('plateText');
+    const servingEl = document.getElementById('servingText');
+    const servingText = (plateEl && plateEl.value.trim()) ? plateEl.value.trim() : (servingEl ? servingEl.value.trim() : "");
+    const plateText = plateEl ? plateEl.value.trim() : "";
 
     // 使用食材
     const ingredients = [];
@@ -1412,11 +1465,13 @@
     const manualSteps = [];
     const stepBlocks = document.querySelectorAll('#outputArea .step-block[data-block-type="step"]');
     for (let block of stepBlocks) {
-      const text = block.querySelector('.step-textarea').value;
+      const textarea = block.querySelector('.step-textarea');
+      const text = textarea.value;
+      const fontSize = textarea.style.fontSize || "";
       const uploadBox = block.querySelector('.image-upload-box');
       const imageBlob = uploadBox.fileData || null;
       const isStandby = block.querySelector('.standby-toggle') ? block.querySelector('.standby-toggle').checked : false;
-      manualSteps.push({ text, imageBlob, isStandby, imgHeight: uploadBox.style.height || "" });
+      manualSteps.push({ text, imageBlob, isStandby, fontSize });
     }
 
     // スタンバイブロック
@@ -1448,6 +1503,7 @@
       proofL, proofW, proofH, proofTime,
       bakeL, bakeW, bakeH, bakeTime,
       servingText,
+      plateText,
       ingredients,
       manualSteps,
       standbySteps,
@@ -1529,6 +1585,10 @@
       document.getElementById('servingText').value = recipe.servingText || "";
       autoResizeTextarea(document.getElementById('servingText'));
     }
+    if (document.getElementById('plateText')) {
+      document.getElementById('plateText').value = recipe.plateText || recipe.servingText || "";
+      autoResizeTextarea(document.getElementById('plateText'));
+    }
 
     // 食材テーブルの復元
     let ingredientsToLoad = recipe.ingredients || [];
@@ -1605,18 +1665,14 @@
             </div>
           </div>
         `;
-        div.querySelector('.step-textarea').value = step.text || "";
+        const stepTextarea = div.querySelector('.step-textarea');
+        stepTextarea.value = step.text || "";
+        if (step.fontSize) {
+          stepTextarea.style.fontSize = step.fontSize;
+        }
         const box = div.querySelector('.image-upload-box');
         if (step.imageBlob) {
           restoreImageHelperOnBox(box, step.imageBlob);
-        }
-        if (step.imgHeight) {
-          box.style.setProperty('height', step.imgHeight, 'important');
-          const img = box.querySelector('img');
-          if (img) {
-            img.style.setProperty('height', '100%', 'important');
-            img.style.setProperty('object-fit', 'contain', 'important');
-          }
         }
         
         const standbyCheckbox = div.querySelector('.standby-toggle');
@@ -1625,7 +1681,7 @@
         }
         
         stepsFull.appendChild(div);
-        autoResizeTextarea(div.querySelector('.step-textarea'));
+        autoResizeTextarea(stepTextarea);
       });
     } else {
       insertBlankStepBlock();
@@ -2419,18 +2475,17 @@ function adjustFontSize(btn, delta) {
     const textarea = btn.closest('.step-block').querySelector('.step-textarea');
     if (!textarea) return;
     
-    // 現在のフォントサイズを取得（デフォルトは12pxとする）
-    let currentSize = parseInt(textarea.style.fontSize) || 12;
-    currentSize += delta;
+    // 現在のフォントサイズを取得（CSS計算値またはデフォルト9.5px）
+    const computedSize = parseFloat(window.getComputedStyle(textarea).fontSize);
+    let currentSize = parseFloat(textarea.style.fontSize) || computedSize || 9.5;
+    currentSize = Math.round((currentSize + delta * 0.5) * 10) / 10;
     
-    // 上下限を設定（8px ～ 16px）
-    if (currentSize < 8) currentSize = 8;
+    // 上下限を設定（7px ～ 16px）
+    if (currentSize < 7) currentSize = 7;
     if (currentSize > 16) currentSize = 16;
     
     textarea.style.fontSize = currentSize + 'px';
-    
-    // 印刷時にも反映されるように、カスタムプロパティまたはインラインスタイルで調整
-    // classListなどで特定サイズ用のクラスを付けるのもありだが、インラインでそのまま効くようにする
     textarea.setAttribute('data-font-size', currentSize);
     if (typeof autoResizeTextarea === 'function') autoResizeTextarea(textarea);
+    if (typeof adjustPreviewScale === 'function') adjustPreviewScale();
 }

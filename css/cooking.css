@@ -3,7 +3,7 @@
      ========================================================================== */
 
   /* --- 1.1 Base HTML & App Layout Styles --- */
-  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background-color: #f1f5f9; margin: 0; padding: 0; color: #333; }
+  body { font-family: "Meiryo", "Yu Gothic", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background-color: #f1f5f9; margin: 0; padding: 0; color: #333; }
   
   /* ユーティリティ操作パネル */
   .utility-bar {
@@ -198,17 +198,20 @@
   /* 手順テキストボックス */
   .step-textarea {
     width: 100%;
-    min-height: 60px;
+    min-height: 50px;
     border: 1px dashed transparent;
     background: transparent;
     font-family: inherit;
-    font-size: 10px;
-    line-height: 1.3;
-    padding: 2px;
+    font-size: 9.5px;
+    line-height: 1.4;
+    padding: 2px 2px 6px 2px;
     box-sizing: border-box;
     resize: none;
     overflow-y: hidden;
-    transition: all 0.15s ease;
+    transition: border-color 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
+  }
+  .step-text-print {
+    display: none;
   }
   .step-textarea:hover {
     border-color: #cbd5e1;
@@ -502,15 +505,31 @@
       display: none !important;
     }
 
-    /* 手順テキストボックスの印刷時スタイル */
+    /* 手順テキストボックスの印刷時スタイル（見切れ防止のためdiv表示に切替） */
     .step-textarea {
       border: none !important;
       background: transparent !important;
       padding: 0 !important;
       outline: none !important;
       box-shadow: none !important;
-      overflow: hidden !important;
+      overflow: visible !important;
       resize: none !important;
+    }
+    .step-textarea:has(+ .step-text-print) {
+      display: none !important;
+    }
+    .step-text-print {
+      display: block !important;
+      white-space: pre-wrap !important;
+      word-break: break-word !important;
+      overflow-wrap: break-word !important;
+      font-family: inherit !important;
+      font-size: 9.5px;
+      line-height: 1.4 !important;
+      padding: 2px 0 4px 0 !important;
+      margin: 0 !important;
+      height: auto !important;
+      overflow: visible !important;
     }
     
     /* 空の手順ブロックを非表示 */
@@ -722,17 +741,22 @@ body.mode-cooking .steps-col {
   width: 100% !important;
 }
 
-/* 印刷時の設定（2枚目の白紙防止） */
+/* 印刷時の設定（2枚目の白紙防止・文字見切れ防止） */
 @media print {
+  @page {
+    size: A4 landscape;
+    margin: 6mm 8mm;
+  }
   body.mode-cooking #outputArea {
-    width: 297mm !important;
+    width: 100% !important;
+    max-width: none !important;
     min-height: 0 !important;
     height: auto !important;
     margin: 0 !important;
-    padding: 10mm !important;
+    padding: 2mm !important;
     box-shadow: none !important;
     border: none !important;
-    overflow: hidden;
+    overflow: visible !important;
   }
 }
 
@@ -914,41 +938,63 @@ body.mode-cooking #outStepsFull {
   width: 100% !important;
 }
 
-/* ブロック全体のサイズ調整（3行入るように縮小） */
+/* ブロック全体のサイズ調整（3行入るように縮小・文字見切れ防止） */
 body.mode-cooking .step-block {
   min-height: 180px !important;
-  height: 100% !important;
+  height: auto !important;
   margin-bottom: 0 !important;
+  overflow: visible !important;
+  box-sizing: border-box !important;
 }
 
 /* 画像とテキストを上下（縦）に並べる */
 body.mode-cooking .step-preview-block {
   flex-direction: column !important;
   align-items: stretch !important;
+  height: auto !important;
+  overflow: visible !important;
+}
+body.mode-cooking .step-texts-out {
+  height: auto !important;
+  overflow: visible !important;
 }
 
-/* 画像枠を横幅100%に広げ、高さを制限 */
+/* 画像枠を横幅100%に広げ、高さを一段階大きく設定 */
 body.mode-cooking .step-img-out {
   flex: auto !important;
   width: 100% !important;
   height: auto !important;
-  margin-bottom: 5px !important;
+  margin-bottom: 4px !important;
+}
+body.mode-cooking .step-img-out .image-upload-box {
+  height: 120px !important;
 }
 body.mode-cooking .step-img-out img {
   max-width: 100% !important;
-  height: 90px !important;
+  height: 115px !important;
   object-fit: contain !important;
 }
+@media print {
+  body.mode-cooking .step-img-out .image-upload-box {
+    height: 100px !important;
+  }
+  body.mode-cooking .step-img-out img {
+    height: 95px !important;
+  }
+}
 
-/* プレート欄のコンパクト化（2ページ目突入防止） */
+/* プレート欄の縦幅確保と自動伸縮 */
 body.mode-cooking #plateSection {
-  padding: 5px !important;
-  margin-top: 5px !important;
+  padding: 6px 8px !important;
+  margin-top: 6px !important;
+  height: auto !important;
+  overflow: visible !important;
 }
 body.mode-cooking #plateSection textarea {
-  height: 35px !important;
-  min-height: 35px !important;
-  padding: 2px !important;
+  min-height: 85px !important;
+  padding: 4px !important;
+  line-height: 1.45 !important;
+  overflow-y: hidden !important;
 }
 
 

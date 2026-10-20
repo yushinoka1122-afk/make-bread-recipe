@@ -76,8 +76,8 @@
               <input type="text" id="productName" autocomplete="off" placeholder="例: ざくざく枝豆チーズスティック" style="font-size: 11px; font-weight: bold; width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 1px 2px;">
               <span class="dropdown-arrow">▼</span>
             </div>
-            <span style="white-space: nowrap; margin-left: 10px; font-size: 11px;">メニューコード:</span>
-            <div class="autocomplete-wrapper" style="width: 70px;">
+            <span class="edit-only-row" style="white-space: nowrap; margin-left: 10px; font-size: 11px;">メニューコード:</span>
+            <div class="autocomplete-wrapper edit-only-row" style="width: 70px;">
               <input type="text" id="menuCode" autocomplete="off" placeholder="例: 1001" style="font-size: 11px; font-weight: bold; text-align: center; width: 100%; padding: 1px 2px;">
               <span class="dropdown-arrow">▼</span>
             </div>
@@ -85,8 +85,8 @@
           </div>
 
           <!-- 第3行：ブランド区分・メニュー区分 -->
-          <div class="category-title-row" style="display: flex; gap: 15px; margin-bottom: 5px; align-items: baseline; flex-wrap: wrap;">
-            <div style="display: flex; align-items: baseline; gap: 5px;">
+          <div class="category-title-row edit-only-row" style="display: flex; gap: 15px; margin-bottom: 5px; align-items: baseline; flex-wrap: wrap;">
+            <div class="edit-only-row" style="display: flex; align-items: baseline; gap: 5px;">
               <span style="font-weight: bold; font-size: 0.85rem; color: #334155;">ブランド区分:</span>
               <select id="brandCategory" class="edit-only-btn" style="font-size: 0.85rem; padding: 2px 4px; border: 1px dashed #94a3b8; background: transparent; cursor: pointer;" onchange="document.querySelector('.brand-print').innerText = this.value === '--選択--' ? '' : this.value;">
                 <option value="--選択--">--選択--</option>
@@ -96,7 +96,7 @@
               </select>
               <span class="print-text brand-print" style="font-size: 0.85rem; color: #333;"></span>
             </div>
-            <div style="display: flex; align-items: baseline; gap: 5px;">
+            <div class="edit-only-row" style="display: flex; align-items: baseline; gap: 5px;">
               <span style="font-weight: bold; font-size: 0.85rem; color: #334155;">メニュー区分:</span>
               <select id="menuCategory" class="edit-only-btn" style="font-size: 0.85rem; padding: 2px 4px; border: 1px dashed #94a3b8; background: transparent; cursor: pointer;" onchange="document.querySelector('.category-print').innerText = this.value === '--選択--' ? '' : this.value;">
                 <option value="--選択--">--選択--</option>
@@ -104,7 +104,7 @@
                 <option value="グランド">グランド</option>
                 <option value="個店販促">個店販促</option>
               </select>
-              <span class="print-text category-print" style="font-size: 0.85rem; color: #333;"></span>
+              <span class="print-text category-print" style="font-size: 0.85rem; color: #334155;"></span>
             </div>
             <div class="edit-only-row" style="display: flex; align-items: baseline; gap: 5px;">
               <span style="font-weight: bold; font-size: 0.85rem; color: #334155;">手順書区分:</span>
