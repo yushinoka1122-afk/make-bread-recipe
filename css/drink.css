@@ -1241,3 +1241,45 @@ body.mode-cooking .preview-right {
   width: 100% !important;
   min-height: 150px !important;
 }
+
+/* --- 使用食材テーブル用 文字装飾ツールバー & 選択セル表示 --- */
+.ing-style-toolbar {
+  margin-bottom: 3px;
+  padding: 2px 6px;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+}
+
+.ing-toolbar-label {
+  font-size: 9px;
+  font-weight: bold;
+  color: #475569;
+  margin-right: 2px;
+  white-space: nowrap;
+}
+
+.ing-active-cell-label {
+  font-size: 8.5px;
+  color: #64748b;
+  margin-left: auto;
+  padding-left: 4px;
+  white-space: nowrap;
+}
+
+#ingredientsContainer .ing-cell-active {
+  outline: 1.5px solid #3b82f6 !important;
+  background-color: #eff6ff !important;
+  border-radius: 2px;
+}
+
+@media print {
+  .ing-style-toolbar {
+    display: none !important;
+  }
+  #ingredientsContainer .ing-cell-active {
+    outline: none !important;
+    background-color: transparent !important;
+  }
+}
+

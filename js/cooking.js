@@ -284,6 +284,245 @@
     }
   });
 
+  // --- 使用食材テーブル用 文字装飾（サイズ・文字色・太字・下線）エンジン ---
+  let activeIngCell = null;
+
+  function setActiveIngCell(el) {
+    if (!el) return;
+    document.querySelectorAll('#ingredientsContainer .ing-cell-active').forEach(c => c.classList.remove('ing-cell-active'));
+    activeIngCell = el;
+    el.classList.add('ing-cell-active');
+    const indicator = document.getElementById('ingActiveCellLabel');
+    if (indicator) {
+      let colName = 'セル';
+      if (el.classList.contains('ing-code')) colName = 'コード';
+      else if (el.classList.contains('ing-name')) colName = '品名';
+      else if (el.classList.contains('ing-amount')) colName = '使用量';
+      else if (el.classList.contains('ing-unit')) colName = '単位';
+      indicator.textContent = `選択中: ${colName}`;
+      indicator.style.color = '#2563eb';
+    }
+  }
+
+  document.addEventListener('focusin', (e) => {
+    const cell = e.target.closest('#ingredientsContainer .ing-code, #ingredientsContainer .ing-name, #ingredientsContainer .ing-amount, #ingredientsContainer .ing-unit');
+    if (cell) {
+      setActiveIngCell(cell);
+    }
+  });
+
+  function extractIngCellStyle(el) {
+    if (!el) return null;
+    const s = {};
+    if (el.style.color) s.color = el.style.color;
+    if (el.style.fontSize) s.fontSize = el.style.fontSize;
+    if (el.style.fontWeight) s.fontWeight = el.style.fontWeight;
+    if (el.style.textDecoration) s.textDecoration = el.style.textDecoration;
+    return Object.keys(s).length > 0 ? s : null;
+  }
+
+  function applyIngCellStyle(el, styleObj) {
+    if (!el) return;
+    el.style.color = (styleObj && styleObj.color) ? styleObj.color : '';
+    el.style.fontSize = (styleObj && styleObj.fontSize) ? styleObj.fontSize : '';
+    el.style.fontWeight = (styleObj && styleObj.fontWeight) ? styleObj.fontWeight : '';
+    el.style.textDecoration = (styleObj && styleObj.textDecoration) ? styleObj.textDecoration : '';
+  }
+
+  function syncIngCellPrintStyle(inputEl, printEl) {
+    if (!inputEl || !printEl) return;
+    const props = ['color', 'font-size', 'font-weight', 'text-decoration'];
+    const camelProps = ['color', 'fontSize', 'fontWeight', 'textDecoration'];
+    props.forEach((prop, idx) => {
+      const val = inputEl.style[camelProps[idx]];
+      if (val) {
+        printEl.style.setProperty(prop, val, 'important');
+      } else {
+        printEl.style.removeProperty(prop);
+      }
+    });
+  }
+
+  function syncIngRowPrintStyles(row) {
+    if (!row) return;
+    const codeInput = row.querySelector('.ing-code');
+    const nameInput = row.querySelector('.ing-name');
+    const amountInput = row.querySelector('.ing-amount');
+    const unitSelect = row.querySelector('.ing-unit');
+
+    const codeSpan = row.querySelector('.ing-code-print');
+    const nameSpan = row.querySelector('.ing-name-print');
+    const amountSpan = row.querySelector('.ing-amount-print');
+
+    if (codeInput && codeSpan) {
+      codeSpan.innerText = codeInput.value;
+      syncIngCellPrintStyle(codeInput, codeSpan);
+    }
+    if (nameInput && nameSpan) {
+      nameSpan.innerText = nameInput.value;
+      syncIngCellPrintStyle(nameInput, nameSpan);
+    }
+    if (amountInput && amountSpan) {
+      amountSpan.innerText = amountInput.value;
+      syncIngCellPrintStyle(amountInput, amountSpan);
+    }
+    if (unitSelect) {
+      let unitSpan = row.querySelector('.ing-unit-print');
+      if (!unitSpan) {
+        unitSpan = document.createElement('span');
+        unitSpan.className = 'print-text ing-unit-print';
+        unitSelect.insertAdjacentElement('afterend', unitSpan);
+      }
+      unitSpan.innerText = unitSelect.value;
+      syncIngCellPrintStyle(unitSelect, unitSpan);
+    }
+  }
+
+  function mergeIngredientsWithSaved(masterIngs, savedIngs) {
+    const cloned = JSON.parse(JSON.stringify(masterIngs || []));
+    if (!Array.isArray(savedIngs) || savedIngs.length === 0) return cloned;
+    return cloned.map((mIng, idx) => {
+      const match = savedIngs.find((s, sIdx) => (s.code && mIng.code && s.code === mIng.code && sIdx === idx))
+        || savedIngs.find(s => (s.code && mIng.code && s.code === mIng.code))
+        || savedIngs[idx];
+      if (match) {
+        if (match.standby !== undefined) mIng.standby = match.standby;
+        if (match.codeStyle) mIng.codeStyle = match.codeStyle;
+        if (match.nameStyle) mIng.nameStyle = match.nameStyle;
+        if (match.amountStyle) mIng.amountStyle = match.amountStyle;
+        if (match.unitStyle) mIng.unitStyle = match.unitStyle;
+      }
+      return mIng;
+    });
+  }
+
+  function getTargetIngCell() {
+    if (activeIngCell && activeIngCell.isConnected) return activeIngCell;
+    const firstAmount = document.querySelector('#ingredientsContainer .ing-amount');
+    if (firstAmount) {
+      setActiveIngCell(firstAmount);
+      return firstAmount;
+    }
+    return null;
+  }
+
+  function ensureIngredientToolbar() {
+    if (document.getElementById('ingStyleToolbar')) return;
+    const table = document.querySelector('.output-left .output-table') || document.querySelector('.output-table');
+    if (!table || !table.parentElement) return;
+
+    const toolbar = document.createElement('div');
+    toolbar.id = 'ingStyleToolbar';
+    toolbar.className = 'step-rich-toolbar ing-style-toolbar edit-only-row';
+    toolbar._activeColor = '#dc2626';
+
+    toolbar.innerHTML = `
+      <span class="ing-toolbar-label" title="使用食材のセルをクリックしてからボタンを押してください">食材装飾:</span>
+      <button type="button" class="rt-btn" data-ing-action="bold" title="太字"><b>B</b></button>
+      <button type="button" class="rt-btn" data-ing-action="underline" title="下線"><u>U</u></button>
+      <span class="rt-sep"></span>
+      <div class="rt-btn-wrap">
+        <button type="button" class="rt-btn" data-rt-toggle="ing-size" title="セルの文字サイズ変更">サイズ<span class="rt-arrow">▼</span></button>
+        <div class="rt-dropdown-menu" data-rt-menu="ing-size">
+          <button type="button" class="rt-menu-item" data-ing-size="7.5px"><span style="font-size:7.5px;">極小 (7.5px)</span></button>
+          <button type="button" class="rt-menu-item" data-ing-size="8.5px"><span style="font-size:8.5px;">標準 (8.5px)</span></button>
+          <button type="button" class="rt-menu-item" data-ing-size="10px"><span style="font-size:10px;">中 (10px)</span></button>
+          <button type="button" class="rt-menu-item" data-ing-size="11.5px"><span style="font-size:11.5px; font-weight:bold;">大 (11.5px)</span></button>
+          <button type="button" class="rt-menu-item" data-ing-size="13px"><span style="font-size:13px; font-weight:bold;">特大 (13px)</span></button>
+        </div>
+      </div>
+      <div class="rt-btn-wrap">
+        <button type="button" class="rt-btn" data-ing-action="applyColor" title="セルの文字色変更（赤文字・黒字など）">
+          <span class="rt-color-indicator">
+            <b style="font-size:10px;">A</b>
+            <span class="rt-color-bar" style="background:#dc2626;"></span>
+          </span>
+        </button>
+        <button type="button" class="rt-btn" data-rt-toggle="ing-color" title="文字色を選択" style="min-width:12px; padding:0 2px;"><span class="rt-arrow">▼</span></button>
+        <div class="rt-dropdown-menu" data-rt-menu="ing-color">
+          <button type="button" class="rt-menu-item" data-ing-color="#dc2626"><span class="rt-swatch" style="background:#dc2626;"></span><span style="color:#dc2626;font-weight:bold;">赤文字 (強調)</span></button>
+          <button type="button" class="rt-menu-item" data-ing-color="#0f172a"><span class="rt-swatch" style="background:#0f172a;"></span><span style="color:#0f172a;">黒文字 (標準)</span></button>
+          <button type="button" class="rt-menu-item" data-ing-color="#2563eb"><span class="rt-swatch" style="background:#2563eb;"></span><span style="color:#2563eb;">青文字</span></button>
+          <button type="button" class="rt-menu-item" data-ing-color="#16a34a"><span class="rt-swatch" style="background:#16a34a;"></span><span style="color:#16a34a;">緑文字</span></button>
+          <button type="button" class="rt-menu-item" data-ing-color="#ea580c"><span class="rt-swatch" style="background:#ea580c;"></span><span style="color:#ea580c;">オレンジ文字</span></button>
+        </div>
+      </div>
+      <span class="rt-sep"></span>
+      <button type="button" class="rt-btn" data-ing-action="clearFormat" title="選択セルの書式クリア">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 21-4.3-4.3c-1-1-1-2.5 0-3.4l9.6-9.6c1-1 2.5-1 3.4 0l5.6 5.6c1 1 1 2.5 0 3.4L13 21"/><path d="M22 21H7"/><path d="m5 11 9 9"/></svg>
+      </button>
+      <span id="ingActiveCellLabel" class="ing-active-cell-label">セルを選択</span>
+    `;
+
+    toolbar.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+    });
+
+    toolbar.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const toggleBtn = e.target.closest('[data-rt-toggle]');
+      if (toggleBtn) {
+        const menuType = toggleBtn.getAttribute('data-rt-toggle');
+        const menu = toolbar.querySelector(`[data-rt-menu="${menuType}"]`);
+        const wasOpen = menu && menu.classList.contains('open');
+        document.querySelectorAll('.rt-dropdown-menu.open').forEach(m => m.classList.remove('open'));
+        if (menu && !wasOpen) {
+          menu.classList.add('open');
+        }
+        return;
+      }
+
+      const cell = getTargetIngCell();
+      if (!cell) return;
+
+      const actionBtn = e.target.closest('[data-ing-action]');
+      if (actionBtn) {
+        const action = actionBtn.getAttribute('data-ing-action');
+        document.querySelectorAll('.rt-dropdown-menu.open').forEach(m => m.classList.remove('open'));
+        if (action === 'bold') {
+          const isBold = cell.style.fontWeight === 'bold' || cell.style.fontWeight === '700';
+          cell.style.fontWeight = isBold ? '' : 'bold';
+        } else if (action === 'underline') {
+          const isUnder = cell.style.textDecoration && cell.style.textDecoration.includes('underline');
+          cell.style.textDecoration = isUnder ? '' : 'underline';
+        } else if (action === 'applyColor') {
+          cell.style.color = toolbar._activeColor || '#dc2626';
+        } else if (action === 'clearFormat') {
+          applyIngCellStyle(cell, null);
+        }
+        syncIngRowPrintStyles(cell.closest('.ing-row'));
+        cell.focus();
+        return;
+      }
+
+      const colorItem = e.target.closest('[data-ing-color]');
+      if (colorItem) {
+        const color = colorItem.getAttribute('data-ing-color');
+        toolbar._activeColor = color;
+        const bar = toolbar.querySelector('.rt-color-bar');
+        if (bar) bar.style.background = color;
+        document.querySelectorAll('.rt-dropdown-menu.open').forEach(m => m.classList.remove('open'));
+        cell.style.color = (color === '#0f172a') ? '' : color;
+        syncIngRowPrintStyles(cell.closest('.ing-row'));
+        cell.focus();
+        return;
+      }
+
+      const sizeItem = e.target.closest('[data-ing-size]');
+      if (sizeItem) {
+        const sizePx = sizeItem.getAttribute('data-ing-size');
+        document.querySelectorAll('.rt-dropdown-menu.open').forEach(m => m.classList.remove('open'));
+        cell.style.fontSize = (sizePx === '8.5px') ? '' : sizePx;
+        syncIngRowPrintStyles(cell.closest('.ing-row'));
+        cell.focus();
+        return;
+      }
+    });
+
+    table.insertAdjacentElement('beforebegin', toolbar);
+  }
+
   function ensureRichEditor(textarea) {
     if (!textarea || !textarea.parentElement) return null;
     if (!textarea.closest('.step-block, #plateSection, #servingMethodSection')) return null;
@@ -799,27 +1038,7 @@
     }
 
     document.querySelectorAll('#ingredientsContainer .ing-row').forEach(row => {
-      const codeInput = row.querySelector('.ing-code');
-      const nameInput = row.querySelector('.ing-name');
-      const amountInput = row.querySelector('.ing-amount');
-      const unitSelect = row.querySelector('.ing-unit');
-      
-      const codeSpan = row.querySelector('.ing-code-print');
-      const nameSpan = row.querySelector('.ing-name-print');
-      const amountSpan = row.querySelector('.ing-amount-print');
-      
-      if (codeInput && codeSpan) codeSpan.innerText = codeInput.value;
-      if (nameInput && nameSpan) nameSpan.innerText = nameInput.value;
-      if (amountInput && amountSpan) amountSpan.innerText = amountInput.value;
-      if (unitSelect) {
-        let unitSpan = row.querySelector('.ing-unit-print');
-        if (!unitSpan) {
-          unitSpan = document.createElement('span');
-          unitSpan.className = 'print-text ing-unit-print';
-          unitSelect.insertAdjacentElement('afterend', unitSpan);
-        }
-        unitSpan.innerText = unitSelect.value;
-      }
+      syncIngRowPrintStyles(row);
     });
   });
 
@@ -1154,8 +1373,8 @@
       let updatedCount = 0;
       for (const r of allRecipes) {
         if (r.menuCode && window.menuMaster && window.menuMaster[r.menuCode] && window.menuMaster[r.menuCode].ingredients && window.menuMaster[r.menuCode].ingredients.length > 0) {
-          // 食材配列をマスターデータのものに差し替え
-          r.ingredients = JSON.parse(JSON.stringify(window.menuMaster[r.menuCode].ingredients));
+          // 食材配列をマスターデータのものに差し替え（既存の文字装飾・スタンバイ設定は保持）
+          r.ingredients = mergeIngredientsWithSaved(window.menuMaster[r.menuCode].ingredients, r.ingredients);
           await recipeDB.saveRecipe(r);
           updatedCount++;
         }
@@ -1165,7 +1384,8 @@
         // もし現在エディタで開いているレシピがあれば、画面の食材も即座に最新化する
         const currentMenuCode = document.getElementById('menuCode').value.trim();
         if (currentMenuCode && window.menuMaster[currentMenuCode] && window.menuMaster[currentMenuCode].ingredients) {
-           populateIngredients(window.menuMaster[currentMenuCode].ingredients);
+          const currentSaved = allRecipes.find(r => r.menuCode === currentMenuCode);
+          populateIngredients(currentSaved ? currentSaved.ingredients : window.menuMaster[currentMenuCode].ingredients);
         }
       }
     } catch (e) {
@@ -1235,6 +1455,7 @@
   }
 
   function populateIngredients(ingredients) {
+    ensureIngredientToolbar();
     const container = document.getElementById('ingredientsContainer');
     container.innerHTML = '';
     
@@ -1283,12 +1504,18 @@
           <button type="button" class="del-btn edit-only-btn" onclick="removeRow(this, 'ing')">🗑️</button>
         </td>
       `;
+      applyIngCellStyle(tr.querySelector('.ing-code'), ing.codeStyle);
+      applyIngCellStyle(tr.querySelector('.ing-name'), ing.nameStyle);
+      applyIngCellStyle(tr.querySelector('.ing-amount'), ing.amountStyle);
+      applyIngCellStyle(tr.querySelector('.ing-unit'), ing.unitStyle);
+      syncIngRowPrintStyles(tr);
       container.appendChild(tr);
     });
     adjustPreviewScale();
   }
 
   document.addEventListener('DOMContentLoaded', () => {
+    ensureIngredientToolbar();
     const modeSelectInit = document.getElementById('recipeModeSelect');
     if (modeSelectInit && typeof currentMode !== 'undefined') {
         modeSelectInit.value = currentMode;
@@ -1778,13 +2005,26 @@
     // 使用食材
     const ingredients = [];
     document.querySelectorAll('#ingredientsContainer .ing-row').forEach(row => {
-      const code = row.querySelector('.ing-code').value.trim();
-      const name = row.querySelector('.ing-name').value.trim();
-      const amount = row.querySelector('.ing-amount').value.trim();
-      const unit = row.querySelector('.ing-unit').value;
+      const codeEl = row.querySelector('.ing-code');
+      const nameEl = row.querySelector('.ing-name');
+      const amountEl = row.querySelector('.ing-amount');
+      const unitEl = row.querySelector('.ing-unit');
+      const code = codeEl.value.trim();
+      const name = nameEl.value.trim();
+      const amount = amountEl.value.trim();
+      const unit = unitEl.value;
       const standby = row.querySelector('.ing-standby').value === 'スタンバイ';
       if (code || name || amount) {
-        ingredients.push({ code, name, amount, unit, standby });
+        const ingObj = { code, name, amount, unit, standby };
+        const codeStyle = extractIngCellStyle(codeEl);
+        const nameStyle = extractIngCellStyle(nameEl);
+        const amountStyle = extractIngCellStyle(amountEl);
+        const unitStyle = extractIngCellStyle(unitEl);
+        if (codeStyle) ingObj.codeStyle = codeStyle;
+        if (nameStyle) ingObj.nameStyle = nameStyle;
+        if (amountStyle) ingObj.amountStyle = amountStyle;
+        if (unitStyle) ingObj.unitStyle = unitStyle;
+        ingredients.push(ingObj);
       }
     });
 
@@ -1919,9 +2159,9 @@
 
     // 食材テーブルの復元
     let ingredientsToLoad = recipe.ingredients || [];
-    // マスターデータが存在し、該当のメニューコードがあれば強制的に最新の食材を使う
+    // マスターデータが存在し、該当のメニューコードがあれば最新の食材を使いつつ文字装飾・スタンバイを保持
     if (recipe.menuCode && window.menuMaster && window.menuMaster[recipe.menuCode] && window.menuMaster[recipe.menuCode].ingredients && window.menuMaster[recipe.menuCode].ingredients.length > 0) {
-      ingredientsToLoad = window.menuMaster[recipe.menuCode].ingredients;
+      ingredientsToLoad = mergeIngredientsWithSaved(window.menuMaster[recipe.menuCode].ingredients, recipe.ingredients);
     }
     populateIngredients(ingredientsToLoad);
 
