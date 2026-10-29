@@ -380,20 +380,72 @@
 
   function mergeIngredientsWithSaved(masterIngs, savedIngs) {
     const cloned = JSON.parse(JSON.stringify(masterIngs || []));
-    if (!Array.isArray(savedIngs) || savedIngs.length === 0) return cloned;
-    return cloned.map((mIng, idx) => {
-      const match = savedIngs.find((s, sIdx) => (s.code && mIng.code && s.code === mIng.code && sIdx === idx))
-        || savedIngs.find(s => (s.code && mIng.code && s.code === mIng.code))
-        || savedIngs[idx];
-      if (match) {
-        if (match.standby !== undefined) mIng.standby = match.standby;
-        if (match.codeStyle) mIng.codeStyle = match.codeStyle;
-        if (match.nameStyle) mIng.nameStyle = match.nameStyle;
-        if (match.amountStyle) mIng.amountStyle = match.amountStyle;
-        if (match.unitStyle) mIng.unitStyle = match.unitStyle;
+    if (!Array.isArray(savedIngs) || savedIngs.length === 0) {
+      return cloned.map(mIng => ({
+        ...mIng,
+        masterCode: mIng.code,
+        masterName: mIng.name,
+        masterAmount: mIng.amount,
+        masterUnit: mIng.unit
+      }));
+    }
+    const usedSavedIdx = new Set();
+    const merged = cloned.map((mIng, idx) => {
+      let matchIdx = -1;
+      if (mIng.code) {
+        if (savedIngs[idx] && savedIngs[idx].code === mIng.code && !usedSavedIdx.has(idx)) {
+          matchIdx = idx;
+        } else {
+          matchIdx = savedIngs.findIndex((s, sIdx) => !usedSavedIdx.has(sIdx) && s.code === mIng.code);
+        }
       }
-      return mIng;
+      if (matchIdx === -1 && savedIngs[idx] && !usedSavedIdx.has(idx) && (!savedIngs[idx].code || !mIng.code)) {
+        matchIdx = idx;
+      }
+      const match = matchIdx !== -1 ? savedIngs[matchIdx] : null;
+      if (matchIdx !== -1) usedSavedIdx.add(matchIdx);
+
+      const result = {
+        ...mIng,
+        masterCode: mIng.code,
+        masterName: mIng.name,
+        masterAmount: mIng.amount,
+        masterUnit: mIng.unit
+      };
+
+      if (match) {
+        // パターンA: マスタ側の値が前回保存時のマスタ値(masterName/masterAmount/masterUnit)から変化していない場合は、ユーザーの編集値を優先保持する
+        const nameChangedInMaster = (match.masterName !== undefined && String(match.masterName) !== String(mIng.name));
+        const amountChangedInMaster = (match.masterAmount !== undefined && String(match.masterAmount) !== String(mIng.amount));
+        const unitChangedInMaster = (match.masterUnit !== undefined && String(match.masterUnit) !== String(mIng.unit));
+
+        if (!nameChangedInMaster && match.name !== undefined && match.name !== '') {
+          result.name = match.name;
+        }
+        if (!amountChangedInMaster && match.amount !== undefined && match.amount !== '') {
+          result.amount = match.amount;
+        }
+        if (!unitChangedInMaster && match.unit !== undefined && match.unit !== '') {
+          result.unit = match.unit;
+        }
+
+        if (match.standby !== undefined) result.standby = match.standby;
+        if (match.codeStyle) result.codeStyle = match.codeStyle;
+        if (match.nameStyle) result.nameStyle = match.nameStyle;
+        if (match.amountStyle) result.amountStyle = match.amountStyle;
+        if (match.unitStyle) result.unitStyle = match.unitStyle;
+      }
+      return result;
     });
+
+    // ユーザーが手動追加した行（isCustomRow）があれば保持する
+    savedIngs.forEach((s, sIdx) => {
+      if (!usedSavedIdx.has(sIdx) && s.isCustomRow) {
+        merged.push(JSON.parse(JSON.stringify(s)));
+      }
+    });
+
+    return merged;
   }
 
   function getTargetIngCell() {
@@ -1373,19 +1425,38 @@
       let updatedCount = 0;
       for (const r of allRecipes) {
         if (r.menuCode && window.menuMaster && window.menuMaster[r.menuCode] && window.menuMaster[r.menuCode].ingredients && window.menuMaster[r.menuCode].ingredients.length > 0) {
-          // 食材配列をマスターデータのものに差し替え（既存の文字装飾・スタンバイ設定は保持）
-          r.ingredients = mergeIngredientsWithSaved(window.menuMaster[r.menuCode].ingredients, r.ingredients);
+          const masterEntry = window.menuMaster[r.menuCode];
+          // パターンA: マスタ自体に差分がある項目のみ最新マスタで更新し、マスタ未変更の項目はユーザーの編集値・文字装飾を保持
+          r.ingredients = mergeIngredientsWithSaved(masterEntry.ingredients, r.ingredients);
+          if (masterEntry.name) {
+            if (r.masterProductName !== undefined && String(r.masterProductName) !== String(masterEntry.name)) {
+              r.productName = masterEntry.name;
+            } else if (!r.productName) {
+              r.productName = masterEntry.name;
+            }
+            r.masterProductName = masterEntry.name;
+          }
           await recipeDB.saveRecipe(r);
           updatedCount++;
         }
       }
       if (updatedCount > 0) {
         console.log(`マスターデータで ${updatedCount} 件の保存済み手順書の食材を自動同期しました`);
-        // もし現在エディタで開いているレシピがあれば、画面の食材も即座に最新化する
+        // 現在エディタで開いているレシピがあり、かつ食材欄を直接入力中でなければ画面にも反映
+        const isEditingIng = document.activeElement && document.activeElement.closest && document.activeElement.closest('#ingredientsContainer');
         const currentMenuCode = document.getElementById('menuCode').value.trim();
-        if (currentMenuCode && window.menuMaster[currentMenuCode] && window.menuMaster[currentMenuCode].ingredients) {
+        if (!isEditingIng && currentMenuCode && window.menuMaster[currentMenuCode] && window.menuMaster[currentMenuCode].ingredients) {
           const currentSaved = allRecipes.find(r => r.menuCode === currentMenuCode);
-          populateIngredients(currentSaved ? currentSaved.ingredients : window.menuMaster[currentMenuCode].ingredients);
+          if (currentSaved) {
+            populateIngredients(currentSaved.ingredients);
+            const prodInput = document.getElementById('productName');
+            if (prodInput && document.activeElement !== prodInput && currentSaved.productName) {
+              prodInput.value = currentSaved.productName;
+              prodInput.dataset.masterProductName = currentSaved.masterProductName || '';
+            }
+          } else {
+            populateIngredients(mergeIngredientsWithSaved(window.menuMaster[currentMenuCode].ingredients, []));
+          }
         }
       }
     } catch (e) {
@@ -1467,9 +1538,17 @@
     ingredients.forEach(ing => {
       const tr = document.createElement('tr');
       tr.className = ing.standby ? 'ing-row is-standby' : 'ing-row';
+      if (ing.masterCode !== undefined) tr.dataset.masterCode = ing.masterCode;
+      if (ing.masterName !== undefined) tr.dataset.masterName = ing.masterName;
+      if (ing.masterAmount !== undefined) tr.dataset.masterAmount = ing.masterAmount;
+      if (ing.masterUnit !== undefined) tr.dataset.masterUnit = ing.masterUnit;
+      if (ing.isCustomRow) tr.dataset.isCustomRow = 'true';
       
       const units = ["g", "kg", "ml", "L", "個", "枚", "本", "尾", "杯", "種", "人前", "円", "適量"];
       let unitOptions = "";
+      if (ing.unit && !units.includes(ing.unit)) {
+        units.push(ing.unit);
+      }
       units.forEach(u => {
         const selected = u === ing.unit ? " selected" : "";
         unitOptions += `<option value="${u}"${selected}>${u}</option>`;
@@ -1553,6 +1632,7 @@
     if (cachedData && cachedVersion === CACHE_VERSION) {
       try {
         menuMaster = JSON.parse(cachedData);
+        window.menuMaster = menuMaster;
         const menuCount = safeStorage.getItem('cachedMenuCount') || Object.keys(menuMaster).length;
         const sourceLabel = safeStorage.getItem('cachedSourceLabel') || "キャッシュ";
         const statusDiv = document.getElementById('masterStatus');
@@ -1582,9 +1662,10 @@
         const code = e.target.value.trim();
         if (menuMaster[code]) {
           productNameInput.value = menuMaster[code].name;
+          productNameInput.dataset.masterProductName = menuMaster[code].name || "";
           handleMenuCodeSelection(code);
         } else {
-          updateDBStatusLabel(null);
+          updateDBStatusLabel(code || null);
         }
       });
     }
@@ -1592,9 +1673,16 @@
     if (productNameInput) {
       productNameInput.addEventListener('input', (e) => {
         const name = e.target.value.trim();
+        const currentCode = menuCodeInput ? menuCodeInput.value.trim() : "";
+        if (currentCode) {
+          // 既にメニューコードが選択されている場合は商品名称の自由編集として扱う
+          updateDBStatusLabel(currentCode);
+          return;
+        }
         const foundCode = Object.keys(menuMaster).find(code => menuMaster[code].name === name);
         if (foundCode) {
           menuCodeInput.value = foundCode;
+          productNameInput.dataset.masterProductName = menuMaster[foundCode].name || "";
           handleMenuCodeSelection(foundCode);
         } else {
           updateDBStatusLabel(null);
@@ -2002,9 +2090,19 @@
     const servingText = (plateEl && plateEl.value.trim()) ? plateEl.value.trim() : (servingEl ? servingEl.value.trim() : "");
     const plateText = plateEl ? plateEl.value.trim() : "";
 
+    const prodEl = document.getElementById('productName');
+    const masterProductName = (window.menuMaster && window.menuMaster[menuCode] && window.menuMaster[menuCode].name)
+      ? window.menuMaster[menuCode].name
+      : (prodEl && prodEl.dataset.masterProductName ? prodEl.dataset.masterProductName : undefined);
+
     // 使用食材
     const ingredients = [];
-    document.querySelectorAll('#ingredientsContainer .ing-row').forEach(row => {
+    const masterIngsForMenu = (window.menuMaster && window.menuMaster[menuCode] && window.menuMaster[menuCode].ingredients)
+      ? window.menuMaster[menuCode].ingredients
+      : [];
+    const usedMasterIdx = new Set();
+
+    document.querySelectorAll('#ingredientsContainer .ing-row').forEach((row, rowIdx) => {
       const codeEl = row.querySelector('.ing-code');
       const nameEl = row.querySelector('.ing-name');
       const amountEl = row.querySelector('.ing-amount');
@@ -2024,6 +2122,40 @@
         if (nameStyle) ingObj.nameStyle = nameStyle;
         if (amountStyle) ingObj.amountStyle = amountStyle;
         if (unitStyle) ingObj.unitStyle = unitStyle;
+
+        // パターンA用: 保存時点のマスタ値スナップショットを記録
+        let mIng = null;
+        if (masterIngsForMenu.length > 0) {
+          let mIdx = -1;
+          if (code) {
+            if (masterIngsForMenu[rowIdx] && masterIngsForMenu[rowIdx].code === code && !usedMasterIdx.has(rowIdx)) {
+              mIdx = rowIdx;
+            } else {
+              mIdx = masterIngsForMenu.findIndex((m, idx) => !usedMasterIdx.has(idx) && m.code === code);
+            }
+          } else if (masterIngsForMenu[rowIdx] && !usedMasterIdx.has(rowIdx) && !masterIngsForMenu[rowIdx].code) {
+            mIdx = rowIdx;
+          }
+          if (mIdx !== -1) {
+            mIng = masterIngsForMenu[mIdx];
+            usedMasterIdx.add(mIdx);
+          }
+        }
+
+        if (mIng) {
+          ingObj.masterCode = mIng.code;
+          ingObj.masterName = mIng.name;
+          ingObj.masterAmount = mIng.amount;
+          ingObj.masterUnit = mIng.unit;
+        } else if (row.dataset.masterAmount !== undefined || row.dataset.masterName !== undefined || row.dataset.masterUnit !== undefined) {
+          if (row.dataset.masterCode !== undefined) ingObj.masterCode = row.dataset.masterCode;
+          if (row.dataset.masterName !== undefined) ingObj.masterName = row.dataset.masterName;
+          if (row.dataset.masterAmount !== undefined) ingObj.masterAmount = row.dataset.masterAmount;
+          if (row.dataset.masterUnit !== undefined) ingObj.masterUnit = row.dataset.masterUnit;
+        } else if (masterIngsForMenu.length > 0) {
+          ingObj.isCustomRow = true;
+        }
+
         ingredients.push(ingObj);
       }
     });
@@ -2060,6 +2192,7 @@
     return {
       menuCode,
       productName,
+      masterProductName,
   mode: document.getElementById('recipeModeSelect') ? document.getElementById('recipeModeSelect').value : (typeof currentMode !== 'undefined' ? currentMode : 'bread'),
       manufacturingSlipName: document.getElementById('manufacturingSlipName') ? document.getElementById('manufacturingSlipName').value : "",
       periodStart,
@@ -2103,7 +2236,23 @@
     if (modeSelect) modeSelect.value = recipe.mode || 'bread';
 
     document.getElementById('menuCode').value = recipe.menuCode || "";
-    document.getElementById('productName').value = recipe.productName || "";
+
+    // 商品名称の復元（パターンA: マスタ側の名称が保存時スナップショットから変わった場合のみマスタ名称で更新、それ以外はユーザーの編集名称を維持）
+    let productNameToLoad = recipe.productName || "";
+    let masterProductName = recipe.masterProductName;
+    if (recipe.menuCode && window.menuMaster && window.menuMaster[recipe.menuCode] && window.menuMaster[recipe.menuCode].name) {
+      const currentMasterName = window.menuMaster[recipe.menuCode].name;
+      if (masterProductName !== undefined && String(masterProductName) !== String(currentMasterName)) {
+        productNameToLoad = currentMasterName;
+      } else if (!productNameToLoad) {
+        productNameToLoad = currentMasterName;
+      }
+      masterProductName = currentMasterName;
+    }
+    const prodInput = document.getElementById('productName');
+    prodInput.value = productNameToLoad;
+    prodInput.dataset.masterProductName = masterProductName || "";
+
     if (document.getElementById('manufacturingSlipName')) {
       document.getElementById('manufacturingSlipName').value = recipe.manufacturingSlipName || "";
     }
@@ -2157,9 +2306,8 @@
       autoResizeTextarea(document.getElementById('plateText'));
     }
 
-    // 食材テーブルの復元
+    // 食材テーブルの復元（パターンA: マスタ自体に更新があった項目のみマスタを反映し、未変更項目はユーザー編集値・単位・文字装飾を保持）
     let ingredientsToLoad = recipe.ingredients || [];
-    // マスターデータが存在し、該当のメニューコードがあれば最新の食材を使いつつ文字装飾・スタンバイを保持
     if (recipe.menuCode && window.menuMaster && window.menuMaster[recipe.menuCode] && window.menuMaster[recipe.menuCode].ingredients && window.menuMaster[recipe.menuCode].ingredients.length > 0) {
       ingredientsToLoad = mergeIngredientsWithSaved(window.menuMaster[recipe.menuCode].ingredients, recipe.ingredients);
     }
@@ -2505,8 +2653,10 @@
         // 保存データがない場合、画面リセットしてマスタ食材のみロード
         resetFormToDefault(true);
         if (menuMaster[code]) {
-          document.getElementById('productName').value = menuMaster[code].name;
-          populateIngredients(menuMaster[code].ingredients);
+          const prodInput = document.getElementById('productName');
+          prodInput.value = menuMaster[code].name;
+          prodInput.dataset.masterProductName = menuMaster[code].name || "";
+          populateIngredients(mergeIngredientsWithSaved(menuMaster[code].ingredients, []));
         }
         showStatusMessage("✏️ 未保存の新規", "info");
       }
@@ -2517,8 +2667,10 @@
       // フォールバック: データベースの読み込みに失敗しても、マスタの食材データは正常に表示する
       resetFormToDefault(true);
       if (menuMaster[code]) {
-        document.getElementById('productName').value = menuMaster[code].name;
-        populateIngredients(menuMaster[code].ingredients);
+        const prodInput = document.getElementById('productName');
+        prodInput.value = menuMaster[code].name;
+        prodInput.dataset.masterProductName = menuMaster[code].name || "";
+        populateIngredients(mergeIngredientsWithSaved(menuMaster[code].ingredients, []));
       }
     }
   }
