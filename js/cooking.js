@@ -577,9 +577,15 @@
 
   function ensureRichEditor(textarea) {
     if (!textarea || !textarea.parentElement) return null;
+    if (textarea.closest('.batch-print-page')) return null;
     if (!textarea.closest('.step-block, #plateSection, #servingMethodSection')) return null;
 
     let editor = textarea._richEditor;
+    if ((!editor || !editor.isConnected) && textarea.nextElementSibling && textarea.nextElementSibling.classList.contains('step-rich-editor')) {
+      editor = textarea.nextElementSibling;
+      textarea._richEditor = editor;
+      editor._textarea = textarea;
+    }
     if (!editor || !editor.isConnected) {
       editor = document.createElement('div');
       editor.className = 'step-rich-editor';
@@ -676,10 +682,12 @@
 
   // 手順ブロックの連番更新と自動レイアウト振り分け
   function reorganizeStepBlocks() {
-    const blocks = Array.from(document.querySelectorAll('#outputArea .step-block[data-block-type="step"]'));
-    const outLeft = document.getElementById('outStepsLeft');
-    const outRight = document.getElementById('outStepsRight');
-    const outFull = document.getElementById('outStepsFull');
+    const liveOutput = document.querySelector('#editorWrapper > #outputArea:not(.batch-print-page)') || document.getElementById('outputArea');
+    if (!liveOutput) return;
+    const blocks = Array.from(liveOutput.querySelectorAll('.step-block[data-block-type="step"]'));
+    const outLeft = liveOutput.querySelector('#outStepsLeft');
+    const outRight = liveOutput.querySelector('#outStepsRight');
+    const outFull = liveOutput.querySelector('#outStepsFull');
 
     if (outLeft) outLeft.innerHTML = '';
     if (outRight) outRight.innerHTML = '';
@@ -703,13 +711,15 @@
     });
 
     updateBlockNumbers();
-    document.querySelectorAll('#outputArea .step-textarea').forEach(el => autoResizeTextarea(el));
+    liveOutput.querySelectorAll('.step-textarea').forEach(el => autoResizeTextarea(el));
     if (typeof adjustPreviewScale === 'function') adjustPreviewScale();
   }
 
   // 手順ブロックヘッダー「手順①」の連番更新
   function updateBlockNumbers() {
-    const blocks = document.querySelectorAll('#outputArea .step-block[data-block-type="step"]');
+    const liveOutput = document.querySelector('#editorWrapper > #outputArea:not(.batch-print-page)') || document.getElementById('outputArea');
+    if (!liveOutput) return;
+    const blocks = liveOutput.querySelectorAll('.step-block[data-block-type="step"]');
     blocks.forEach((block, index) => {
       const titleSpan = block.querySelector('.block-title');
       const printTitle = block.querySelector('.print-only-block-title');
@@ -1037,8 +1047,9 @@
   // プレビューの縮小率の調整
   // --- 3.4 Scale Adjustment & Print / Excel Export ---
   function adjustPreviewScale() {
+    if (document.body.classList.contains('is-batch-printing')) return;
     const wrapper = document.getElementById('editorWrapper');
-    const outputArea = document.getElementById('outputArea');
+    const outputArea = document.querySelector('#editorWrapper > #outputArea:not(.batch-print-page)') || document.getElementById('outputArea');
     if (!wrapper || !outputArea) return;
 
     if (window.innerWidth <= 600) {
@@ -1055,7 +1066,7 @@
     if (typeof currentMode !== 'undefined' && currentMode === 'cooking') {
       // 一旦スケールをリセットして本来の高さを取得する（scale歪みなしでtextarea高さも再計算）
       outputArea.style.transform = 'none';
-      document.querySelectorAll('#outputArea .step-textarea').forEach(el => autoResizeTextarea(el));
+      outputArea.querySelectorAll('.step-textarea').forEach(el => autoResizeTextarea(el));
       const actualHeight = outputArea.scrollHeight || 800;
       // 画面の高さにギリギリ収まるように倍率を計算（上下の余裕を80px確保）
       const heightScale = (window.innerHeight - 80) / actualHeight;
@@ -1076,6 +1087,7 @@
   window.addEventListener('resize', adjustPreviewScale);
 
   window.addEventListener('beforeprint', () => {
+    if (document.body.classList.contains('is-batch-printing')) return;
     // 印刷前に全手順テキストエリアの印刷用ミラー要素と高さを同期
     document.querySelectorAll('#outputArea .step-textarea').forEach(el => {
       autoResizeTextarea(el);
@@ -2012,6 +2024,28 @@
         updateDBStatusLabel(currentCode);
       }
       updateSavedCount();
+
+      const pendingLoad = safeStorage.getItem('pendingLoadRecipe');
+      if (pendingLoad) {
+        safeStorage.removeItem('pendingLoadRecipe');
+        document.getElementById('menuCode').value = pendingLoad;
+        handleMenuCodeSelection(pendingLoad);
+      }
+
+      const pendingBatch = safeStorage.getItem('pendingBatchPrintCodes');
+      if (pendingBatch) {
+        safeStorage.removeItem('pendingBatchPrintCodes');
+        try {
+          const batchCodes = JSON.parse(pendingBatch);
+          if (Array.isArray(batchCodes) && batchCodes.length > 0) {
+            setTimeout(() => {
+              executeBatchPrintByCodes(batchCodes);
+            }, 300);
+          }
+        } catch (e) {
+          console.error("Failed to parse pendingBatchPrintCodes:", e);
+        }
+      }
     })
     .catch(err => {
       console.error("Failed to initialize database:", err);
@@ -2216,20 +2250,22 @@
   }
 
   // 手順書オブジェクトのデシリアライズ（画面への反映）
-  function loadRecipeFromDB(recipe) {
+  function loadRecipeFromDB(recipe, skipModeRedirect = false) {
     if (!recipe) return;
 
     // モード切替を復元
-    if (recipe.mode && recipe.mode !== currentMode) {
-      localStorage.setItem('pendingLoadRecipe', recipe.menuCode);
-      if (recipe.mode === 'cooking') window.location.href = 'cooking.html';
-      else if (recipe.mode === 'drink') window.location.href = 'drink.html';
-      else window.location.href = 'index.html';
-      return;
-    } else if (!recipe.mode && currentMode !== 'bread') {
-      localStorage.setItem('pendingLoadRecipe', recipe.menuCode);
-      window.location.href = 'index.html';
-      return;
+    if (!skipModeRedirect) {
+      if (recipe.mode && recipe.mode !== currentMode) {
+        safeStorage.setItem('pendingLoadRecipe', recipe.menuCode);
+        if (recipe.mode === 'cooking') window.location.href = 'cooking.html';
+        else if (recipe.mode === 'drink') window.location.href = 'drink.html';
+        else window.location.href = 'index.html';
+        return;
+      } else if (!recipe.mode && currentMode !== 'bread') {
+        safeStorage.setItem('pendingLoadRecipe', recipe.menuCode);
+        window.location.href = 'index.html';
+        return;
+      }
     }
 
     const modeSelect = document.getElementById('recipeModeSelect');
@@ -2460,44 +2496,55 @@
 
   function restoreImageHelper(inputId, blob) {
     const input = document.getElementById(inputId);
-    if (!input) return;
+    if (!input) return Promise.resolve();
     const box = input.closest('.image-upload-box');
-    restoreImageHelperOnBox(box, blob);
+    return restoreImageHelperOnBox(box, blob);
   }
 
   async function restoreImageHelperOnBox(box, blob) {
     if (!box) return;
-    const placeholder = box.querySelector('.image-placeholder');
-    const preview = box.querySelector('.image-preview');
-    const img = preview.querySelector('img');
-    const fileInput = box.querySelector('input[type="file"]');
-    
-    if (blob) {
-      // 古い重い画像の場合はここで自動圧縮！
-      const compressedBlob = await compressImageBlob(blob);
+    const p = (async () => {
+      const placeholder = box.querySelector('.image-placeholder');
+      const preview = box.querySelector('.image-preview');
+      const img = preview.querySelector('img');
+      const fileInput = box.querySelector('input[type="file"]');
       
-      try {
-        const file = new File([compressedBlob], "image.jpeg", { type: compressedBlob.type || "image/jpeg" });
-        const dt = new DataTransfer();
-        dt.items.add(file);
-        fileInput.files = dt.files;
-        box.fileData = file;
-      } catch (e) {
-        console.error("Failed to restore files list:", e);
-        box.fileData = compressedBlob;
+      if (blob) {
+        // 古い重い画像の場合はここで自動圧縮！
+        const compressedBlob = await compressImageBlob(blob);
+        
+        try {
+          const file = new File([compressedBlob], "image.jpeg", { type: compressedBlob.type || "image/jpeg" });
+          const dt = new DataTransfer();
+          dt.items.add(file);
+          fileInput.files = dt.files;
+          box.fileData = file;
+        } catch (e) {
+          console.error("Failed to restore files list:", e);
+          box.fileData = compressedBlob;
+        }
+        
+        const url = URL.createObjectURL(compressedBlob);
+        if (typeof batchPrintObjectUrls !== 'undefined' && Array.isArray(batchPrintObjectUrls)) {
+          batchPrintObjectUrls.push(url);
+        }
+        await new Promise((resolve) => {
+          img.onload = () => resolve();
+          img.onerror = () => resolve();
+          img.src = url;
+        });
+        placeholder.style.display = 'none';
+        preview.style.display = 'flex';
+      } else {
+        fileInput.value = '';
+        img.removeAttribute('src');
+        box.fileData = null;
+        placeholder.style.display = 'flex';
+        preview.style.display = 'none';
       }
-      
-      const url = URL.createObjectURL(compressedBlob);
-      img.src = url;
-      placeholder.style.display = 'none';
-      preview.style.display = 'flex';
-    } else {
-      fileInput.value = '';
-      img.src = '';
-      box.fileData = null;
-      placeholder.style.display = 'flex';
-      preview.style.display = 'none';
-    }
+    })();
+    box._restorePromise = p;
+    return p;
   }
 
   function insertBlankStepBlock() {
@@ -2902,6 +2949,7 @@
 
   // --- 3.7.1 Saved Recipes List Modal Management ---
   let modalObjectUrls = [];
+  let batchPrintObjectUrls = [];
 
   function updateSavedCount() {
     const savedCountSpan = document.getElementById('savedCount');
@@ -2918,9 +2966,11 @@
     const modal = document.getElementById('recipeListModal');
     const grid = document.getElementById('modalRecipeGrid');
     const searchInput = document.getElementById('modalSearchInput');
+    const modeFilter = document.getElementById('modalModeFilter');
     if (!modal || !grid) return;
 
     if (searchInput) searchInput.value = '';
+    if (modeFilter) modeFilter.value = currentMode || 'all';
 
     showStatusMessage("一覧を読み込んでいます...", "info");
     
@@ -2942,14 +2992,18 @@
         grid.innerHTML = '<div style="text-align: center; color: #64748b; padding: 20px; font-size: 0.85rem;">保存された手順書がありません。</div>';
       } else {
         recipes.forEach(r => {
+          const rMode = r.mode || 'bread';
           const card = document.createElement('div');
           card.className = 'recipe-card';
           card.setAttribute('data-code', r.menuCode);
           card.setAttribute('data-name', r.productName || '');
           card.setAttribute('data-brand', r.brandCategory || '');
           card.setAttribute('data-category', r.menuCategory || '');
+          card.setAttribute('data-mode', rMode);
 
-          let thumbHTML = '<div class="recipe-card-thumb">🍞</div>';
+          const modeEmoji = rMode === 'cooking' ? '🍳' : (rMode === 'drink' ? '🥤' : '🍞');
+          const modeLabel = rMode === 'cooking' ? '料理' : (rMode === 'drink' ? 'ドリンク' : 'パン');
+          let thumbHTML = `<div class="recipe-card-thumb">${modeEmoji}</div>`;
           if (r.mainImageBlob) {
             const url = URL.createObjectURL(r.mainImageBlob);
             modalObjectUrls.push(url);
@@ -2967,7 +3021,7 @@
             dateStr = `${y}/${m}/${day} ${h}:${min}`;
           }
 
-          let tagsHTML = '';
+          let tagsHTML = `<span style="display:inline-block; border: 1px solid #cbd5e1; background: #f1f5f9; color: #334155; padding: 1px 6px; border-radius: 4px; font-size: 0.72rem; font-weight: bold; margin-right: 5px;">${modeEmoji} ${modeLabel}</span>`;
           if (r.brandCategory) {
              tagsHTML += `<span style="display:inline-block; border: 1px solid #cbd5e1; background: #f8fafc; color: #475569; padding: 1px 6px; border-radius: 4px; font-size: 0.75rem; margin-right: 5px;">${r.brandCategory}</span>`;
           }
@@ -2976,6 +3030,9 @@
           }
 
           card.innerHTML = `
+            <div class="recipe-card-check" onclick="toggleBatchCardCheckFromWrapper(this, event)">
+              <input type="checkbox" class="batch-recipe-checkbox" value="${r.menuCode}" data-mode="${rMode}" onclick="event.stopPropagation();" onchange="onBatchCheckboxChange(this)">
+            </div>
             ${thumbHTML}
             <div class="recipe-card-info">
               <h4 class="recipe-card-title">${r.menuCode} : ${r.productName || '無題の商品'}</h4>
@@ -2991,7 +3048,8 @@
             </div>
           `;
 
-          card.addEventListener('click', () => {
+          card.addEventListener('click', (e) => {
+            if (e.target.closest('.recipe-card-check') || e.target.closest('.recipe-card-actions')) return;
             loadRecipeFromList(r.menuCode);
           });
 
@@ -3000,6 +3058,8 @@
       }
 
       updateSavedCount();
+      filterModalRecipes();
+      updateBatchSelectionUI();
       modal.style.display = 'flex';
       showStatusMessage("一覧表示中", "success");
     } catch (e) {
@@ -3027,19 +3087,306 @@
   }
 
   function filterModalRecipes() {
-    const query = document.getElementById('modalSearchInput').value.trim().toLowerCase();
+    const searchInput = document.getElementById('modalSearchInput');
+    const query = searchInput ? searchInput.value.trim().toLowerCase() : '';
+    const brandFilter = document.getElementById('modalBrandFilter') ? document.getElementById('modalBrandFilter').value : '';
+    const categoryFilter = document.getElementById('modalCategoryFilter') ? document.getElementById('modalCategoryFilter').value : '';
+    const selectedMode = document.getElementById('modalModeFilter') ? document.getElementById('modalModeFilter').value : '';
     const cards = document.querySelectorAll('#modalRecipeGrid .recipe-card');
     
     cards.forEach(card => {
-      const code = card.getAttribute('data-code').toLowerCase();
-      const name = card.getAttribute('data-name').toLowerCase();
+      const code = (card.getAttribute('data-code') || '').toLowerCase();
+      const name = (card.getAttribute('data-name') || '').toLowerCase();
+      const brand = card.getAttribute('data-brand') || '';
+      const category = card.getAttribute('data-category') || '';
+      const cardMode = card.getAttribute('data-mode') || 'bread';
       
-      if (code.includes(query) || name.includes(query)) {
+      const matchesQuery = !query || code.includes(query) || name.includes(query);
+      const matchesBrand = !brandFilter || brandFilter === '--選択--' || brand === brandFilter;
+      const matchesCategory = !categoryFilter || categoryFilter === '--選択--' || category === categoryFilter;
+      const matchesMode = !selectedMode || selectedMode === 'all' || cardMode === selectedMode;
+
+      if (matchesQuery && matchesBrand && matchesCategory && matchesMode) {
         card.style.display = 'flex';
       } else {
         card.style.display = 'none';
       }
     });
+
+    updateBatchSelectionUI();
+  }
+
+  function toggleBatchCardCheckFromWrapper(wrapperEl, event) {
+    if (event) {
+      event.stopPropagation();
+    }
+    const cb = wrapperEl.querySelector('.batch-recipe-checkbox');
+    if (!cb) return;
+    if (event && event.target === cb) return;
+    cb.checked = !cb.checked;
+    onBatchCheckboxChange(cb);
+  }
+
+  function onBatchCheckboxChange(cb) {
+    const card = cb.closest('.recipe-card');
+    if (card) {
+      card.classList.toggle('selected-for-batch', cb.checked);
+    }
+    updateBatchSelectionUI();
+  }
+
+  function toggleBatchSelectAll(checked) {
+    const cards = document.querySelectorAll('#modalRecipeGrid .recipe-card');
+    cards.forEach(card => {
+      if (card.style.display !== 'none') {
+        const cb = card.querySelector('.batch-recipe-checkbox');
+        if (cb) {
+          cb.checked = checked;
+          card.classList.toggle('selected-for-batch', checked);
+        }
+      }
+    });
+    updateBatchSelectionUI();
+  }
+
+  function updateBatchSelectionUI() {
+    const allCheckboxes = Array.from(document.querySelectorAll('#modalRecipeGrid .batch-recipe-checkbox'));
+    const checkedBoxes = allCheckboxes.filter(cb => cb.checked);
+    const visibleCards = Array.from(document.querySelectorAll('#modalRecipeGrid .recipe-card')).filter(c => c.style.display !== 'none');
+    const visibleCheckboxes = visibleCards.map(c => c.querySelector('.batch-recipe-checkbox')).filter(Boolean);
+
+    const badge = document.getElementById('batchSelectedCountBadge');
+    const execBtn = document.getElementById('batchPrintExecBtn');
+    const selectAllCb = document.getElementById('batchSelectAllCheckbox');
+
+    if (badge) {
+      badge.textContent = `${checkedBoxes.length}件選択中`;
+    }
+    if (execBtn) {
+      execBtn.disabled = checkedBoxes.length === 0;
+    }
+    if (selectAllCb) {
+      if (visibleCheckboxes.length === 0) {
+        selectAllCb.checked = false;
+        selectAllCb.indeterminate = false;
+      } else {
+        const visibleCheckedCount = visibleCheckboxes.filter(cb => cb.checked).length;
+        selectAllCb.checked = visibleCheckedCount === visibleCheckboxes.length;
+        selectAllCb.indeterminate = visibleCheckedCount > 0 && visibleCheckedCount < visibleCheckboxes.length;
+      }
+    }
+  }
+
+  async function executeBatchPrintFromModal() {
+    const checkedBoxes = Array.from(document.querySelectorAll('#modalRecipeGrid .batch-recipe-checkbox:checked'));
+    if (checkedBoxes.length === 0) {
+      alert('一括出力する手順書を選択してください。');
+      return;
+    }
+
+    const selectedItems = checkedBoxes.map(cb => ({
+      code: cb.value,
+      mode: cb.getAttribute('data-mode') || 'bread'
+    }));
+
+    // モードが混在しているかチェック
+    const modes = Array.from(new Set(selectedItems.map(item => item.mode)));
+    let targetMode = currentMode;
+    let targetCodes = selectedItems.map(item => item.code);
+
+    if (modes.length > 1) {
+      const modeNameMap = { bread: '🍞 パン', cooking: '🍳 料理・デザート', drink: '🥤 ドリンク' };
+      const currentModeItems = selectedItems.filter(item => item.mode === currentMode);
+      if (currentModeItems.length > 0) {
+        const msg = `異なる区分（パン／料理／ドリンク）の手順書が同時に選択されています。\n用紙の向きやレイアウトが異なるため、まずは現在のモード（${modeNameMap[currentMode]}：${currentModeItems.length}件）のみを一括出力しますか？\n（※区分フィルタを使うとモード別に一括選択できます）`;
+        if (!confirm(msg)) return;
+        targetMode = currentMode;
+        targetCodes = currentModeItems.map(item => item.code);
+      } else {
+        targetMode = modes[0];
+        const firstModeItems = selectedItems.filter(item => item.mode === targetMode);
+        const msg = `異なる区分（パン／料理／ドリンク）の手順書が同時に選択されています。\nまずは「${modeNameMap[targetMode]}」（${firstModeItems.length}件）画面へ移動して一括出力しますか？`;
+        if (!confirm(msg)) return;
+        targetCodes = firstModeItems.map(item => item.code);
+      }
+    } else {
+      targetMode = modes[0];
+    }
+
+    if (targetMode !== currentMode) {
+      safeStorage.setItem('pendingBatchPrintCodes', JSON.stringify(targetCodes));
+      if (targetMode === 'cooking') {
+        window.location.href = 'cooking.html';
+      } else if (targetMode === 'drink') {
+        window.location.href = 'drink.html';
+      } else {
+        window.location.href = 'index.html';
+      }
+      return;
+    }
+
+    closeRecipeListModal();
+    await executeBatchPrintByCodes(targetCodes);
+  }
+
+  async function executeBatchPrintByCodes(codes) {
+    if (!Array.isArray(codes) || codes.length === 0) return;
+
+    const currentEditingCode = document.getElementById('menuCode') ? document.getElementById('menuCode').value.trim() : '';
+
+    // ローディングオーバーレイを表示
+    let overlay = document.getElementById('batchPrintLoadingOverlay');
+    if (!overlay) {
+      overlay = document.createElement('div');
+      overlay.id = 'batchPrintLoadingOverlay';
+      overlay.innerHTML = `
+        <div class="batch-loading-spinner"></div>
+        <div class="batch-loading-text" id="batchPrintLoadingText">一括印刷データを準備中...</div>
+        <div class="batch-loading-sub" id="batchPrintLoadingSub">画像を読み込んでレイアウトを最適化しています</div>
+      `;
+      document.body.appendChild(overlay);
+    }
+    const loadingText = document.getElementById('batchPrintLoadingText');
+    overlay.style.display = 'flex';
+
+    // 印刷用コンテナの準備
+    let batchContainer = document.getElementById('batchPrintContainer');
+    if (!batchContainer) {
+      batchContainer = document.createElement('div');
+      batchContainer.id = 'batchPrintContainer';
+      const wrapper = document.getElementById('editorWrapper');
+      if (wrapper) {
+        wrapper.appendChild(batchContainer);
+      } else {
+        document.body.appendChild(batchContainer);
+      }
+    }
+    batchContainer.innerHTML = '';
+
+    batchPrintObjectUrls.forEach(url => URL.revokeObjectURL(url));
+    batchPrintObjectUrls = [];
+
+    try {
+      const outputArea = document.querySelector('#editorWrapper > #outputArea:not(.batch-print-page)') || document.getElementById('outputArea');
+      if (!outputArea) throw new Error('出力エリアが見つかりません。');
+
+      const pageClones = [];
+
+      for (let i = 0; i < codes.length; i++) {
+        const code = String(codes[i]);
+        if (loadingText) {
+          loadingText.textContent = `一括出力データを準備中... (${i + 1} / ${codes.length} 件)`;
+        }
+
+        const recipe = await recipeDB.getRecipe(code);
+        if (!recipe) continue;
+
+        document.getElementById('menuCode').value = code;
+        await loadRecipeFromDB(recipe, true);
+
+        // 画像の非同期読み込み完了を待機
+        const boxes = Array.from(outputArea.querySelectorAll('.image-upload-box'));
+        const promises = boxes.map(b => b._restorePromise).filter(Boolean);
+        await Promise.all(promises);
+
+        // beforeprint相当のテキスト・高さ・列幅の同期を実行
+        outputArea.querySelectorAll('textarea').forEach(ta => {
+          if (typeof autoResizeTextarea === 'function') autoResizeTextarea(ta);
+          if (typeof syncStepPrintText === 'function') syncStepPrintText(ta);
+        });
+        const slipInput = document.getElementById('manufacturingSlip');
+        const slipPrint = outputArea.querySelector('.slip-title-print');
+        if (slipInput && slipPrint) {
+          slipPrint.innerText = slipInput.value;
+        }
+        outputArea.querySelectorAll('#ingredientsContainer .ing-row').forEach(row => {
+          if (typeof syncIngRowPrintStyles === 'function') syncIngRowPrintStyles(row);
+        });
+
+        // レイアウト反映のため1フレーム待機
+        await new Promise(r => requestAnimationFrame(() => setTimeout(r, 40)));
+
+        // outputAreaを丸ごとクローンし、フォーム入力値を転写（ループ中はDOMに追加せずメモリ配列に保持）
+        const clone = outputArea.cloneNode(true);
+        clone.classList.add('batch-print-page');
+        clone.style.transform = 'none';
+
+        const origInputs = outputArea.querySelectorAll('input, textarea, select');
+        const cloneInputs = clone.querySelectorAll('input, textarea, select');
+        origInputs.forEach((origEl, idx) => {
+          const cloneEl = cloneInputs[idx];
+          if (!cloneEl) return;
+          if (origEl.tagName === 'TEXTAREA') {
+            cloneEl.value = origEl.value;
+            cloneEl.textContent = origEl.value;
+            cloneEl.style.height = origEl.style.height;
+          } else if (origEl.tagName === 'SELECT') {
+            cloneEl.value = origEl.value;
+            Array.from(cloneEl.options).forEach((opt, optIdx) => {
+              if (origEl.options[optIdx] && origEl.options[optIdx].selected) {
+                opt.setAttribute('selected', 'selected');
+              } else {
+                opt.removeAttribute('selected');
+              }
+            });
+          } else if (origEl.type === 'checkbox' || origEl.type === 'radio') {
+            cloneEl.checked = origEl.checked;
+            if (origEl.checked) cloneEl.setAttribute('checked', 'checked');
+            else cloneEl.removeAttribute('checked');
+          } else if (origEl.type !== 'file') {
+            cloneEl.value = origEl.value;
+            cloneEl.setAttribute('value', origEl.value);
+          }
+        });
+
+        pageClones.push(clone);
+      }
+
+      // 全レシピの読み込み・クローン作成が完了してから一括でコンテナへ追加（ID競合や要素移動を完全防止）
+      pageClones.forEach(c => batchContainer.appendChild(c));
+
+      const wrapper = document.getElementById('editorWrapper');
+      if (wrapper) wrapper.style.height = 'auto';
+
+      overlay.style.display = 'none';
+      document.body.classList.add('is-batch-printing');
+
+      // 少し待ってからブラウザの印刷・PDF保存ダイアログを起動
+      await new Promise(r => setTimeout(r, 120));
+
+      const cleanup = async () => {
+        window.removeEventListener('afterprint', cleanup);
+        await cleanupBatchPrint(currentEditingCode, codes[codes.length - 1]);
+      };
+      window.addEventListener('afterprint', cleanup, { once: true });
+
+      window.print();
+    } catch (err) {
+      console.error('Batch print error:', err);
+      if (overlay) overlay.style.display = 'none';
+      document.body.classList.remove('is-batch-printing');
+      alert('一括出力の準備中にエラーが発生しました: ' + err.message);
+    }
+  }
+
+  async function cleanupBatchPrint(previousCode, lastLoadedCode) {
+    document.body.classList.remove('is-batch-printing');
+    const batchContainer = document.getElementById('batchPrintContainer');
+    if (batchContainer) {
+      batchContainer.innerHTML = '';
+    }
+    batchPrintObjectUrls.forEach(url => URL.revokeObjectURL(url));
+    batchPrintObjectUrls = [];
+
+    const codeToRestore = previousCode || lastLoadedCode || '';
+    if (codeToRestore) {
+      document.getElementById('menuCode').value = codeToRestore;
+      const savedRecipe = await recipeDB.getRecipe(codeToRestore);
+      if (savedRecipe) {
+        await loadRecipeFromDB(savedRecipe, true);
+      }
+    }
+    showStatusMessage("一括印刷・PDF出力が完了しました", "success");
   }
 
   async function loadRecipeFromList(code, event) {
@@ -3071,6 +3418,7 @@
       if (card) card.remove();
       
       updateSavedCount();
+      updateBatchSelectionUI();
       
       const currentCode = document.getElementById('menuCode').value.trim();
       if (currentCode === code) {
