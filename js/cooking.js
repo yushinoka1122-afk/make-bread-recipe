@@ -2101,7 +2101,7 @@
 
     const periodStart = document.getElementById('periodStart') ? document.getElementById('periodStart').value : "";
     const periodEnd = document.getElementById('periodEnd') ? document.getElementById('periodEnd').value : "";
-    const brandCategory = document.getElementById('brandCategory') ? document.getElementById('brandCategory').value : "";
+    const brandCategory = (document.getElementById('brandCategory') && document.getElementById('brandCategory').value !== '--選択--') ? document.getElementById('brandCategory').value : "";
     const menuCategory = document.getElementById('menuCategory') ? document.getElementById('menuCategory').value : "";
 
     const moldL = document.getElementById('moldL').value;
@@ -2300,9 +2300,14 @@
     }
 
     if (document.getElementById('brandCategory')) {
-      document.getElementById('brandCategory').value = recipe.brandCategory || "";
-      if (document.querySelector('.brand-print')) {
-        document.querySelector('.brand-print').innerText = recipe.brandCategory || "";
+      if (typeof window.setBrandCategoryValue === 'function') {
+        window.setBrandCategoryValue(recipe.brandCategory || "");
+      } else {
+        const val = (recipe.brandCategory && recipe.brandCategory !== '--選択--') ? recipe.brandCategory : "";
+        document.getElementById('brandCategory').value = val;
+        if (document.querySelector('.brand-print')) {
+          document.querySelector('.brand-print').innerText = val;
+        }
       }
     }
     if (document.getElementById('menuCategory')) {
@@ -3022,8 +3027,10 @@
           }
 
           let tagsHTML = `<span style="display:inline-block; border: 1px solid #cbd5e1; background: #f1f5f9; color: #334155; padding: 1px 6px; border-radius: 4px; font-size: 0.72rem; font-weight: bold; margin-right: 5px;">${modeEmoji} ${modeLabel}</span>`;
-          if (r.brandCategory) {
-             tagsHTML += `<span style="display:inline-block; border: 1px solid #cbd5e1; background: #f8fafc; color: #475569; padding: 1px 6px; border-radius: 4px; font-size: 0.75rem; margin-right: 5px;">${r.brandCategory}</span>`;
+          if (r.brandCategory && r.brandCategory !== '--選択--') {
+             r.brandCategory.split(',').map(s => s.trim()).filter(s => s && s !== '--選択--').forEach(b => {
+               tagsHTML += `<span style="display:inline-block; border: 1px solid #cbd5e1; background: #f8fafc; color: #475569; padding: 1px 6px; border-radius: 4px; font-size: 0.75rem; margin-right: 5px;">${b}</span>`;
+             });
           }
           if (r.menuCategory) {
              tagsHTML += `<span style="display:inline-block; border: 1px solid #93c5fd; background: #eff6ff; color: #2563eb; padding: 1px 6px; border-radius: 4px; font-size: 0.75rem;">${r.menuCategory}</span>`;
@@ -3102,7 +3109,8 @@
       const cardMode = card.getAttribute('data-mode') || 'bread';
       
       const matchesQuery = !query || code.includes(query) || name.includes(query);
-      const matchesBrand = !brandFilter || brandFilter === '--選択--' || brand === brandFilter;
+      const brandList = brand.split(',').map(s => s.trim()).filter(Boolean);
+      const matchesBrand = !brandFilter || brandFilter === '--選択--' || brand === brandFilter || brandList.includes(brandFilter);
       const matchesCategory = !categoryFilter || categoryFilter === '--選択--' || category === categoryFilter;
       const matchesMode = !selectedMode || selectedMode === 'all' || cardMode === selectedMode;
 
@@ -3534,3 +3542,61 @@
     }
   }
 
+
+
+  // --- ブランド区分（複数選択）UI制御 ---
+  window.toggleBrandDropdown = function(event) {
+    if (event) event.stopPropagation();
+    const menu = document.getElementById('brandDropdownMenu');
+    if (!menu) return;
+    menu.style.display = (menu.style.display === 'none' || !menu.style.display) ? 'block' : 'none';
+  };
+
+  window.onBrandCheckboxChange = function() {
+    const cbs = document.querySelectorAll('.brand-option-cb');
+    const selected = [];
+    cbs.forEach(cb => {
+      if (cb.checked) selected.push(cb.value);
+    });
+    const valStr = selected.join(', ');
+    const input = document.getElementById('brandCategory');
+    if (input) input.value = valStr;
+    const label = document.getElementById('brandDropdownLabel');
+    if (label) {
+      if (selected.length === 0) {
+        label.innerHTML = '--選択--';
+      } else {
+        label.innerHTML = selected.map(b =>
+          '<span style="background: #e0f2fe; border: 1px solid #7dd3fc; color: #0369a1; padding: 0px 6px; border-radius: 3px; font-size: 0.78rem; font-weight: bold;">' + b + '</span>'
+        ).join('');
+      }
+    }
+    const printSpan = document.querySelector('.brand-print');
+    if (printSpan) {
+      printSpan.innerText = valStr;
+    }
+  };
+
+  window.setBrandCategoryValue = function(rawVal) {
+    let arr = [];
+    if (Array.isArray(rawVal)) {
+      arr = rawVal;
+    } else if (typeof rawVal === 'string' && rawVal && rawVal !== '--選択--') {
+      arr = rawVal.split(',').map(s => s.trim()).filter(s => s && s !== '--選択--');
+    }
+    const cbs = document.querySelectorAll('.brand-option-cb');
+    cbs.forEach(cb => {
+      cb.checked = arr.includes(cb.value);
+    });
+    window.onBrandCheckboxChange();
+  };
+
+  document.addEventListener('click', function(e) {
+    const container = document.querySelector('.brand-multiselect-container');
+    const menu = document.getElementById('brandDropdownMenu');
+    if (menu && menu.style.display === 'block') {
+      if (!container || !container.contains(e.target)) {
+        menu.style.display = 'none';
+      }
+    }
+  });
