@@ -1,0 +1,3536 @@
+  // ==========================================================================
+  // ■ SECTION 3: JAVASCRIPT LOGIC
+  // ==========================================================================
+
+  // --- 3.1 Base Utilities & Browser Cache Storage ---
+  const circleNums = ["①","②","③","④","⑤","⑥","⑦","⑧","⑨","⑩","⑪","⑫","⑬","⑭","⑮","⑯","⑰","⑱","⑲","⑳"];
+  let currentMode = 'standby';
+
+  // 安全なlocalStorageアクセスラッパー (SecurityError等によるJSクラッシュの防止)
+  const safeStorage = {
+    getItem(key) {
+      try { return localStorage.getItem(key); } catch (e) { return null; }
+    },
+    setItem(key, value) {
+      try { localStorage.setItem(key, value); } catch (e) {}
+    },
+    removeItem(key) {
+      try { localStorage.removeItem(key); } catch (e) {}
+    }
+  };
+
+  // --- Rich Text Editor & Toolbar Engine (太字・下線・斜体・取消線・文字サイズ・文字色・ハイライト・書式クリア) ---
+  let activeRichEditor = null;
+
+  function valueToRichHTML(val) {
+    if (!val) return '';
+    return String(val).replace(/\r?\n/g, '<br>');
+  }
+
+  function stripRichHTML(val) {
+    if (!val) return '';
+    const tmp = document.createElement('div');
+    tmp.innerHTML = String(val)
+      .replace(/<br\s*\/?>/gi, '\n')
+      .replace(/<\/(div|p)>/gi, '\n');
+    return tmp.textContent || tmp.innerText || '';
+  }
+
+  function saveEditorSelection(editor) {
+    if (!editor) return;
+    const sel = window.getSelection();
+    if (sel && sel.rangeCount > 0) {
+      const range = sel.getRangeAt(0);
+      if (editor.contains(range.commonAncestorContainer)) {
+        editor._savedRange = range.cloneRange();
+        activeRichEditor = editor;
+      }
+    }
+  }
+
+  function restoreEditorSelection(editor) {
+    if (!editor) return;
+    editor.focus();
+    if (editor._savedRange) {
+      const sel = window.getSelection();
+      if (sel) {
+        sel.removeAllRanges();
+        sel.addRange(editor._savedRange);
+      }
+    }
+  }
+
+  function applyRichFontSize(editor, sizePx) {
+    restoreEditorSelection(editor);
+    const sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0) return;
+    const range = sel.getRangeAt(0);
+    if (!editor.contains(range.commonAncestorContainer)) return;
+
+    if (range.collapsed) {
+      const span = document.createElement('span');
+      span.style.fontSize = sizePx;
+      span.innerHTML = '&#8203;';
+      range.insertNode(span);
+      const newRange = document.createRange();
+      newRange.setStart(span.firstChild, 1);
+      newRange.collapse(true);
+      sel.removeAllRanges();
+      sel.addRange(newRange);
+      saveEditorSelection(editor);
+      return;
+    }
+
+    document.execCommand('styleWithCSS', false, false);
+    document.execCommand('fontSize', false, '7');
+    editor.querySelectorAll('font[size="7"]').forEach(fontEl => {
+      fontEl.removeAttribute('size');
+      fontEl.style.fontSize = sizePx;
+      fontEl.querySelectorAll('[style*="font-size"]').forEach(child => {
+        child.style.fontSize = '';
+      });
+    });
+    saveEditorSelection(editor);
+  }
+
+  function clearRichFormattingOnSelection(editor) {
+    const sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0) return;
+    const range = sel.getRangeAt(0);
+    if (range.collapsed) {
+      document.execCommand('removeFormat', false, null);
+      return;
+    }
+    document.execCommand('removeFormat', false, null);
+    document.execCommand('styleWithCSS', false, true);
+    document.execCommand('hiliteColor', false, 'transparent');
+    editor.querySelectorAll('font, span').forEach(el => {
+      if (sel.containsNode(el, true)) {
+        el.style.fontSize = '';
+        el.style.color = '';
+        el.style.backgroundColor = '';
+        el.removeAttribute('color');
+        el.removeAttribute('size');
+      }
+    });
+  }
+
+  function syncStepPrintText(textarea) {
+    if (!textarea || !textarea.parentElement) return;
+  }
+
+  function syncEditorToTextarea(editor, textarea) {
+    if (!editor || !textarea) return;
+    const plain = (editor.innerText || '').replace(/\u200B/g, '').trim();
+    if (!plain) {
+      textarea.value = '';
+      editor.setAttribute('data-empty', 'true');
+    } else {
+      textarea.value = editor.innerHTML;
+      editor.removeAttribute('data-empty');
+    }
+    editor._lastSyncedValue = textarea.value;
+  }
+
+  function createRichToolbar(editor, textarea) {
+    const toolbar = document.createElement('div');
+    toolbar.className = 'step-rich-toolbar edit-only-row';
+    toolbar._targetEditor = editor;
+    toolbar._targetTextarea = textarea;
+    toolbar._activeColor = '#dc2626';
+    toolbar._activeHighlight = '#fef08a';
+
+    toolbar.innerHTML = `
+      <button type="button" class="rt-btn" data-rt-action="bold" title="太字 (Ctrl+B)"><b>B</b></button>
+      <button type="button" class="rt-btn" data-rt-action="italic" title="斜体 (Ctrl+I)"><i>I</i></button>
+      <button type="button" class="rt-btn" data-rt-action="underline" title="下線 (Ctrl+U)"><u>U</u></button>
+      <button type="button" class="rt-btn" data-rt-action="strikeThrough" title="取消線"><s>abc</s></button>
+      <span class="rt-sep"></span>
+      <div class="rt-btn-wrap">
+        <button type="button" class="rt-btn" data-rt-toggle="size" title="選択文字のサイズ変更">サイズ<span class="rt-arrow">▼</span></button>
+        <div class="rt-dropdown-menu" data-rt-menu="size">
+          <button type="button" class="rt-menu-item" data-rt-size="8px"><span style="font-size:8px;">極小 (8px)</span></button>
+          <button type="button" class="rt-menu-item" data-rt-size="9.5px"><span style="font-size:9.5px;">標準 (9.5px)</span></button>
+          <button type="button" class="rt-menu-item" data-rt-size="11px"><span style="font-size:11px;">中 (11px)</span></button>
+          <button type="button" class="rt-menu-item" data-rt-size="13px"><span style="font-size:13px; font-weight:bold;">大 (13px)</span></button>
+          <button type="button" class="rt-menu-item" data-rt-size="15px"><span style="font-size:15px; font-weight:bold;">特大 (15px)</span></button>
+        </div>
+      </div>
+      <div class="rt-btn-wrap">
+        <button type="button" class="rt-btn" data-rt-action="applyColor" title="文字色変更（赤文字など）">
+          <span class="rt-color-indicator">
+            <b style="font-size:10px;">A</b>
+            <span class="rt-color-bar" style="background:#dc2626;"></span>
+          </span>
+        </button>
+        <button type="button" class="rt-btn" data-rt-toggle="color" title="文字色を選択" style="min-width:12px; padding:0 2px;"><span class="rt-arrow">▼</span></button>
+        <div class="rt-dropdown-menu" data-rt-menu="color">
+          <button type="button" class="rt-menu-item" data-rt-color="#dc2626"><span class="rt-swatch" style="background:#dc2626;"></span><span style="color:#dc2626;font-weight:bold;">赤文字 (強調)</span></button>
+          <button type="button" class="rt-menu-item" data-rt-color="#0f172a"><span class="rt-swatch" style="background:#0f172a;"></span><span style="color:#0f172a;">黒文字 (標準)</span></button>
+          <button type="button" class="rt-menu-item" data-rt-color="#2563eb"><span class="rt-swatch" style="background:#2563eb;"></span><span style="color:#2563eb;">青文字</span></button>
+          <button type="button" class="rt-menu-item" data-rt-color="#16a34a"><span class="rt-swatch" style="background:#16a34a;"></span><span style="color:#16a34a;">緑文字</span></button>
+          <button type="button" class="rt-menu-item" data-rt-color="#ea580c"><span class="rt-swatch" style="background:#ea580c;"></span><span style="color:#ea580c;">オレンジ文字</span></button>
+        </div>
+      </div>
+      <div class="rt-btn-wrap">
+        <button type="button" class="rt-btn" data-rt-action="applyHighlight" title="ハイライト（蛍光マーカー）">
+          <span class="rt-hl-badge" style="background:#fef08a; color:#0f172a;">A</span>
+        </button>
+        <button type="button" class="rt-btn" data-rt-toggle="highlight" title="ハイライト色を選択" style="min-width:12px; padding:0 2px;"><span class="rt-arrow">▼</span></button>
+        <div class="rt-dropdown-menu" data-rt-menu="highlight">
+          <button type="button" class="rt-menu-item" data-rt-hl="#fef08a"><span class="rt-swatch" style="background:#fef08a;"></span>黄ハイライト</button>
+          <button type="button" class="rt-menu-item" data-rt-hl="#fbcfe8"><span class="rt-swatch" style="background:#fbcfe8;"></span>ピンクハイライト</button>
+          <button type="button" class="rt-menu-item" data-rt-hl="#bae6fd"><span class="rt-swatch" style="background:#bae6fd;"></span>水色ハイライト</button>
+          <button type="button" class="rt-menu-item" data-rt-hl="#bbf7d0"><span class="rt-swatch" style="background:#bbf7d0;"></span>緑ハイライト</button>
+          <button type="button" class="rt-menu-item" data-rt-hl="transparent"><span class="rt-swatch" style="background:#ffffff;"></span>ハイライト解除</button>
+        </div>
+      </div>
+      <span class="rt-sep"></span>
+      <button type="button" class="rt-btn" data-rt-action="removeFormat" title="選択範囲の書式クリア">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 21-4.3-4.3c-1-1-1-2.5 0-3.4l9.6-9.6c1-1 2.5-1 3.4 0l5.6 5.6c1 1 1 2.5 0 3.4L13 21"/><path d="M22 21H7"/><path d="m5 11 9 9"/></svg>
+      </button>
+    `;
+
+    toolbar.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+    });
+
+    toolbar.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const toggleBtn = e.target.closest('[data-rt-toggle]');
+      if (toggleBtn) {
+        const menuType = toggleBtn.getAttribute('data-rt-toggle');
+        const menu = toolbar.querySelector(`[data-rt-menu="${menuType}"]`);
+        const wasOpen = menu && menu.classList.contains('open');
+        document.querySelectorAll('.rt-dropdown-menu.open').forEach(m => m.classList.remove('open'));
+        if (menu && !wasOpen) {
+          menu.classList.add('open');
+        }
+        return;
+      }
+
+      const actionBtn = e.target.closest('[data-rt-action]');
+      if (actionBtn) {
+        const action = actionBtn.getAttribute('data-rt-action');
+        document.querySelectorAll('.rt-dropdown-menu.open').forEach(m => m.classList.remove('open'));
+        restoreEditorSelection(editor);
+        if (action === 'bold' || action === 'italic' || action === 'underline' || action === 'strikeThrough') {
+          document.execCommand(action, false, null);
+        } else if (action === 'applyColor') {
+          document.execCommand('styleWithCSS', false, true);
+          document.execCommand('foreColor', false, toolbar._activeColor || '#dc2626');
+        } else if (action === 'applyHighlight') {
+          document.execCommand('styleWithCSS', false, true);
+          document.execCommand('hiliteColor', false, toolbar._activeHighlight || '#fef08a');
+        } else if (action === 'removeFormat') {
+          clearRichFormattingOnSelection(editor);
+        }
+        saveEditorSelection(editor);
+        syncEditorToTextarea(editor, textarea);
+        if (typeof adjustPreviewScale === 'function') adjustPreviewScale();
+        return;
+      }
+
+      const colorItem = e.target.closest('[data-rt-color]');
+      if (colorItem) {
+        const color = colorItem.getAttribute('data-rt-color');
+        toolbar._activeColor = color;
+        const bar = toolbar.querySelector('.rt-color-bar');
+        if (bar) bar.style.background = color;
+        document.querySelectorAll('.rt-dropdown-menu.open').forEach(m => m.classList.remove('open'));
+        restoreEditorSelection(editor);
+        document.execCommand('styleWithCSS', false, true);
+        document.execCommand('foreColor', false, color);
+        saveEditorSelection(editor);
+        syncEditorToTextarea(editor, textarea);
+        return;
+      }
+
+      const hlItem = e.target.closest('[data-rt-hl]');
+      if (hlItem) {
+        const hl = hlItem.getAttribute('data-rt-hl');
+        if (hl !== 'transparent') {
+          toolbar._activeHighlight = hl;
+          const badge = toolbar.querySelector('.rt-hl-badge');
+          if (badge) badge.style.background = hl;
+        }
+        document.querySelectorAll('.rt-dropdown-menu.open').forEach(m => m.classList.remove('open'));
+        restoreEditorSelection(editor);
+        document.execCommand('styleWithCSS', false, true);
+        document.execCommand('hiliteColor', false, hl);
+        saveEditorSelection(editor);
+        syncEditorToTextarea(editor, textarea);
+        return;
+      }
+
+      const sizeItem = e.target.closest('[data-rt-size]');
+      if (sizeItem) {
+        const sizePx = sizeItem.getAttribute('data-rt-size');
+        document.querySelectorAll('.rt-dropdown-menu.open').forEach(m => m.classList.remove('open'));
+        applyRichFontSize(editor, sizePx);
+        syncEditorToTextarea(editor, textarea);
+        if (typeof adjustPreviewScale === 'function') adjustPreviewScale();
+        return;
+      }
+    });
+
+    return toolbar;
+  }
+
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('.rt-btn-wrap')) {
+      document.querySelectorAll('.rt-dropdown-menu.open').forEach(m => m.classList.remove('open'));
+    }
+  });
+
+  // --- 使用食材テーブル用 文字装飾（サイズ・文字色・太字・下線）エンジン ---
+  let activeIngCell = null;
+
+  function setActiveIngCell(el) {
+    if (!el) return;
+    document.querySelectorAll('#ingredientsContainer .ing-cell-active').forEach(c => c.classList.remove('ing-cell-active'));
+    activeIngCell = el;
+    el.classList.add('ing-cell-active');
+    const indicator = document.getElementById('ingActiveCellLabel');
+    if (indicator) {
+      let colName = 'セル';
+      if (el.classList.contains('ing-code')) colName = 'コード';
+      else if (el.classList.contains('ing-name')) colName = '品名';
+      else if (el.classList.contains('ing-amount')) colName = '使用量';
+      else if (el.classList.contains('ing-unit')) colName = '単位';
+      indicator.textContent = `選択中: ${colName}`;
+      indicator.style.color = '#2563eb';
+    }
+  }
+
+  document.addEventListener('focusin', (e) => {
+    const cell = e.target.closest('#ingredientsContainer .ing-code, #ingredientsContainer .ing-name, #ingredientsContainer .ing-amount, #ingredientsContainer .ing-unit');
+    if (cell) {
+      setActiveIngCell(cell);
+    }
+  });
+
+  function extractIngCellStyle(el) {
+    if (!el) return null;
+    const s = {};
+    if (el.style.color) s.color = el.style.color;
+    if (el.style.fontSize) s.fontSize = el.style.fontSize;
+    if (el.style.fontWeight) s.fontWeight = el.style.fontWeight;
+    if (el.style.textDecoration) s.textDecoration = el.style.textDecoration;
+    return Object.keys(s).length > 0 ? s : null;
+  }
+
+  function applyIngCellStyle(el, styleObj) {
+    if (!el) return;
+    el.style.color = (styleObj && styleObj.color) ? styleObj.color : '';
+    el.style.fontSize = (styleObj && styleObj.fontSize) ? styleObj.fontSize : '';
+    el.style.fontWeight = (styleObj && styleObj.fontWeight) ? styleObj.fontWeight : '';
+    el.style.textDecoration = (styleObj && styleObj.textDecoration) ? styleObj.textDecoration : '';
+  }
+
+  function syncIngCellPrintStyle(inputEl, printEl) {
+    if (!inputEl || !printEl) return;
+    const props = ['color', 'font-size', 'font-weight', 'text-decoration'];
+    const camelProps = ['color', 'fontSize', 'fontWeight', 'textDecoration'];
+    props.forEach((prop, idx) => {
+      const val = inputEl.style[camelProps[idx]];
+      if (val) {
+        printEl.style.setProperty(prop, val, 'important');
+      } else {
+        printEl.style.removeProperty(prop);
+      }
+    });
+  }
+
+  function syncIngRowPrintStyles(row) {
+    if (!row) return;
+    const codeInput = row.querySelector('.ing-code');
+    const nameInput = row.querySelector('.ing-name');
+    const amountInput = row.querySelector('.ing-amount');
+    const unitSelect = row.querySelector('.ing-unit');
+
+    const codeSpan = row.querySelector('.ing-code-print');
+    const nameSpan = row.querySelector('.ing-name-print');
+    const amountSpan = row.querySelector('.ing-amount-print');
+
+    if (codeInput && codeSpan) {
+      codeSpan.innerText = codeInput.value;
+      syncIngCellPrintStyle(codeInput, codeSpan);
+    }
+    if (nameInput && nameSpan) {
+      nameSpan.innerText = nameInput.value;
+      syncIngCellPrintStyle(nameInput, nameSpan);
+    }
+    if (amountInput && amountSpan) {
+      amountSpan.innerText = amountInput.value;
+      syncIngCellPrintStyle(amountInput, amountSpan);
+    }
+    if (unitSelect) {
+      let unitSpan = row.querySelector('.ing-unit-print');
+      if (!unitSpan) {
+        unitSpan = document.createElement('span');
+        unitSpan.className = 'print-text ing-unit-print';
+        unitSelect.insertAdjacentElement('afterend', unitSpan);
+      }
+      unitSpan.innerText = unitSelect.value;
+      syncIngCellPrintStyle(unitSelect, unitSpan);
+    }
+  }
+
+  function mergeIngredientsWithSaved(masterIngs, savedIngs) {
+    const cloned = JSON.parse(JSON.stringify(masterIngs || []));
+    if (!Array.isArray(savedIngs) || savedIngs.length === 0) {
+      return cloned.map(mIng => ({
+        ...mIng,
+        masterCode: mIng.code,
+        masterName: mIng.name,
+        masterAmount: mIng.amount,
+        masterUnit: mIng.unit
+      }));
+    }
+    const usedSavedIdx = new Set();
+    const merged = cloned.map((mIng, idx) => {
+      let matchIdx = -1;
+      if (mIng.code) {
+        if (savedIngs[idx] && savedIngs[idx].code === mIng.code && !usedSavedIdx.has(idx)) {
+          matchIdx = idx;
+        } else {
+          matchIdx = savedIngs.findIndex((s, sIdx) => !usedSavedIdx.has(sIdx) && s.code === mIng.code);
+        }
+      }
+      if (matchIdx === -1 && savedIngs[idx] && !usedSavedIdx.has(idx) && (!savedIngs[idx].code || !mIng.code)) {
+        matchIdx = idx;
+      }
+      const match = matchIdx !== -1 ? savedIngs[matchIdx] : null;
+      if (matchIdx !== -1) usedSavedIdx.add(matchIdx);
+
+      const result = {
+        ...mIng,
+        masterCode: mIng.code,
+        masterName: mIng.name,
+        masterAmount: mIng.amount,
+        masterUnit: mIng.unit
+      };
+
+      if (match) {
+        // パターンA: マスタ側の値が前回保存時のマスタ値(masterName/masterAmount/masterUnit)から変化していない場合は、ユーザーの編集値を優先保持する
+        const nameChangedInMaster = (match.masterName !== undefined && String(match.masterName) !== String(mIng.name));
+        const amountChangedInMaster = (match.masterAmount !== undefined && String(match.masterAmount) !== String(mIng.amount));
+        const unitChangedInMaster = (match.masterUnit !== undefined && String(match.masterUnit) !== String(mIng.unit));
+
+        if (!nameChangedInMaster && match.name !== undefined && match.name !== '') {
+          result.name = match.name;
+        }
+        if (!amountChangedInMaster && match.amount !== undefined && match.amount !== '') {
+          result.amount = match.amount;
+        }
+        if (!unitChangedInMaster && match.unit !== undefined && match.unit !== '') {
+          result.unit = match.unit;
+        }
+
+        if (match.standby !== undefined) result.standby = match.standby;
+        if (match.codeStyle) result.codeStyle = match.codeStyle;
+        if (match.nameStyle) result.nameStyle = match.nameStyle;
+        if (match.amountStyle) result.amountStyle = match.amountStyle;
+        if (match.unitStyle) result.unitStyle = match.unitStyle;
+      }
+      return result;
+    });
+
+    // ユーザーが手動追加した行（isCustomRow）があれば保持する
+    savedIngs.forEach((s, sIdx) => {
+      if (!usedSavedIdx.has(sIdx) && s.isCustomRow) {
+        merged.push(JSON.parse(JSON.stringify(s)));
+      }
+    });
+
+    return merged;
+  }
+
+  function getTargetIngCell() {
+    if (activeIngCell && activeIngCell.isConnected) return activeIngCell;
+    const firstAmount = document.querySelector('#ingredientsContainer .ing-amount');
+    if (firstAmount) {
+      setActiveIngCell(firstAmount);
+      return firstAmount;
+    }
+    return null;
+  }
+
+  function ensureIngredientToolbar() {
+    if (document.getElementById('ingStyleToolbar')) return;
+    const table = document.querySelector('.output-left .output-table') || document.querySelector('.output-table');
+    if (!table || !table.parentElement) return;
+
+    const toolbar = document.createElement('div');
+    toolbar.id = 'ingStyleToolbar';
+    toolbar.className = 'step-rich-toolbar ing-style-toolbar edit-only-row';
+    toolbar._activeColor = '#dc2626';
+
+    toolbar.innerHTML = `
+      <span class="ing-toolbar-label" title="使用食材のセルをクリックしてからボタンを押してください">食材装飾:</span>
+      <button type="button" class="rt-btn" data-ing-action="bold" title="太字"><b>B</b></button>
+      <button type="button" class="rt-btn" data-ing-action="underline" title="下線"><u>U</u></button>
+      <span class="rt-sep"></span>
+      <div class="rt-btn-wrap">
+        <button type="button" class="rt-btn" data-rt-toggle="ing-size" title="セルの文字サイズ変更">サイズ<span class="rt-arrow">▼</span></button>
+        <div class="rt-dropdown-menu" data-rt-menu="ing-size">
+          <button type="button" class="rt-menu-item" data-ing-size="7.5px"><span style="font-size:7.5px;">極小 (7.5px)</span></button>
+          <button type="button" class="rt-menu-item" data-ing-size="8.5px"><span style="font-size:8.5px;">標準 (8.5px)</span></button>
+          <button type="button" class="rt-menu-item" data-ing-size="10px"><span style="font-size:10px;">中 (10px)</span></button>
+          <button type="button" class="rt-menu-item" data-ing-size="11.5px"><span style="font-size:11.5px; font-weight:bold;">大 (11.5px)</span></button>
+          <button type="button" class="rt-menu-item" data-ing-size="13px"><span style="font-size:13px; font-weight:bold;">特大 (13px)</span></button>
+        </div>
+      </div>
+      <div class="rt-btn-wrap">
+        <button type="button" class="rt-btn" data-ing-action="applyColor" title="セルの文字色変更（赤文字・黒字など）">
+          <span class="rt-color-indicator">
+            <b style="font-size:10px;">A</b>
+            <span class="rt-color-bar" style="background:#dc2626;"></span>
+          </span>
+        </button>
+        <button type="button" class="rt-btn" data-rt-toggle="ing-color" title="文字色を選択" style="min-width:12px; padding:0 2px;"><span class="rt-arrow">▼</span></button>
+        <div class="rt-dropdown-menu" data-rt-menu="ing-color">
+          <button type="button" class="rt-menu-item" data-ing-color="#dc2626"><span class="rt-swatch" style="background:#dc2626;"></span><span style="color:#dc2626;font-weight:bold;">赤文字 (強調)</span></button>
+          <button type="button" class="rt-menu-item" data-ing-color="#0f172a"><span class="rt-swatch" style="background:#0f172a;"></span><span style="color:#0f172a;">黒文字 (標準)</span></button>
+          <button type="button" class="rt-menu-item" data-ing-color="#2563eb"><span class="rt-swatch" style="background:#2563eb;"></span><span style="color:#2563eb;">青文字</span></button>
+          <button type="button" class="rt-menu-item" data-ing-color="#16a34a"><span class="rt-swatch" style="background:#16a34a;"></span><span style="color:#16a34a;">緑文字</span></button>
+          <button type="button" class="rt-menu-item" data-ing-color="#ea580c"><span class="rt-swatch" style="background:#ea580c;"></span><span style="color:#ea580c;">オレンジ文字</span></button>
+        </div>
+      </div>
+      <span class="rt-sep"></span>
+      <button type="button" class="rt-btn" data-ing-action="clearFormat" title="選択セルの書式クリア">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 21-4.3-4.3c-1-1-1-2.5 0-3.4l9.6-9.6c1-1 2.5-1 3.4 0l5.6 5.6c1 1 1 2.5 0 3.4L13 21"/><path d="M22 21H7"/><path d="m5 11 9 9"/></svg>
+      </button>
+      <span id="ingActiveCellLabel" class="ing-active-cell-label">セルを選択</span>
+    `;
+
+    toolbar.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+    });
+
+    toolbar.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const toggleBtn = e.target.closest('[data-rt-toggle]');
+      if (toggleBtn) {
+        const menuType = toggleBtn.getAttribute('data-rt-toggle');
+        const menu = toolbar.querySelector(`[data-rt-menu="${menuType}"]`);
+        const wasOpen = menu && menu.classList.contains('open');
+        document.querySelectorAll('.rt-dropdown-menu.open').forEach(m => m.classList.remove('open'));
+        if (menu && !wasOpen) {
+          menu.classList.add('open');
+        }
+        return;
+      }
+
+      const cell = getTargetIngCell();
+      if (!cell) return;
+
+      const actionBtn = e.target.closest('[data-ing-action]');
+      if (actionBtn) {
+        const action = actionBtn.getAttribute('data-ing-action');
+        document.querySelectorAll('.rt-dropdown-menu.open').forEach(m => m.classList.remove('open'));
+        if (action === 'bold') {
+          const isBold = cell.style.fontWeight === 'bold' || cell.style.fontWeight === '700';
+          cell.style.fontWeight = isBold ? '' : 'bold';
+        } else if (action === 'underline') {
+          const isUnder = cell.style.textDecoration && cell.style.textDecoration.includes('underline');
+          cell.style.textDecoration = isUnder ? '' : 'underline';
+        } else if (action === 'applyColor') {
+          cell.style.color = toolbar._activeColor || '#dc2626';
+        } else if (action === 'clearFormat') {
+          applyIngCellStyle(cell, null);
+        }
+        syncIngRowPrintStyles(cell.closest('.ing-row'));
+        cell.focus();
+        return;
+      }
+
+      const colorItem = e.target.closest('[data-ing-color]');
+      if (colorItem) {
+        const color = colorItem.getAttribute('data-ing-color');
+        toolbar._activeColor = color;
+        const bar = toolbar.querySelector('.rt-color-bar');
+        if (bar) bar.style.background = color;
+        document.querySelectorAll('.rt-dropdown-menu.open').forEach(m => m.classList.remove('open'));
+        cell.style.color = (color === '#0f172a') ? '' : color;
+        syncIngRowPrintStyles(cell.closest('.ing-row'));
+        cell.focus();
+        return;
+      }
+
+      const sizeItem = e.target.closest('[data-ing-size]');
+      if (sizeItem) {
+        const sizePx = sizeItem.getAttribute('data-ing-size');
+        document.querySelectorAll('.rt-dropdown-menu.open').forEach(m => m.classList.remove('open'));
+        cell.style.fontSize = (sizePx === '8.5px') ? '' : sizePx;
+        syncIngRowPrintStyles(cell.closest('.ing-row'));
+        cell.focus();
+        return;
+      }
+    });
+
+    table.insertAdjacentElement('beforebegin', toolbar);
+  }
+
+  function ensureRichEditor(textarea) {
+    if (!textarea || !textarea.parentElement) return null;
+    if (textarea.closest('.batch-print-page')) return null;
+    if (!textarea.closest('.step-block, #plateSection, #servingMethodSection')) return null;
+
+    let editor = textarea._richEditor;
+    if ((!editor || !editor.isConnected) && textarea.nextElementSibling && textarea.nextElementSibling.classList.contains('step-rich-editor')) {
+      editor = textarea.nextElementSibling;
+      textarea._richEditor = editor;
+      editor._textarea = textarea;
+    }
+    if (!editor || !editor.isConnected) {
+      editor = document.createElement('div');
+      editor.className = 'step-rich-editor';
+      editor.contentEditable = 'true';
+      editor.setAttribute('data-placeholder', textarea.getAttribute('placeholder') || '手順を自由に入力してください');
+      textarea.classList.add('has-rich-editor');
+      textarea.insertAdjacentElement('afterend', editor);
+      textarea._richEditor = editor;
+      editor._textarea = textarea;
+
+      const block = textarea.closest('.step-block, #plateSection, #servingMethodSection');
+      if (block) {
+        const header = block.querySelector('.step-block-header');
+        const oldToolbar = block.querySelector('.step-rich-toolbar');
+        if (oldToolbar) oldToolbar.remove();
+        const toolbar = createRichToolbar(editor, textarea);
+        if (header) {
+          header.appendChild(toolbar);
+        } else {
+          editor.insertAdjacentElement('beforebegin', toolbar);
+        }
+      }
+
+      editor.addEventListener('input', () => {
+        saveEditorSelection(editor);
+        syncEditorToTextarea(editor, textarea);
+        if (textarea.closest('#standbyContainer') && typeof updateStandbyVisibility === 'function') {
+          updateStandbyVisibility();
+        }
+      });
+      editor.addEventListener('mouseup', () => saveEditorSelection(editor));
+      editor.addEventListener('keyup', () => saveEditorSelection(editor));
+      editor.addEventListener('focus', () => {
+        activeRichEditor = editor;
+        saveEditorSelection(editor);
+      });
+      editor.addEventListener('paste', (e) => {
+        e.preventDefault();
+        const text = (e.clipboardData || window.clipboardData).getData('text/plain');
+        document.execCommand('insertText', false, text);
+      });
+    }
+
+    if (textarea.value !== editor._lastSyncedValue) {
+      const html = valueToRichHTML(textarea.value || '');
+      editor.innerHTML = html;
+      const plain = (editor.innerText || '').replace(/\u200B/g, '').trim();
+      if (!plain) {
+        editor.innerHTML = '';
+        editor.setAttribute('data-empty', 'true');
+        textarea.value = '';
+      } else {
+        editor.removeAttribute('data-empty');
+      }
+      editor._lastSyncedValue = textarea.value;
+    }
+
+    return editor;
+  }
+
+  function autoResizeTextarea(textarea) {
+    if (!textarea) return;
+    const editor = ensureRichEditor(textarea);
+    if (editor) return;
+    textarea.style.height = 'auto';
+    textarea.style.height = textarea.scrollHeight + 'px';
+  }
+
+  function applyPlateTemplate() {
+    const select = document.getElementById('plateTemplateSelect');
+    const textarea = document.getElementById('plateText');
+    if (!select || !textarea || !select.value) return;
+    if (textarea.value) {
+      textarea.value = textarea.value + '\n' + select.value;
+    } else {
+      textarea.value = select.value;
+    }
+    select.value = '';
+    autoResizeTextarea(textarea);
+    if (typeof adjustPreviewScale === 'function') adjustPreviewScale();
+  }
+
+  // 生地の連番などの更新
+  function updateNumbers(containerId, rowClass) {
+    const container = document.getElementById(containerId);
+    const rows = container.querySelectorAll('.' + rowClass);
+    rows.forEach((row, index) => {
+      const numLabel = row.querySelector('.step-num-label');
+      if(numLabel) {
+        numLabel.innerText = index < circleNums.length ? circleNums[index] : `(${index + 1})`;
+      }
+    });
+  }
+
+  // 手順ブロックの連番更新と自動レイアウト振り分け
+  function reorganizeStepBlocks() {
+    const liveOutput = document.querySelector('#editorWrapper > #outputArea:not(.batch-print-page)') || document.getElementById('outputArea');
+    if (!liveOutput) return;
+    const blocks = Array.from(liveOutput.querySelectorAll('.step-block[data-block-type="step"]'));
+    const outLeft = liveOutput.querySelector('#outStepsLeft');
+    const outRight = liveOutput.querySelector('#outStepsRight');
+    const outFull = liveOutput.querySelector('#outStepsFull');
+
+    if (outLeft) outLeft.innerHTML = '';
+    if (outRight) outRight.innerHTML = '';
+    if (outFull) outFull.innerHTML = '';
+
+    const total = blocks.length;
+    const leftCount = Math.ceil(total / 2);
+
+    blocks.forEach((block, index) => {
+      if (typeof currentMode !== 'undefined' && (currentMode === 'cooking' || currentMode === 'standby')) {
+        // 料理モード: outFull にすべて格納
+        if (outFull) outFull.appendChild(block);
+      } else {
+        // パンモード: 前半を左、後半を右
+        if (index < leftCount) {
+          if (outLeft) outLeft.appendChild(block);
+        } else {
+          if (outRight) outRight.appendChild(block);
+        }
+      }
+    });
+
+    updateBlockNumbers();
+    liveOutput.querySelectorAll('.step-textarea').forEach(el => autoResizeTextarea(el));
+    if (typeof adjustPreviewScale === 'function') adjustPreviewScale();
+  }
+
+  // 手順ブロックヘッダー「手順①」の連番更新
+  function updateBlockNumbers() {
+    const liveOutput = document.querySelector('#editorWrapper > #outputArea:not(.batch-print-page)') || document.getElementById('outputArea');
+    if (!liveOutput) return;
+    const blocks = liveOutput.querySelectorAll('.step-block[data-block-type="step"]');
+    blocks.forEach((block, index) => {
+      const titleSpan = block.querySelector('.block-title');
+      const printTitle = block.querySelector('.print-only-block-title');
+      const numStr = index < circleNums.length ? circleNums[index] : `(${index + 1})`;
+      const standbyCheckbox = block.querySelector('.standby-toggle');
+      if (standbyCheckbox && standbyCheckbox.checked) {
+          if(titleSpan) { titleSpan.innerText = 'スタンバイ'; titleSpan.style.color = '#1565c0'; }
+          if(printTitle) { printTitle.innerText = 'スタンバイ'; printTitle.style.color = '#1565c0'; }
+      } else {
+          if(titleSpan) { titleSpan.innerText = `手順${numStr}`; titleSpan.style.color = '#e91e63'; }
+          if(printTitle) { printTitle.innerText = `手順${numStr}`; printTitle.style.color = '#333'; }
+      }
+      
+      // 料理モード専用の動的座標配置（総数に基づくジグザグ配置）
+      if (typeof currentMode !== 'undefined' && (currentMode === 'cooking' || currentMode === 'standby')) {
+          if (index < 8) {
+              const totalForGrid = Math.min(blocks.length, 8);
+              const nTop = Math.ceil(totalForGrid / 2);
+              if (index < nTop) {
+                  block.style.gridRow = '1';
+                  block.style.gridColumn = (index + 1).toString();
+              } else {
+                  block.style.gridRow = '2';
+                  block.style.gridColumn = (index - nTop + 1).toString();
+              }
+          } else {
+              block.style.gridRow = '3';
+              block.style.gridColumn = (index - 8 + 1).toString();
+          }
+          block.style.order = ''; // Reset order just in case
+      } else {
+          block.style.gridRow = '';
+          block.style.gridColumn = '';
+          block.style.order = '';
+      }
+    });
+  }
+
+  // スタンバイブロックのヘッダー「スタンバイ」の更新
+  function updateStandbyBlockNumbers() {
+    const blocks = document.getElementById('standbyContainer').querySelectorAll('.standby-block');
+    blocks.forEach((block) => {
+      const titleSpan = block.querySelector('.s-block-title');
+      if(titleSpan) titleSpan.innerText = `スタンバイ`;
+      const ta = block.querySelector('.step-textarea');
+      if (ta) autoResizeTextarea(ta);
+    });
+  }
+
+  // --- 3.2 Block & Row Dynamic DOM Management (Add / Delete) ---
+  function removeRow(btn, type) {
+    const row = btn.closest('.row, .step-input-row, .ing-row');
+    row.remove();
+    
+    adjustPreviewScale();
+  }
+
+  function removeStepBlock(btn) {
+    const block = btn.closest('.step-block');
+    block.remove();
+    reorganizeStepBlocks();
+  }
+
+  function removeStandbyBlock(btn) {
+    const block = btn.closest('.standby-block');
+    block.remove();
+    updateStandbyBlockNumbers();
+    updateStandbyVisibility();
+    adjustPreviewScale();
+  }
+
+  function addIngredient() {
+    const container = document.getElementById('ingredientsContainer');
+    const tr = document.createElement('tr');
+    tr.className = 'ing-row';
+    tr.innerHTML = `
+      <td>
+        <input type="text" class="ing-code" placeholder="コード">
+        <span class="print-text ing-code-print"></span>
+      </td>
+      <td>
+        <input type="text" class="ing-name" placeholder="品名">
+        <span class="print-text ing-name-print"></span>
+      </td>
+      <td>
+        <input type="text" class="ing-amount" placeholder="使用量">
+        <span class="print-text ing-amount-print"></span>
+      </td>
+      <td>
+        <select class="ing-unit">
+          <option value="g">g</option>
+          <option value="kg">kg</option>
+          <option value="ml">ml</option>
+          <option value="cc">cc</option>
+          <option value="L">L</option>
+          <option value="個">個</option>
+          <option value="枚">枚</option>
+          <option value="本">本</option>
+          <option value="尾">尾</option>
+          <option value="杯">杯</option>
+          <option value="種">種</option>
+          <option value="人前">人前</option>
+          <option value="円">円</option>
+          <option value="適量">適量</option>
+        </select>
+      </td>
+      <td style="text-align: center; position: relative;">
+        <select class="ing-standby">
+          <option value=""></option>
+          <option value="スタンバイ">スタンバイ</option>
+        </select>
+        <span class="print-standby-check">✔</span>
+      </td>
+      <td class="edit-only-col" style="text-align: center;">
+        <button type="button" class="del-btn edit-only-btn" onclick="removeRow(this, 'ing')">🗑️</button>
+      </td>`;
+    container.appendChild(tr);
+    adjustPreviewScale();
+  }
+
+
+
+  function addStepBlock() {
+    const container = document.getElementById('outStepsFull');
+    const blockId = Date.now();
+    const div = document.createElement('div');
+    div.className = 'step-block';
+    div.setAttribute('data-block-id', blockId);
+    div.setAttribute('data-block-type', 'step');
+    div.innerHTML = `
+      <div class="step-block-header edit-only-row" style="position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; padding-right: 25px;">
+        <button type="button" class="del-btn edit-only-btn" style="position: absolute; top: 2px; right: 2px; width: 24px; height: 24px; padding: 0; font-size: 14px; display: flex; justify-content: center; align-items: center; border-radius: 4px;" onclick="removeStepBlock(this)">✖</button>
+        <span class="block-title" style="color:#e91e63;">手順</span>
+        <label style="font-size: 0.8rem; cursor: pointer; color: #1565c0; font-weight: bold;">
+          <input type="checkbox" class="standby-toggle" onchange="updateBlockNumbers()"> スタンバイ
+        </label>
+        <select class="step-template-select edit-only-btn" onchange="applyStepTemplate(this)" style="font-size: 0.8rem; padding: 2px; width: 100%;">
+          <option value="">-- 定型文挿入 --</option>
+          <option value="format1">① 手洗い・備品確認</option>
+          <option value="format2">② ゴム敷きプレート・熱々提供</option>
+          <option value="format3">③ 皿の淵汚れ確認・熱々提供</option>
+          <option value="format4">④ 木台・丸鉄板（五徳着火）提供</option>
+        </select>
+        <div class="tool-dropdown-container edit-only-btn" style="position: relative; display: inline-block; width: 100%;">
+          <button type="button" class="tool-dropdown-btn" onclick="toggleToolMenu(this)" style="font-size: 0.8rem; padding: 2px; width: 100%;">-- 道具挿入 -- ▼</button>
+          <div class="tool-dropdown-menu" style="display: none; position: absolute; left: 0; top: 100%; z-index: 100; background: white; border: 1px solid #ccc; padding: 5px; box-shadow: 0 2px 5px rgba(0,0,0,0.2); white-space: nowrap; font-size: 0.85rem; max-height: 250px; overflow-y: auto;">
+            <label style="display:block; cursor:pointer;"><input type="checkbox" value="[IH]"> [IH]</label>
+            <label style="display:block; cursor:pointer;"><input type="checkbox" value="[電子レンジ]"> [電子レンジ]</label>
+            <label style="display:block; cursor:pointer;"><input type="checkbox" value="[ブレンダー]"> [ブレンダー]</label>
+            <label style="display:block; cursor:pointer;"><input type="checkbox" value="[片手鍋]"> [片手鍋]</label>
+            <label style="display:block; cursor:pointer;"><input type="checkbox" value="[ボール]"> [ボール]</label>
+            <label style="display:block; cursor:pointer;"><input type="checkbox" value="[コランダー]"> [コランダー]</label>
+            <label style="display:block; cursor:pointer;"><input type="checkbox" value="[ゴムベラ]"> [ゴムベラ]</label>
+            <label style="display:block; cursor:pointer;"><input type="checkbox" value="[トング]"> [トング]</label>
+            <label style="display:block; cursor:pointer;"><input type="checkbox" value="[レードル]"> [レードル]</label>
+            <label style="display:block; cursor:pointer;"><input type="checkbox" value="[ディッシャー]"> [ディッシャー]</label>
+            <label style="display:block; cursor:pointer;"><input type="checkbox" value="[スプーン]"> [スプーン]</label>
+            <button type="button" onclick="insertCheckedTools(this)" style="margin-top: 5px; width: 100%; font-size: 0.85rem; padding: 2px; background: #e0e0e0; cursor: pointer; border: 1px solid #999;">挿入</button>
+          </div>
+        </div>
+      </div>
+      <div class="step-preview-block">
+        <div class="step-img-out">
+          <div class="image-upload-box" onclick="triggerFileInput(this)">
+            <input type="file" class="image-file-input block-img" accept="image/*" onchange="previewImage(this)">
+            <div class="image-placeholder">
+              <span>📷 写真を選択</span>
+            </div>
+            <div class="image-preview" style="display: none;">
+              <img>
+              <button type="button" class="del-image-btn edit-only-btn" onclick="clearImage(event, this)">×</button>
+            </div>
+          </div>
+        </div>
+        <div class="step-texts-out">
+          <div class="print-only-block-title" style="font-weight:bold; margin-bottom:2px; text-align:left;">手順</div>
+          <textarea class="step-textarea" placeholder="手順を自由に入力してください" oninput="autoResizeTextarea(this)"></textarea>
+        </div>
+      </div>
+    `;
+    container.appendChild(div);
+    reorganizeStepBlocks();
+    
+    const newTextarea = div.querySelector('.step-textarea');
+    if (newTextarea) autoResizeTextarea(newTextarea);
+  }
+
+  function addStandbyBlock() {
+    const container = document.getElementById('standbyContainer');
+    const blockId = Date.now();
+    const div = document.createElement('div');
+    div.className = 'step-block standby-block';
+    div.setAttribute('data-block-id', 's' + blockId);
+    div.setAttribute('data-block-type', 'standby');
+    div.innerHTML = `
+      <div class="step-block-header edit-only-row">
+        <span class="s-block-title" style="color:#2196f3;">スタンバイ</span>
+        <button type="button" class="del-btn edit-only-btn" style="width:auto; padding:2px 5px;" onclick="removeStandbyBlock(this)">ブロック削除</button>
+      </div>
+      <div class="step-preview-block">
+        <div class="step-img-out">
+          <div class="image-upload-box" onclick="triggerFileInput(this)">
+            <input type="file" class="image-file-input block-img" accept="image/*" onchange="previewImage(this)">
+            <div class="image-placeholder">
+              <span>📷 写真を選択</span>
+            </div>
+            <div class="image-preview" style="display: none;">
+              <img>
+              <button type="button" class="del-image-btn edit-only-btn" onclick="clearImage(event, this)">×</button>
+            </div>
+          </div>
+        </div>
+        <div class="step-texts-out">
+          <textarea class="step-textarea" placeholder="スタンバイ手順を自由に入力してください" oninput="autoResizeTextarea(this); updateStandbyVisibility();"></textarea>
+        </div>
+      </div>
+    `;
+    container.appendChild(div);
+    updateStandbyBlockNumbers();
+    updateStandbyVisibility();
+    adjustPreviewScale();
+    
+    const newTextarea = div.querySelector('.step-textarea');
+    if (newTextarea) autoResizeTextarea(newTextarea);
+  }
+
+  // 画像アップローダーの動作処理
+  // --- 3.3 Image File Handling & Preview ---
+  function triggerFileInput(box) {
+    const fileInput = box.querySelector('input[type="file"]');
+    if (fileInput) fileInput.click();
+  }
+
+  // 画像プレビュー処理
+  // 画像圧縮用のユーティリティ関数
+  function compressImageBlob(blob, maxWidth = 500) {
+    return new Promise((resolve) => {
+      const img = new Image();
+      const url = URL.createObjectURL(blob);
+      img.onload = () => {
+        URL.revokeObjectURL(url);
+        
+        let width = img.width;
+        let height = img.height;
+        
+        // 既に規定サイズ以下かつJPEG/WebPなら再圧縮せずに元のデータを返す
+        if (width <= maxWidth && height <= maxWidth && (blob.type === 'image/jpeg' || blob.type === 'image/webp')) {
+          return resolve(blob);
+        }
+        
+        if (width > maxWidth || height > maxWidth) {
+          if (width > height) {
+            height = Math.round((height * maxWidth) / width);
+            width = maxWidth;
+          } else {
+            width = Math.round((width * maxWidth) / height);
+            height = maxWidth;
+          }
+        }
+        
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        
+        // JPEG出力時の背景黒透過防止用（白背景を敷く）
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, width, height);
+        ctx.drawImage(img, 0, 0, width, height);
+        
+        canvas.toBlob((compressedBlob) => {
+          if (compressedBlob) {
+            resolve(compressedBlob);
+          } else {
+            resolve(blob); // 失敗時は元のblobを返す
+          }
+        }, 'image/jpeg', 0.6);
+      };
+      img.onerror = () => {
+        URL.revokeObjectURL(url);
+        resolve(blob); // エラー時は元データを返す
+      };
+      img.src = url;
+    });
+  }
+
+  async function previewImage(input) {
+    const box = input.closest('.image-upload-box');
+    const placeholder = box.querySelector('.image-placeholder');
+    const preview = box.querySelector('.image-preview');
+    const img = preview.querySelector('img');
+    
+    if (input.files && input.files[0]) {
+      const file = input.files[0];
+      placeholder.querySelector('span').innerText = '圧縮中...';
+      
+      const compressedBlob = await compressImageBlob(file);
+      const url = URL.createObjectURL(compressedBlob);
+      img.src = url;
+      box.fileData = compressedBlob;
+      
+      placeholder.querySelector('span').innerText = '📷 写真を選択';
+      placeholder.style.display = 'none';
+      preview.style.display = 'flex';
+      updateStandbyVisibility();
+    }
+  }
+
+  // 画像クリア処理
+  function clearImage(event, btn) {
+    event.stopPropagation();
+    const box = btn.closest('.image-upload-box');
+    const fileInput = box.querySelector('input[type="file"]');
+    const placeholder = box.querySelector('.image-placeholder');
+    const preview = box.querySelector('.image-preview');
+    const img = preview.querySelector('img');
+    
+    fileInput.value = '';
+    img.src = '';
+    box.fileData = null;
+    placeholder.style.display = 'flex';
+    preview.style.display = 'none';
+    updateStandbyVisibility();
+  }
+
+  // プレビューの縮小率の調整
+  // --- 3.4 Scale Adjustment & Print / Excel Export ---
+  function adjustPreviewScale() {
+    if (document.body.classList.contains('is-batch-printing')) return;
+    const wrapper = document.getElementById('editorWrapper');
+    const outputArea = document.querySelector('#editorWrapper > #outputArea:not(.batch-print-page)') || document.getElementById('outputArea');
+    if (!wrapper || !outputArea) return;
+
+    if (window.innerWidth <= 600) {
+      outputArea.style.transform = 'none';
+      wrapper.style.height = 'auto';
+      return;
+    }
+    
+    const wrapperWidth = wrapper.clientWidth;
+    // 料理モードは横長（A4横相当）のため、ターゲット幅を広く設定して全体を縮小させる
+    const pageTargetWidth = (typeof currentMode !== 'undefined' && (currentMode === 'cooking' || currentMode === 'standby')) ? 1188 : 840;
+    let scale = Math.min(1, (wrapperWidth - 20) / pageTargetWidth);
+    
+    if (typeof currentMode !== 'undefined' && (currentMode === 'cooking' || currentMode === 'standby')) {
+      // 一旦スケールをリセットして本来の高さを取得する（scale歪みなしでtextarea高さも再計算）
+      outputArea.style.transform = 'none';
+      outputArea.querySelectorAll('.step-textarea').forEach(el => autoResizeTextarea(el));
+      const actualHeight = outputArea.scrollHeight || 800;
+      // 画面の高さにギリギリ収まるように倍率を計算（上下の余裕を80px確保）
+      const heightScale = (window.innerHeight - 80) / actualHeight;
+      scale = Math.min(scale, heightScale);
+    }
+    
+    outputArea.style.transform = `scale(${scale})`;
+    outputArea.style.transformOrigin = 'top center';
+    
+    if (scale < 1) {
+      const rect = outputArea.getBoundingClientRect();
+      wrapper.style.height = (rect.height + 20) + 'px';
+    } else {
+      wrapper.style.height = 'auto';
+    }
+  }
+
+  window.addEventListener('resize', adjustPreviewScale);
+
+  window.addEventListener('beforeprint', () => {
+    if (document.body.classList.contains('is-batch-printing')) return;
+    // 印刷前に全手順テキストエリアの印刷用ミラー要素と高さを同期
+    document.querySelectorAll('#outputArea .step-textarea').forEach(el => {
+      autoResizeTextarea(el);
+      syncStepPrintText(el);
+    });
+
+    // 製造指示伝票の印刷用テキスト反映
+    const slipInput = document.getElementById('manufacturingSlip');
+    const slipPrint = document.querySelector('.slip-title-print');
+    if (slipInput && slipPrint) {
+      slipPrint.innerText = slipInput.value;
+    }
+
+    document.querySelectorAll('#ingredientsContainer .ing-row').forEach(row => {
+      syncIngRowPrintStyles(row);
+    });
+  });
+
+  // Excelダウンロード処理
+  function downloadExcel() {
+    const data = [];
+    
+    // 基本情報
+    const pStart = document.getElementById('periodStart').value;
+    const pEnd = document.getElementById('periodEnd').value;
+    data.push(["実施期間", `${pStart} ～ ${pEnd}`, "商品名称", document.getElementById('productName').value]);
+    data.push([]);
+    
+    // 食材
+    data.push(["コード", "品名", "使用量", "スタンバイ"]);
+    document.querySelectorAll('#ingredientsContainer .ing-row').forEach(row => {
+      const code = row.querySelector('.ing-code').value;
+      const name = row.querySelector('.ing-name').value;
+      const amount = row.querySelector('.ing-amount').value;
+      const unit = row.querySelector('.ing-unit').value;
+      const standby = row.querySelector('.ing-standby').value === 'スタンバイ';
+      if(code || name || amount) {
+        data.push([code, name, `${amount}${unit}`, standby ? "〇" : ""]);
+      }
+    });
+    data.push([]);
+
+    // 規格と工程条件
+    data.push(["項目", "成型", "ホイロ", "焼成"]);
+    const moldD = `縦${document.getElementById('moldL').value}×横${document.getElementById('moldW').value}×高さ${document.getElementById('moldH').value} cm`;
+    const proofD = `縦${document.getElementById('proofL').value}×横${document.getElementById('proofW').value}×高さ${document.getElementById('proofH').value} cm`;
+    const bakeD = `縦${document.getElementById('bakeL').value}×横${document.getElementById('bakeW').value}×高さ${document.getElementById('bakeH').value} cm`;
+    data.push(["寸法", moldD, proofD, bakeD]);
+    data.push([
+      "条件", 
+      `1鉄板最大載せ数: ${document.getElementById('maxLoad').value || "6"} 個`, 
+      `ホイロ時間: ${document.getElementById('proofTime').value || "40"} 分`, 
+      `焼成時間: ${document.getElementById('bakeTime').value || "10"} 分`
+    ]);
+    data.push([]);
+
+    // 提供方法
+    data.push(["提供方法", document.getElementById('servingText').value]);
+    data.push([]);
+
+    // 手順
+    const blocks = document.querySelectorAll('#outputArea .step-block[data-block-type="step"]');
+    blocks.forEach((block, index) => {
+      const numStr = index < circleNums.length ? circleNums[index] : `(${index + 1})`;
+      data.push([`手順${numStr}`]);
+      
+      const textarea = block.querySelector('.step-textarea');
+      if (textarea && textarea.value.trim()) {
+        const lines = stripRichHTML(textarea.value).trim().split('\n');
+        lines.forEach((line) => {
+          let cleanedLine = line.trim();
+          if (cleanedLine) {
+            if (cleanedLine.startsWith('・')) {
+              cleanedLine = cleanedLine.substring(1).trim();
+            }
+            data.push(["・", cleanedLine]);
+          }
+        });
+      }
+      data.push([]);
+    });
+
+    // スタンバイ
+    const sBlocks = document.querySelectorAll('#standbyContainer .standby-block');
+    let hasStandbyData = false;
+    const sData = [];
+    sBlocks.forEach((block) => {
+      sData.push([`スタンバイ`]);
+      
+      let hasText = false;
+      const textarea = block.querySelector('.step-textarea');
+      if (textarea && textarea.value.trim()) {
+        const lines = stripRichHTML(textarea.value).trim().split('\n');
+        lines.forEach((line) => {
+          let cleanedLine = line.trim();
+          if (cleanedLine) {
+            if (cleanedLine.startsWith('・')) {
+              cleanedLine = cleanedLine.substring(1).trim();
+            }
+            sData.push(["・", cleanedLine]);
+            hasText = true;
+            hasStandbyData = true;
+          }
+        });
+      }
+      if(hasText) sData.push([]);
+    });
+    if (hasStandbyData) {
+      sData.forEach(r => data.push(r));
+    }
+
+    const ws = XLSX.utils.aoa_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "手順書");
+
+    const filename = document.getElementById('productName').value || 'recipe';
+    XLSX.writeFile(wb, `${filename}.xlsx`);
+  }
+  
+  // --- 3.5 Step Templates & Section Visibility ---
+  // テンプレートデータ
+
+
+  function applyStepTemplate(selectObj) {
+    const tempKey = selectObj.value;
+    if (!tempKey) return;
+
+    let lines = [];
+    if (tempKey === "format1") {
+      lines = [
+        "手を洗いアルコールをします。",
+        "使用する備品に汚れが付いていないことを確認します。"
+      ];
+    } else if (tempKey === "format2") {
+      lines = [
+        "ゴム敷きを乗せたプレートに移し、熱い状態で提供します。"
+      ];
+    } else if (tempKey === "format3") {
+      lines = [
+        "お皿の淵に汚れが付いていないか確認して、熱い状態で提供します。"
+      ];
+    } else if (tempKey === "format4") {
+      lines = [
+        "木台に乗せ、ジュージューと熱い状態で、丸鉄板を五徳に乗せ、火をつけた状態で提供します。"
+      ];
+    }
+
+    const block = selectObj.closest('.step-block');
+    const textarea = block.querySelector('.step-textarea');
+    
+    if (textarea) {
+      const newText = lines.join('\n');
+      if (textarea.value) {
+        textarea.value = textarea.value + '\n' + newText;
+      } else {
+        textarea.value = newText;
+      }
+      autoResizeTextarea(textarea);
+    }
+
+    selectObj.value = "";
+    adjustPreviewScale();
+  }
+
+  function toggleToolMenu(btn) {
+    const container = btn.closest('.tool-dropdown-container');
+    const menu = container.querySelector('.tool-dropdown-menu');
+    const isVisible = menu.style.display === 'block';
+    
+    // 他の開いているメニューをすべて閉じる
+    document.querySelectorAll('.tool-dropdown-menu').forEach(m => m.style.display = 'none');
+    
+    if (!isVisible) {
+      menu.style.display = 'block';
+      // メニューを開いたときにチェックボックスをリセットする
+      menu.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = false);
+    }
+  }
+
+  // メニュー外をクリックしたら閉じる処理
+  document.addEventListener('click', function(e) {
+    if (!e.target.closest('.tool-dropdown-container')) {
+      document.querySelectorAll('.tool-dropdown-menu').forEach(m => m.style.display = 'none');
+    }
+  });
+
+  function insertCheckedTools(insertBtn) {
+    const menu = insertBtn.closest('.tool-dropdown-menu');
+    const checkboxes = menu.querySelectorAll('input[type="checkbox"]:checked');
+    const container = insertBtn.closest('.tool-dropdown-container');
+    const block = container.closest('.step-block');
+    const textarea = block.querySelector('.step-textarea');
+    
+    if (checkboxes.length > 0 && textarea) {
+      const selectedTools = Array.from(checkboxes).map(cb => cb.value);
+      const insertText = selectedTools.join('、') + 'を準備します。';
+      
+      if (textarea.value) {
+        textarea.value = textarea.value + '\n' + insertText;
+      } else {
+        textarea.value = insertText;
+      }
+      autoResizeTextarea(textarea);
+    }
+    
+    // メニューを閉じる
+    menu.style.display = 'none';
+    adjustPreviewScale();
+  }
+
+  function updateStandbyVisibility() {
+    const section = document.getElementById('standbySection');
+    let hasContent = false;
+    
+    document.querySelectorAll('#standbyContainer .standby-block').forEach(block => {
+      const imgInput = block.querySelector('.block-img');
+      if (imgInput && imgInput.files && imgInput.files[0]) hasContent = true;
+      const textarea = block.querySelector('.step-textarea');
+      if (textarea && textarea.value.trim()) hasContent = true;
+    });
+    
+    if (hasContent) {
+      section.classList.remove('print-empty-hide');
+    } else {
+      section.classList.add('print-empty-hide');
+    }
+  }
+
+  // 初期化
+  reorganizeStepBlocks();
+  updateStandbyBlockNumbers();
+  updateStandbyVisibility();
+
+  // --- 3.6 Standby Master Data Processing (_Data.xls / .xlsx / .csv) ---
+  let menuMaster = {
+    "00003": {
+      name: "♦カポナータ(ビストロ) (デモ)",
+      ingredients: [
+        { code: "0040013011202", name: "トマトソース 1Kg", amount: "100", unit: "g" },
+        { code: "0562013000504", name: "イタリアンミックス1.5cm・500g", amount: "300", unit: "g" }
+      ]
+    },
+    "00012": {
+      name: "共）★野菜ジュースのジュレ(石狩) (デモ)",
+      ingredients: [
+        { code: "0094013006703", name: "大阿蘇カフェ用牛乳・1L", amount: "20", unit: "ml" },
+        { code: "0094013017709", name: "SM野菜果実ミックスジュース・1L", amount: "200", unit: "ml" },
+        { code: "12179", name: "共）ゼラチンリーフ", amount: "3", unit: "枚" }
+      ]
+    },
+    "00004": {
+      name: "共）♦和風だし (デモ)",
+      ingredients: [
+        { code: "0145013001902", name: "割 白だし1.8L", amount: "30", unit: "ml" },
+        { code: "0209013000200", name: "花かつお・500g", amount: "10", unit: "g" },
+        { code: "12051", name: "共）冷水", amount: "700", unit: "cc" },
+        { code: "12133", name: "共）料理酒）合同酒精 醗酵調味料", amount: "15", unit: "ml" }
+      ]
+    }
+  };
+  window.menuMaster = menuMaster;
+
+  function formatStandbyAmount(val) {
+    if (val === undefined || val === null) return "";
+    const s = String(val).trim();
+    if (!s) return "";
+    const num = Number(s.replace(/,/g, ""));
+    if (!isNaN(num)) return String(num);
+    return s;
+  }
+
+  function processMasterRows(rows, sourceLabel) {
+    const statusDiv = document.getElementById("masterStatus");
+    window.menuMaster = {};
+    menuMaster = window.menuMaster;
+
+    let headerIdx = -1;
+    let isStandbySheet = false;
+    let colMap = {};
+
+    for (let i = 0; i < Math.min(rows.length, 20); i++) {
+      if (!rows[i]) continue;
+      const rowStr = rows[i].map(c => String(c || "")).join("");
+      if (rowStr.includes("ｽﾀﾝﾊﾞｲ商品ｺｰﾄﾞ") || rowStr.includes("スタンバイ商品コード")) {
+        headerIdx = i;
+        isStandbySheet = true;
+        for (let j = 0; j < rows[i].length; j++) {
+          const hName = String(rows[i][j] || "").trim();
+          if (hName === "ｽﾀﾝﾊﾞｲ商品ｺｰﾄﾞ" || hName === "スタンバイ商品コード") colMap.menuCode = j;
+          else if (hName === "ｽﾀﾝﾊﾞｲ商品名" || hName === "スタンバイ商品名") colMap.menuName = j;
+          else if (hName === "商品コード" || hName === "商品ｺｰﾄﾞ") colMap.ingCode = j;
+          else if (hName === "商品名" || hName === "商品名称") colMap.ingName = j;
+          else if (hName === "使用量" || hName === "正味使用量") colMap.ingAmount = j;
+          else if ((hName === "単位" || hName === "正味単位") && colMap.ingAmount !== undefined && j > colMap.ingAmount && colMap.ingUnit === undefined) {
+            colMap.ingUnit = j;
+          }
+        }
+        break;
+      } else if (rowStr.includes("メニュー名称") || rowStr.includes("商品名称") || rowStr.includes("商品コード") || rowStr.includes("メニューコード")) {
+        headerIdx = i;
+        for (let j = 0; j < rows[i].length; j++) {
+          const hName = String(rows[i][j] || "").trim();
+          if (hName === "メニューコード" || hName === "ﾒﾆｭｰｺｰﾄﾞ") colMap.menuCode = j;
+          else if (hName === "メニュー名称" || hName === "ﾒﾆｭｰ名称") colMap.menuName = j;
+          else if (hName === "商品コード" || hName === "商品ｺｰﾄﾞ") colMap.ingCode = j;
+          else if (hName === "商品名称" || hName === "商品名") colMap.ingName = j;
+          else if (hName === "正味使用量" || hName === "使用量") colMap.ingAmount = j;
+          else if ((hName === "正味単位" || hName === "単位") && colMap.ingAmount !== undefined && j > colMap.ingAmount && colMap.ingUnit === undefined) {
+            colMap.ingUnit = j;
+          }
+        }
+        break;
+      }
+    }
+
+    // スタンバイシートの列定義フォールバック (B=1:ｽﾀﾝﾊﾞｲ商品ｺｰﾄﾞ, C=2:ｽﾀﾝﾊﾞｲ商品名, J=9:商品コード, K=10:商品名, L=11:使用量, M=12:単位)
+    if (isStandbySheet || headerIdx === -1 || colMap.menuCode === undefined) {
+      if (colMap.menuCode === undefined) colMap.menuCode = 1;
+      if (colMap.menuName === undefined) colMap.menuName = 2;
+      if (colMap.ingCode === undefined) colMap.ingCode = 9;
+      if (colMap.ingName === undefined) colMap.ingName = 10;
+      if (colMap.ingAmount === undefined) colMap.ingAmount = 11;
+      if (colMap.ingUnit === undefined) colMap.ingUnit = 12;
+      if (headerIdx === -1) headerIdx = 0;
+    }
+
+    for (let i = headerIdx + 1; i < rows.length; i++) {
+      const cols = rows[i];
+      if (!cols || cols.length === 0) continue;
+
+      let menuCode = cols[colMap.menuCode] !== undefined && cols[colMap.menuCode] !== null ? String(cols[colMap.menuCode]).trim() : "";
+      let menuName = cols[colMap.menuName] !== undefined && cols[colMap.menuName] !== null ? String(cols[colMap.menuName]).trim() : "";
+      const ingCode = cols[colMap.ingCode] !== undefined && cols[colMap.ingCode] !== null ? String(cols[colMap.ingCode]).trim() : "";
+      const ingName = cols[colMap.ingName] !== undefined && cols[colMap.ingName] !== null ? String(cols[colMap.ingName]).trim() : "";
+      const rawAmount = cols[colMap.ingAmount] !== undefined && cols[colMap.ingAmount] !== null ? String(cols[colMap.ingAmount]).trim() : "";
+      const ingAmount = formatStandbyAmount(rawAmount);
+      const ingUnit = cols[colMap.ingUnit] !== undefined && cols[colMap.ingUnit] !== null ? String(cols[colMap.ingUnit]).trim() : "";
+
+      if (!menuCode || menuCode === "ﾒﾆｭｰｺｰﾄﾞ" || menuCode === "メニューコード" || menuCode === "ｽﾀﾝﾊﾞｲ商品ｺｰﾄﾞ" || menuCode === "スタンバイ商品コード") continue;
+
+      // 1行目の親行（ｽﾀﾝﾊﾞｲ商品ｺｰﾄﾞ === 商品コード、またはｽﾀﾝﾊﾞｲ商品名が空欄で商品名がある行）を判定
+      const isParentRow = (ingCode && ingCode === menuCode) || (!menuName && ingName);
+
+      if (!menuMaster[menuCode]) {
+        menuMaster[menuCode] = {
+          name: isParentRow ? (ingName || menuName) : (menuName || ingName),
+          ingredients: []
+        };
+      } else if (isParentRow && ingName) {
+        // K列の完全なスタンバイ商品名を優先採用
+        menuMaster[menuCode].name = ingName;
+      } else if (!menuMaster[menuCode].name && menuName) {
+        menuMaster[menuCode].name = menuName;
+      }
+
+      // 親行自体は出来上り行なので使用食材リストには追加しない
+      if (isParentRow) continue;
+
+      if (ingCode || ingName) {
+        if (ingCode !== "商品コード" && ingName !== "商品名称" && ingName !== "商品名") {
+          menuMaster[menuCode].ingredients.push({
+            code: ingCode || "",
+            name: ingName || "",
+            amount: ingAmount || "",
+            unit: ingUnit || "g"
+          });
+        }
+      }
+    }
+
+    const menuCount = Object.keys(menuMaster).length;
+    statusDiv.innerText = `スタンバイマスタ読込完了 (${menuCount}件) (${sourceLabel})`;
+    statusDiv.style.backgroundColor = "#ede9fe";
+    statusDiv.style.color = "#5b21b6";
+
+    safeStorage.setItem("cachedStandbyMaster", JSON.stringify(menuMaster));
+    safeStorage.setItem("cachedStandbyCount", menuCount);
+    safeStorage.setItem("cachedStandbySourceLabel", sourceLabel);
+    safeStorage.setItem("cachedStandbyVersion", "v1");
+
+    autoSyncAllRecipes();
+  }
+
+  async function autoSyncAllRecipes() {
+    try {
+      const allRecipes = await recipeDB.getAllRecipes();
+      let updatedCount = 0;
+      for (const r of allRecipes) {
+        if (r.menuCode && window.menuMaster && window.menuMaster[r.menuCode] && window.menuMaster[r.menuCode].ingredients && window.menuMaster[r.menuCode].ingredients.length > 0) {
+          const masterEntry = window.menuMaster[r.menuCode];
+          // パターンA: マスタ自体に差分がある項目のみ最新マスタで更新し、マスタ未変更の項目はユーザーの編集値・文字装飾を保持
+          r.ingredients = mergeIngredientsWithSaved(masterEntry.ingredients, r.ingredients);
+          if (masterEntry.name) {
+            if (r.masterProductName !== undefined && String(r.masterProductName) !== String(masterEntry.name)) {
+              r.productName = masterEntry.name;
+            } else if (!r.productName) {
+              r.productName = masterEntry.name;
+            }
+            r.masterProductName = masterEntry.name;
+          }
+          await recipeDB.saveRecipe(r);
+          updatedCount++;
+        }
+      }
+      if (updatedCount > 0) {
+        console.log(`マスターデータで ${updatedCount} 件の保存済み手順書の食材を自動同期しました`);
+        // 現在エディタで開いているレシピがあり、かつ食材欄を直接入力中でなければ画面にも反映
+        const isEditingIng = document.activeElement && document.activeElement.closest && document.activeElement.closest('#ingredientsContainer');
+        const currentMenuCode = document.getElementById('menuCode').value.trim();
+        if (!isEditingIng && currentMenuCode && window.menuMaster[currentMenuCode] && window.menuMaster[currentMenuCode].ingredients) {
+          const currentSaved = allRecipes.find(r => r.menuCode === currentMenuCode);
+          if (currentSaved) {
+            populateIngredients(currentSaved.ingredients);
+            const prodInput = document.getElementById('productName');
+            if (prodInput && document.activeElement !== prodInput && currentSaved.productName) {
+              prodInput.value = currentSaved.productName;
+              prodInput.dataset.masterProductName = currentSaved.masterProductName || '';
+            }
+          } else {
+            populateIngredients(mergeIngredientsWithSaved(window.menuMaster[currentMenuCode].ingredients, []));
+          }
+        }
+      }
+    } catch (e) {
+      console.error("自動同期に失敗しました:", e);
+    }
+  }
+
+  async function loadMasterData(isAuto = false) {
+    const statusDiv = document.getElementById('masterStatus');
+    if (!isAuto) {
+      statusDiv.innerText = "マスタデータをスプレッドシートから読み込んでいます...";
+      statusDiv.style.backgroundColor = "#ffe0b2";
+      statusDiv.style.color = "#e65100";
+    }
+
+    const url = "https://docs.google.com/spreadsheets/d/1FUpFIMRcoOf-f5xDkcJGNparud13cgINV7JQehHznZ8/gviz/tq?tqx=out:csv&sheet=" + encodeURIComponent("BQ原価レシピ7");
+    try {
+      const response = await fetch(url);
+      if (!response.ok) throw new Error("ネットワークエラーが発生しました。");
+      const arrayBuffer = await response.arrayBuffer();
+      const decoder = new TextDecoder('utf-8');
+      const csvText = decoder.decode(arrayBuffer);
+      
+      const lines = csvText.split(/\r?\n/);
+      const rows = [];
+      for (let i = 0; i < lines.length; i++) {
+        if (lines[i].trim()) {
+          rows.push(parseCSVLine(lines[i]));
+        }
+      }
+      
+      processMasterRows(rows, isAuto ? "スプシから自動更新" : "スプシから同期");
+      
+    } catch (error) {
+      console.error(error);
+      if (!isAuto) {
+        statusDiv.innerText = "同期失敗：上の『ローカル連携』からダウンロードしたExcel/CSVファイルを読み込めます。";
+        statusDiv.style.backgroundColor = "#ffebee";
+        statusDiv.style.color = "#c62828";
+      } else {
+        const menuCount = Object.keys(menuMaster).length;
+        const sourceLabel = safeStorage.getItem('cachedSourceLabel') || "キャッシュ";
+        statusDiv.innerText = `マスタデータ読込完了 (${menuCount}件のメニュー) (${sourceLabel})`;
+        statusDiv.style.backgroundColor = "#e8f5e9";
+        statusDiv.style.color = "#2e7d32";
+      }
+    }
+  }
+
+  function parseCSVLine(text) {
+    const result = [];
+    let cur = '';
+    let inQuote = false;
+    for (let i = 0; i < text.length; i++) {
+      const c = text[i];
+      if (c === '"') {
+        inQuote = !inQuote;
+      } else if (c === ',' && !inQuote) {
+        result.push(cur.trim());
+        cur = '';
+      } else {
+        cur += c;
+      }
+    }
+    result.push(cur.trim());
+    return result;
+  }
+
+  function populateIngredients(ingredients) {
+    ensureIngredientToolbar();
+    const container = document.getElementById('ingredientsContainer');
+    container.innerHTML = '';
+    
+    if (ingredients.length === 0) {
+      addIngredient();
+      return;
+    }
+    
+    ingredients.forEach(ing => {
+      const tr = document.createElement('tr');
+      tr.className = ing.standby ? 'ing-row is-standby' : 'ing-row';
+      if (ing.masterCode !== undefined) tr.dataset.masterCode = ing.masterCode;
+      if (ing.masterName !== undefined) tr.dataset.masterName = ing.masterName;
+      if (ing.masterAmount !== undefined) tr.dataset.masterAmount = ing.masterAmount;
+      if (ing.masterUnit !== undefined) tr.dataset.masterUnit = ing.masterUnit;
+      if (ing.isCustomRow) tr.dataset.isCustomRow = 'true';
+      
+      const units = ["g", "kg", "ml", "cc", "L", "個", "枚", "本", "尾", "杯", "種", "人前", "円", "適量"];
+      let unitOptions = "";
+      if (ing.unit && !units.includes(ing.unit)) {
+        units.push(ing.unit);
+      }
+      units.forEach(u => {
+        const selected = u === ing.unit ? " selected" : "";
+        unitOptions += `<option value="${u}"${selected}>${u}</option>`;
+      });
+      
+      tr.innerHTML = `
+        <td>
+          <input type="text" class="ing-code" value="${ing.code}" placeholder="コード">
+          <span class="print-text ing-code-print"></span>
+        </td>
+        <td>
+          <input type="text" class="ing-name" value="${ing.name}" placeholder="品名">
+          <span class="print-text ing-name-print"></span>
+        </td>
+        <td>
+          <input type="text" class="ing-amount" value="${ing.amount}" placeholder="使用量">
+          <span class="print-text ing-amount-print"></span>
+        </td>
+        <td>
+          <select class="ing-unit">
+            ${unitOptions}
+          </select>
+        </td>
+        <td style="text-align: center; position: relative;">
+          <select class="ing-standby">
+            <option value=""${ing.standby ? '' : ' selected'}></option>
+            <option value="スタンバイ"${ing.standby ? ' selected' : ''}>スタンバイ</option>
+          </select>
+          <span class="print-standby-check">✔</span>
+        </td>
+        <td class="edit-only-col" style="text-align: center;">
+          <button type="button" class="del-btn edit-only-btn" onclick="removeRow(this, 'ing')">🗑️</button>
+        </td>
+      `;
+      applyIngCellStyle(tr.querySelector('.ing-code'), ing.codeStyle);
+      applyIngCellStyle(tr.querySelector('.ing-name'), ing.nameStyle);
+      applyIngCellStyle(tr.querySelector('.ing-amount'), ing.amountStyle);
+      applyIngCellStyle(tr.querySelector('.ing-unit'), ing.unitStyle);
+      syncIngRowPrintStyles(tr);
+      container.appendChild(tr);
+    });
+    adjustPreviewScale();
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    ensureIngredientToolbar();
+    const modeSelectInit = document.getElementById('recipeModeSelect');
+    if (modeSelectInit && typeof currentMode !== 'undefined') {
+        modeSelectInit.value = currentMode;
+    }
+
+    reorganizeStepBlocks();
+    updateStandbyBlockNumbers();
+    updateStandbyVisibility();
+
+    // SortableJS Drag-and-Drop
+    if (typeof Sortable !== 'undefined') {
+      const sortableOptions = {
+        group: 'steps',
+        animation: 150,
+        handle: '.step-block-header',
+        onEnd: function() {
+          reorganizeStepBlocks();
+        }
+      };
+      new Sortable(document.getElementById('outStepsLeft'), sortableOptions);
+      new Sortable(document.getElementById('outStepsRight'), sortableOptions);
+      new Sortable(document.getElementById('outStepsFull'), sortableOptions);
+    }
+    updateStandbyVisibility();
+
+    // 初期時にすでにあるテキストエリアのサイズを調整
+    document.querySelectorAll('.step-textarea').forEach(el => {
+      autoResizeTextarea(el);
+    });
+
+    const CACHE_VERSION = "v1";
+    const cachedVersion = safeStorage.getItem("cachedStandbyVersion");
+    const cachedData = safeStorage.getItem("cachedStandbyMaster");
+    const statusDiv = document.getElementById("masterStatus");
+
+    if (cachedData && cachedVersion === CACHE_VERSION) {
+      try {
+        menuMaster = JSON.parse(cachedData);
+        window.menuMaster = menuMaster;
+        const menuCount = safeStorage.getItem("cachedStandbyCount") || Object.keys(menuMaster).length;
+        const sourceLabel = safeStorage.getItem("cachedStandbySourceLabel") || "キャッシュ";
+        if (statusDiv) {
+          statusDiv.innerText = `スタンバイマスタ読込完了 (${menuCount}件) (${sourceLabel})`;
+          statusDiv.style.backgroundColor = "#ede9fe";
+          statusDiv.style.color = "#5b21b6";
+        }
+      } catch (e) {
+        console.error("Standby cache load error", e);
+      }
+    } else {
+      if (statusDiv) {
+        statusDiv.innerText = "上の『📁 スタンバイシート連携』から _Data.xls 等を読み込んでください（デモ3件搭載）";
+        statusDiv.style.backgroundColor = "#ede9fe";
+        statusDiv.style.color = "#5b21b6";
+      }
+    }
+
+    const menuCodeInput = document.getElementById('menuCode');
+    const productNameInput = document.getElementById('productName');
+    
+    if (menuCodeInput) {
+      menuCodeInput.addEventListener('input', (e) => {
+        const code = e.target.value.trim();
+        if (menuMaster[code]) {
+          productNameInput.value = menuMaster[code].name;
+          productNameInput.dataset.masterProductName = menuMaster[code].name || "";
+          handleMenuCodeSelection(code);
+        } else {
+          updateDBStatusLabel(code || null);
+        }
+      });
+    }
+    
+    if (productNameInput) {
+      productNameInput.addEventListener('input', (e) => {
+        const name = e.target.value.trim();
+        const currentCode = menuCodeInput ? menuCodeInput.value.trim() : "";
+        if (currentCode) {
+          // 既にメニューコードが選択されている場合は商品名称の自由編集として扱う
+          updateDBStatusLabel(currentCode);
+          return;
+        }
+        const foundCode = Object.keys(menuMaster).find(code => menuMaster[code].name === name);
+        if (foundCode) {
+          menuCodeInput.value = foundCode;
+          productNameInput.dataset.masterProductName = menuMaster[foundCode].name || "";
+          handleMenuCodeSelection(foundCode);
+        } else {
+          updateDBStatusLabel(null);
+        }
+      });
+    }
+    
+    // 強制的に料理モードとして初期化
+    switchMode('standby');
+  });
+
+  // サジェスト機能
+  let activeSuggestTarget = null;
+  let activeSuggestValue = null;
+
+  // --- 3.7 Auto-Complete Suggest List Engine ---
+  function closeAllSuggestions() {
+    document.querySelectorAll('.suggest-list').forEach(el => el.remove());
+    activeSuggestTarget = null;
+    activeSuggestValue = null;
+  }
+
+  function showSuggestions(inputEl) {
+    const val = inputEl.value.trim();
+    if (activeSuggestTarget === inputEl && activeSuggestValue === val) {
+      if (inputEl.parentElement.querySelector('.suggest-list')) {
+        return;
+      }
+    }
+
+    closeAllSuggestions();
+    activeSuggestTarget = inputEl;
+    activeSuggestValue = val;
+
+    const wrapper = inputEl.parentElement;
+    if (!wrapper.classList.contains('autocomplete-wrapper')) return;
+
+    let matches = [];
+    const valUpper = val.toUpperCase();
+
+    for (const [code, menu] of Object.entries(menuMaster)) {
+      const matchCode = code.toUpperCase().includes(valUpper);
+      const matchName = menu.name.toUpperCase().includes(valUpper);
+      if (!val || matchCode || matchName) {
+        matches.push({
+          code: code,
+          name: menu.name
+        });
+      }
+    }
+
+    if (matches.length === 0) return;
+
+    matches = matches.slice(0, 50);
+
+    const listDiv = document.createElement('div');
+    listDiv.className = 'suggest-list';
+    if (inputEl.id === 'menuCode') {
+      listDiv.style.right = '0';
+      listDiv.style.left = 'auto';
+    }
+
+    matches.forEach(item => {
+      const itemDiv = document.createElement('div');
+      itemDiv.className = 'suggest-item';
+      const isSaved = savedMenuCodes.has(item.code);
+      itemDiv.innerText = `${isSaved ? '💾 ' : ''}${item.code} : ${item.name}`;
+      
+      itemDiv.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        document.getElementById('menuCode').value = item.code;
+        document.getElementById('productName').value = item.name;
+        closeAllSuggestions();
+        handleMenuCodeSelection(item.code);
+      });
+      listDiv.appendChild(itemDiv);
+    });
+
+    wrapper.appendChild(listDiv);
+  }
+
+  function handleInputEvent(e) {
+    let target = e.target;
+    if (!target) return;
+    
+    // classListの存在確認を含め安全に取得
+    let isArrowClick = target.classList && target.classList.contains('dropdown-arrow');
+    if (isArrowClick) {
+      target = target.parentElement ? target.parentElement.querySelector('input') : null;
+    }
+    if (!target) return;
+
+    if (target.id === 'menuCode' || target.id === 'productName') {
+      if (e.type === 'click' && isArrowClick) {
+        const existingList = target.parentElement ? target.parentElement.querySelector('.suggest-list') : null;
+        if (existingList) {
+          closeAllSuggestions();
+          return;
+        }
+        target.focus();
+      }
+      showSuggestions(target);
+    }
+  }
+
+  // --- 3.8 Global Event Bindings & Initializers ---
+  document.addEventListener('input', handleInputEvent);
+  document.addEventListener('focusin', handleInputEvent);
+  document.addEventListener('click', handleInputEvent);
+
+  document.addEventListener('click', function(e) {
+    if (!e.target || !e.target.closest || !e.target.closest('.autocomplete-wrapper')) {
+      closeAllSuggestions();
+    }
+  });
+
+  // スタンバイセレクトボックス変更時のクラス付与処理 (印刷用スタイルとの連携)
+  document.addEventListener('change', function(e) {
+    if (e.target.classList.contains('ing-standby')) {
+      const row = e.target.closest('.ing-row');
+      if (row) {
+        if (e.target.value === 'スタンバイ') {
+          row.classList.add('is-standby');
+        } else {
+          row.classList.remove('is-standby');
+        }
+      }
+    }
+  });
+
+  document.addEventListener('focusout', function(e) {
+    setTimeout(() => {
+      if (document.activeElement !== e.target && (!document.activeElement || !document.activeElement.closest || !document.activeElement.closest('.autocomplete-wrapper'))) {
+        closeAllSuggestions();
+      }
+    }, 150);
+  });
+
+  // ローカルファイル読込
+  const masterFileInput = document.getElementById('masterFileInput');
+  if (masterFileInput) {
+    masterFileInput.addEventListener('change', function(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const statusDiv = document.getElementById('masterStatus');
+      statusDiv.innerText = "ファイルを解析しています...";
+      statusDiv.style.backgroundColor = "#ffe0b2";
+      statusDiv.style.color = "#e65100";
+
+      const fileName = file.name;
+      const isExcel = fileName.endsWith('.xlsx') || fileName.endsWith('.xls');
+
+      const reader = new FileReader();
+      if (isExcel) {
+        reader.onload = function(evt) {
+          try {
+            const data = new Uint8Array(evt.target.result);
+            const workbook = XLSX.read(data, {type: 'array'});
+            const firstSheetName = workbook.SheetNames[0];
+            const worksheet = workbook.Sheets[firstSheetName];
+            const rows = XLSX.utils.sheet_to_json(worksheet, {header: 1});
+            processMasterRows(rows, `Excel: ${fileName}`);
+          } catch (err) {
+            console.error(err);
+            statusDiv.innerText = "Excelファイルの解析に失敗しました。";
+            statusDiv.style.backgroundColor = "#ffebee";
+            statusDiv.style.color = "#c62828";
+          }
+        };
+        reader.readAsArrayBuffer(file);
+      } else {
+        reader.onload = function(evt) {
+          try {
+            const text = evt.target.result;
+            const lines = text.split(/\r?\n/);
+            const rows = [];
+            for (let i = 0; i < lines.length; i++) {
+              if (lines[i].trim()) {
+                rows.push(parseCSVLine(lines[i]));
+              }
+            }
+            processMasterRows(rows, `CSV: ${fileName}`);
+          } catch (err) {
+            console.error(err);
+            statusDiv.innerText = "CSVファイルの解析に失敗しました。";
+            statusDiv.style.backgroundColor = "#ffebee";
+            statusDiv.style.color = "#c62828";
+          }
+        };
+        reader.readAsText(file, 'Shift_JIS');
+      }
+    });
+  }
+
+  // --- 3.1.1 IndexedDB Database Wrapper for Recipes ---
+  class RecipeDB {
+    constructor() {
+      this.dbName = "RecipeMakerStandbyDB";
+      this.dbVersion = 1;
+      this.storeName = "recipes";
+      this.db = null;
+    }
+
+    init() {
+      return new Promise((resolve, reject) => {
+        try {
+          if (!window.indexedDB) {
+            throw new Error("IndexedDB is not supported in this browser.");
+          }
+          const request = indexedDB.open(this.dbName, this.dbVersion);
+          
+          request.onupgradeneeded = (e) => {
+            const db = e.target.result;
+            if (!db.objectStoreNames.contains(this.storeName)) {
+              db.createObjectStore(this.storeName, { keyPath: "menuCode" });
+            }
+          };
+
+          request.onsuccess = (e) => {
+            this.db = e.target.result;
+            resolve(this.db);
+          };
+
+          request.onerror = (e) => {
+            console.error("IndexedDB open error:", e.target.error);
+            reject(e.target.error || new Error("Permission denied to open IndexedDB"));
+          };
+        } catch (err) {
+          console.error("IndexedDB initialization error:", err);
+          reject(err);
+        }
+      });
+    }
+
+    saveRecipe(recipe) {
+      return new Promise((resolve, reject) => {
+        if (!this.db) {
+          reject(new Error("Database not initialized"));
+          return;
+        }
+        const transaction = this.db.transaction([this.storeName], "readwrite");
+        const store = transaction.objectStore(this.storeName);
+        const request = store.put(recipe);
+
+        request.onsuccess = () => resolve(true);
+        request.onerror = (e) => reject(e.target.error);
+      });
+    }
+
+    getRecipe(menuCode) {
+      return new Promise((resolve, reject) => {
+        if (!this.db) {
+          reject(new Error("Database not initialized"));
+          return;
+        }
+        const transaction = this.db.transaction([this.storeName], "readonly");
+        const store = transaction.objectStore(this.storeName);
+        const request = store.get(menuCode);
+
+        request.onsuccess = (e) => resolve(e.target.result || null);
+        request.onerror = (e) => reject(e.target.error);
+      });
+    }
+
+    deleteRecipe(menuCode) {
+      return new Promise((resolve, reject) => {
+        if (!this.db) {
+          reject(new Error("Database not initialized"));
+          return;
+        }
+        const transaction = this.db.transaction([this.storeName], "readwrite");
+        const store = transaction.objectStore(this.storeName);
+        const request = store.delete(menuCode);
+
+        request.onsuccess = () => resolve(true);
+        request.onerror = (e) => reject(e.target.error);
+      });
+    }
+
+    getAllCodes() {
+      return new Promise((resolve, reject) => {
+        if (!this.db) {
+          reject(new Error("Database not initialized"));
+          return;
+        }
+        const transaction = this.db.transaction([this.storeName], "readonly");
+        const store = transaction.objectStore(this.storeName);
+        const request = store.getAllKeys();
+
+        request.onsuccess = (e) => resolve(e.target.result || []);
+        request.onerror = (e) => reject(e.target.error);
+      });
+    }
+
+    getAllRecipes() {
+      return new Promise((resolve, reject) => {
+        if (!this.db) {
+          reject(new Error("Database not initialized"));
+          return;
+        }
+        const transaction = this.db.transaction([this.storeName], "readonly");
+        const store = transaction.objectStore(this.storeName);
+        const request = store.getAll();
+
+        request.onsuccess = (e) => resolve(e.target.result || []);
+        request.onerror = (e) => reject(e.target.error);
+      });
+    }
+  }
+
+  const recipeDB = new RecipeDB();
+  const savedMenuCodes = new Set();
+
+  // DBの初期化と保存済みコード一覧のロード
+  recipeDB.init()
+    .then(() => recipeDB.getAllCodes())
+    .then(codes => {
+      codes.forEach(code => savedMenuCodes.add(code));
+      console.log("Database initialized. Saved menu codes:", Array.from(savedMenuCodes));
+      
+      // 初期状態のメニューコード入力がある場合は表示状態を同期
+      const currentCode = document.getElementById('menuCode').value.trim();
+      if (currentCode) {
+        updateDBStatusLabel(currentCode);
+      }
+      updateSavedCount();
+
+      const pendingLoad = safeStorage.getItem('pendingLoadStandbyRecipe');
+      if (pendingLoad) {
+        safeStorage.removeItem('pendingLoadStandbyRecipe');
+        document.getElementById('menuCode').value = pendingLoad;
+        handleMenuCodeSelection(pendingLoad);
+      }
+
+      const pendingBatch = safeStorage.getItem('pendingBatchPrintStandbyCodes');
+      if (pendingBatch) {
+        safeStorage.removeItem('pendingBatchPrintStandbyCodes');
+        try {
+          const batchCodes = JSON.parse(pendingBatch);
+          if (Array.isArray(batchCodes) && batchCodes.length > 0) {
+            setTimeout(() => {
+              executeBatchPrintByCodes(batchCodes);
+            }, 300);
+          }
+        } catch (e) {
+          console.error("Failed to parse pendingBatchPrintStandbyCodes:", e);
+        }
+      }
+    })
+    .catch(err => {
+      console.error("Failed to initialize database:", err);
+    });
+
+  // DB連携のUI表示メッセージ更新
+  function showStatusMessage(text, type = "info") {
+    const statusDiv = document.getElementById('dbStatus');
+    if (!statusDiv) return;
+    
+    statusDiv.innerText = text;
+    statusDiv.style.color = "#fff";
+    
+    if (type === "success") {
+      statusDiv.style.backgroundColor = "#2e7d32"; // 緑
+    } else if (type === "error") {
+      statusDiv.style.backgroundColor = "#c62828"; // 赤
+    } else if (type === "info") {
+      statusDiv.style.backgroundColor = "#0288d1"; // 青
+    } else {
+      statusDiv.style.backgroundColor = "#78909c"; // グレー
+      statusDiv.style.color = "#37474f";
+    }
+  }
+
+  function updateDBStatusLabel(code) {
+    const statusDiv = document.getElementById('dbStatus');
+    if (!statusDiv) return;
+    
+    if (!code) {
+      statusDiv.innerText = "✏️ 新規手順書";
+      statusDiv.style.backgroundColor = "#e2e8f0";
+      statusDiv.style.color = "#475569";
+      return;
+    }
+    
+    if (savedMenuCodes.has(code)) {
+      statusDiv.innerText = "💾 保存済み";
+      statusDiv.style.backgroundColor = "#c8e6c9";
+      statusDiv.style.color = "#256029";
+    } else {
+      statusDiv.innerText = "✏️ 未保存の新規";
+      statusDiv.style.backgroundColor = "#ffe0b2";
+      statusDiv.style.color = "#e65100";
+    }
+  }
+
+  // 手順書オブジェクトのシリアライズ
+  async function serializeCurrentRecipe() {
+    const menuCode = document.getElementById('menuCode').value.trim();
+    const productName = document.getElementById('productName').value.trim();
+    if (!menuCode) return null;
+
+    const periodStart = document.getElementById('periodStart') ? document.getElementById('periodStart').value : "";
+    const periodEnd = document.getElementById('periodEnd') ? document.getElementById('periodEnd').value : "";
+    const brandCategory = document.getElementById('brandCategory') ? document.getElementById('brandCategory').value : "";
+    const menuCategory = document.getElementById('menuCategory') ? document.getElementById('menuCategory').value : "";
+
+    const moldL = document.getElementById('moldL').value;
+    const moldW = document.getElementById('moldW').value;
+    const moldH = document.getElementById('moldH').value;
+    const maxLoad = document.getElementById('maxLoad').value;
+
+    const proofL = document.getElementById('proofL').value;
+    const proofW = document.getElementById('proofW').value;
+    const proofH = document.getElementById('proofH').value;
+    const proofTime = document.getElementById('proofTime').value;
+
+    const bakeL = document.getElementById('bakeL').value;
+    const bakeW = document.getElementById('bakeW').value;
+    const bakeH = document.getElementById('bakeH').value;
+    const bakeTime = document.getElementById('bakeTime').value;
+
+    const plateEl = document.getElementById('plateText');
+    const servingEl = document.getElementById('servingText');
+    const servingText = (plateEl && plateEl.value.trim()) ? plateEl.value.trim() : (servingEl ? servingEl.value.trim() : "");
+    const plateText = plateEl ? plateEl.value.trim() : "";
+
+    const prodEl = document.getElementById('productName');
+    const masterProductName = (window.menuMaster && window.menuMaster[menuCode] && window.menuMaster[menuCode].name)
+      ? window.menuMaster[menuCode].name
+      : (prodEl && prodEl.dataset.masterProductName ? prodEl.dataset.masterProductName : undefined);
+
+    // 使用食材
+    const ingredients = [];
+    const masterIngsForMenu = (window.menuMaster && window.menuMaster[menuCode] && window.menuMaster[menuCode].ingredients)
+      ? window.menuMaster[menuCode].ingredients
+      : [];
+    const usedMasterIdx = new Set();
+
+    document.querySelectorAll('#ingredientsContainer .ing-row').forEach((row, rowIdx) => {
+      const codeEl = row.querySelector('.ing-code');
+      const nameEl = row.querySelector('.ing-name');
+      const amountEl = row.querySelector('.ing-amount');
+      const unitEl = row.querySelector('.ing-unit');
+      const code = codeEl.value.trim();
+      const name = nameEl.value.trim();
+      const amount = amountEl.value.trim();
+      const unit = unitEl.value;
+      const standby = row.querySelector('.ing-standby').value === 'スタンバイ';
+      if (code || name || amount) {
+        const ingObj = { code, name, amount, unit, standby };
+        const codeStyle = extractIngCellStyle(codeEl);
+        const nameStyle = extractIngCellStyle(nameEl);
+        const amountStyle = extractIngCellStyle(amountEl);
+        const unitStyle = extractIngCellStyle(unitEl);
+        if (codeStyle) ingObj.codeStyle = codeStyle;
+        if (nameStyle) ingObj.nameStyle = nameStyle;
+        if (amountStyle) ingObj.amountStyle = amountStyle;
+        if (unitStyle) ingObj.unitStyle = unitStyle;
+
+        // パターンA用: 保存時点のマスタ値スナップショットを記録
+        let mIng = null;
+        if (masterIngsForMenu.length > 0) {
+          let mIdx = -1;
+          if (code) {
+            if (masterIngsForMenu[rowIdx] && masterIngsForMenu[rowIdx].code === code && !usedMasterIdx.has(rowIdx)) {
+              mIdx = rowIdx;
+            } else {
+              mIdx = masterIngsForMenu.findIndex((m, idx) => !usedMasterIdx.has(idx) && m.code === code);
+            }
+          } else if (masterIngsForMenu[rowIdx] && !usedMasterIdx.has(rowIdx) && !masterIngsForMenu[rowIdx].code) {
+            mIdx = rowIdx;
+          }
+          if (mIdx !== -1) {
+            mIng = masterIngsForMenu[mIdx];
+            usedMasterIdx.add(mIdx);
+          }
+        }
+
+        if (mIng) {
+          ingObj.masterCode = mIng.code;
+          ingObj.masterName = mIng.name;
+          ingObj.masterAmount = mIng.amount;
+          ingObj.masterUnit = mIng.unit;
+        } else if (row.dataset.masterAmount !== undefined || row.dataset.masterName !== undefined || row.dataset.masterUnit !== undefined) {
+          if (row.dataset.masterCode !== undefined) ingObj.masterCode = row.dataset.masterCode;
+          if (row.dataset.masterName !== undefined) ingObj.masterName = row.dataset.masterName;
+          if (row.dataset.masterAmount !== undefined) ingObj.masterAmount = row.dataset.masterAmount;
+          if (row.dataset.masterUnit !== undefined) ingObj.masterUnit = row.dataset.masterUnit;
+        } else if (masterIngsForMenu.length > 0) {
+          ingObj.isCustomRow = true;
+        }
+
+        ingredients.push(ingObj);
+      }
+    });
+
+    // 各手順ブロック
+    const manualSteps = [];
+    const stepBlocks = document.querySelectorAll('#outputArea .step-block[data-block-type="step"]');
+    for (let block of stepBlocks) {
+      const textarea = block.querySelector('.step-textarea');
+      const text = textarea.value;
+      const fontSize = textarea.style.fontSize || "";
+      const uploadBox = block.querySelector('.image-upload-box');
+      const imageBlob = uploadBox.fileData || null;
+      const isStandby = block.querySelector('.standby-toggle') ? block.querySelector('.standby-toggle').checked : false;
+      manualSteps.push({ text, imageBlob, isStandby, fontSize });
+    }
+
+    // スタンバイブロック
+    const standbySteps = [];
+    const standbyBlocks = document.querySelectorAll('#standbyContainer .standby-block');
+    for (let block of standbyBlocks) {
+      const text = block.querySelector('.step-textarea').value;
+      const uploadBox = block.querySelector('.image-upload-box');
+      const imageBlob = uploadBox.fileData || null;
+      standbySteps.push({ text, imageBlob });
+    }
+
+    // 固定位置の画像
+    const mainImageBlob = document.getElementById('mainImage').closest('.image-upload-box').fileData || null;
+        const moldImageBlob = document.getElementById('moldImg').closest('.image-upload-box').fileData || null;
+    const proofImageBlob = document.getElementById('proofImg').closest('.image-upload-box').fileData || null;
+    const bakeImageBlob = document.getElementById('bakeImg').closest('.image-upload-box').fileData || null;
+
+    return {
+      menuCode,
+      productName,
+      masterProductName,
+  mode: document.getElementById('recipeModeSelect') ? document.getElementById('recipeModeSelect').value : (typeof currentMode !== 'undefined' ? currentMode : 'bread'),
+      manufacturingSlipName: document.getElementById('manufacturingSlipName') ? document.getElementById('manufacturingSlipName').value : "",
+      periodStart,
+      periodEnd,
+      brandCategory,
+      menuCategory,
+      moldL, moldW, moldH, maxLoad,
+      proofL, proofW, proofH, proofTime,
+      bakeL, bakeW, bakeH, bakeTime,
+      servingText,
+      plateText,
+      ingredients,
+      manualSteps,
+      standbySteps,
+      mainImageBlob,
+      moldImageBlob,
+      proofImageBlob,
+      bakeImageBlob,
+      lastUpdated: Date.now()
+    };
+  }
+
+  // 手順書オブジェクトのデシリアライズ（画面への反映）
+  function loadRecipeFromDB(recipe, skipModeRedirect = false) {
+    if (!recipe) return;
+
+    // スタンバイ専用環境のため他モードへのリダイレクトは行わない
+    const modeSelect = document.getElementById('recipeModeSelect');
+    if (modeSelect) modeSelect.value = 'standby';
+
+    document.getElementById('menuCode').value = recipe.menuCode || "";
+
+    // 商品名称の復元（パターンA: マスタ側の名称が保存時スナップショットから変わった場合のみマスタ名称で更新、それ以外はユーザーの編集名称を維持）
+    let productNameToLoad = recipe.productName || "";
+    let masterProductName = recipe.masterProductName;
+    if (recipe.menuCode && window.menuMaster && window.menuMaster[recipe.menuCode] && window.menuMaster[recipe.menuCode].name) {
+      const currentMasterName = window.menuMaster[recipe.menuCode].name;
+      if (masterProductName !== undefined && String(masterProductName) !== String(currentMasterName)) {
+        productNameToLoad = currentMasterName;
+      } else if (!productNameToLoad) {
+        productNameToLoad = currentMasterName;
+      }
+      masterProductName = currentMasterName;
+    }
+    const prodInput = document.getElementById('productName');
+    prodInput.value = productNameToLoad;
+    prodInput.dataset.masterProductName = masterProductName || "";
+
+    if (document.getElementById('manufacturingSlipName')) {
+      document.getElementById('manufacturingSlipName').value = recipe.manufacturingSlipName || "";
+    }
+    if (document.getElementById('periodStart')) {
+      document.getElementById('periodStart').value = recipe.periodStart || "";
+    }
+    if (document.getElementById('periodEnd')) {
+      document.getElementById('periodEnd').value = recipe.periodEnd || "";
+    }
+
+    if (document.getElementById('brandCategory')) {
+      document.getElementById('brandCategory').value = recipe.brandCategory || "";
+      if (document.querySelector('.brand-print')) {
+        document.querySelector('.brand-print').innerText = recipe.brandCategory || "";
+      }
+    }
+    if (document.getElementById('menuCategory')) {
+      document.getElementById('menuCategory').value = recipe.menuCategory || "";
+      if (document.querySelector('.category-print')) {
+        document.querySelector('.category-print').innerText = recipe.menuCategory || "";
+      }
+    }
+
+    document.getElementById('moldL').value = recipe.moldL || 0;
+    document.getElementById('moldW').value = recipe.moldW || 0;
+    document.getElementById('moldH').value = recipe.moldH || 0;
+    document.getElementById('maxLoad').value = recipe.maxLoad || "6";
+
+    document.getElementById('proofL').value = recipe.proofL || 0;
+    document.getElementById('proofW').value = recipe.proofW || 0;
+    document.getElementById('proofH').value = recipe.proofH || 0;
+    document.getElementById('proofTime').value = recipe.proofTime || "40";
+
+    document.getElementById('bakeL').value = recipe.bakeL || 0;
+    document.getElementById('bakeW').value = recipe.bakeW || 0;
+    document.getElementById('bakeH').value = recipe.bakeH || 0;
+    document.getElementById('bakeTime').value = recipe.bakeTime || "10";
+
+    // 画像の復元
+    restoreImageHelper('mainImage', recipe.mainImageBlob);
+    restoreImageHelper('moldImg', recipe.moldImageBlob);
+    restoreImageHelper('proofImg', recipe.proofImageBlob);
+    restoreImageHelper('bakeImg', recipe.bakeImageBlob);
+
+    if (document.getElementById('servingText')) {
+      document.getElementById('servingText').value = recipe.servingText || "";
+      autoResizeTextarea(document.getElementById('servingText'));
+    }
+    if (document.getElementById('plateText')) {
+      document.getElementById('plateText').value = recipe.plateText || recipe.servingText || "";
+      autoResizeTextarea(document.getElementById('plateText'));
+    }
+
+    // 食材テーブルの復元（パターンA: マスタ自体に更新があった項目のみマスタを反映し、未変更項目はユーザー編集値・単位・文字装飾を保持）
+    let ingredientsToLoad = recipe.ingredients || [];
+    if (recipe.menuCode && window.menuMaster && window.menuMaster[recipe.menuCode] && window.menuMaster[recipe.menuCode].ingredients && window.menuMaster[recipe.menuCode].ingredients.length > 0) {
+      ingredientsToLoad = mergeIngredientsWithSaved(window.menuMaster[recipe.menuCode].ingredients, recipe.ingredients);
+    }
+    populateIngredients(ingredientsToLoad);
+
+    // 各手順ブロックの復元
+    const stepsLeft = document.getElementById('outStepsLeft');
+    const stepsRight = document.getElementById('outStepsRight');
+    const stepsFull = document.getElementById('outStepsFull');
+    stepsLeft.innerHTML = '';
+    stepsRight.innerHTML = '';
+    stepsFull.innerHTML = '';
+
+    if (recipe.manualSteps && recipe.manualSteps.length > 0) {
+      recipe.manualSteps.forEach((step, index) => {
+        const blockId = Date.now() + index;
+        const div = document.createElement('div');
+        div.className = 'step-block';
+        div.setAttribute('data-block-id', blockId);
+        div.setAttribute('data-block-type', 'step');
+        div.innerHTML = `
+          <div class="step-block-header edit-only-row" style="position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; padding-right: 25px;">
+        <button type="button" class="del-btn edit-only-btn" style="position: absolute; top: 2px; right: 2px; width: 24px; height: 24px; padding: 0; font-size: 14px; display: flex; justify-content: center; align-items: center; border-radius: 4px;" onclick="removeStepBlock(this)">✖</button>
+        <span class="block-title" style="color:#e91e63;">手順</span>
+        <label style="font-size: 0.8rem; cursor: pointer; color: #1565c0; font-weight: bold;">
+          <input type="checkbox" class="standby-toggle" onchange="updateBlockNumbers()"> スタンバイ
+        </label>
+        <select class="step-template-select edit-only-btn" onchange="applyStepTemplate(this)" style="font-size: 0.8rem; padding: 2px; width: 100%;">
+          <option value="">-- 定型文挿入 --</option>
+          <option value="format1">① 手洗い・備品確認</option>
+          <option value="format2">② ゴム敷きプレート・熱々提供</option>
+          <option value="format3">③ 皿の淵汚れ確認・熱々提供</option>
+          <option value="format4">④ 木台・丸鉄板（五徳着火）提供</option>
+        </select>
+        <div class="tool-dropdown-container edit-only-btn" style="position: relative; display: inline-block; width: 100%;">
+          <button type="button" class="tool-dropdown-btn" onclick="toggleToolMenu(this)" style="font-size: 0.8rem; padding: 2px; width: 100%;">-- 道具挿入 -- ▼</button>
+          <div class="tool-dropdown-menu" style="display: none; position: absolute; left: 0; top: 100%; z-index: 100; background: white; border: 1px solid #ccc; padding: 5px; box-shadow: 0 2px 5px rgba(0,0,0,0.2); white-space: nowrap; font-size: 0.85rem; max-height: 250px; overflow-y: auto;">
+            <label style="display:block; cursor:pointer;"><input type="checkbox" value="[IH]"> [IH]</label>
+            <label style="display:block; cursor:pointer;"><input type="checkbox" value="[電子レンジ]"> [電子レンジ]</label>
+            <label style="display:block; cursor:pointer;"><input type="checkbox" value="[ブレンダー]"> [ブレンダー]</label>
+            <label style="display:block; cursor:pointer;"><input type="checkbox" value="[片手鍋]"> [片手鍋]</label>
+            <label style="display:block; cursor:pointer;"><input type="checkbox" value="[ボール]"> [ボール]</label>
+            <label style="display:block; cursor:pointer;"><input type="checkbox" value="[コランダー]"> [コランダー]</label>
+            <label style="display:block; cursor:pointer;"><input type="checkbox" value="[ゴムベラ]"> [ゴムベラ]</label>
+            <label style="display:block; cursor:pointer;"><input type="checkbox" value="[トング]"> [トング]</label>
+            <label style="display:block; cursor:pointer;"><input type="checkbox" value="[レードル]"> [レードル]</label>
+            <label style="display:block; cursor:pointer;"><input type="checkbox" value="[ディッシャー]"> [ディッシャー]</label>
+            <label style="display:block; cursor:pointer;"><input type="checkbox" value="[スプーン]"> [スプーン]</label>
+            <button type="button" onclick="insertCheckedTools(this)" style="margin-top: 5px; width: 100%; font-size: 0.85rem; padding: 2px; background: #e0e0e0; cursor: pointer; border: 1px solid #999;">挿入</button>
+          </div>
+        </div>
+      </div>
+          <div class="step-preview-block">
+            <div class="step-img-out">
+              <div class="image-upload-box" onclick="triggerFileInput(this)">
+                <input type="file" class="image-file-input block-img" accept="image/*" onchange="previewImage(this)">
+                <div class="image-placeholder">
+                  <span>📷 写真を選択</span>
+                </div>
+                <div class="image-preview" style="display: none;">
+                  <img>
+                  <button type="button" class="del-image-btn edit-only-btn" onclick="clearImage(event, this)">×</button>
+                </div>
+              </div>
+            </div>
+            <div class="step-texts-out">
+              <div class="print-only-block-title" style="font-weight:bold; margin-bottom:2px; text-align:left;">手順</div>
+              <textarea class="step-textarea" placeholder="手順を自由に入力してください" oninput="autoResizeTextarea(this)"></textarea>
+            </div>
+          </div>
+        `;
+        const stepTextarea = div.querySelector('.step-textarea');
+        stepTextarea.value = step.text || "";
+        if (step.fontSize) {
+          stepTextarea.style.fontSize = step.fontSize;
+        }
+        const box = div.querySelector('.image-upload-box');
+        if (step.imageBlob) {
+          restoreImageHelperOnBox(box, step.imageBlob);
+        }
+        
+        const standbyCheckbox = div.querySelector('.standby-toggle');
+        if (standbyCheckbox && step.isStandby) {
+            standbyCheckbox.checked = true;
+        }
+        
+        stepsFull.appendChild(div);
+        autoResizeTextarea(stepTextarea);
+      });
+    } else {
+      insertBlankStepBlock();
+    }
+    reorganizeStepBlocks();
+
+    // スタンバイブロックの復元
+    const standbyContainer = document.getElementById('standbyContainer');
+    standbyContainer.innerHTML = '';
+    if (recipe.standbySteps && recipe.standbySteps.length > 0) {
+      recipe.standbySteps.forEach((step, index) => {
+        const div = document.createElement('div');
+        div.className = 'step-block standby-block';
+        div.innerHTML = `
+          <div class="edit-only-row" style="margin-bottom: 2px; display: flex; justify-content: space-between; align-items: center;">
+            <strong class="standby-title" style="color: #0d47a1;">スタンバイ</strong>
+            <button type="button" class="del-btn edit-only-btn" onclick="removeStandbyBlock(this)">削除</button>
+          </div>
+          <div class="step-preview-block">
+            <div class="step-img-out">
+              <div class="image-upload-box" onclick="triggerFileInput(this)">
+                <input type="file" class="image-file-input block-img" accept="image/*" onchange="previewImage(this)">
+                <div class="image-placeholder">
+                  <span>📷 写真を選択</span>
+                </div>
+                <div class="image-preview" style="display: none;">
+                  <img>
+                  <button type="button" class="del-image-btn edit-only-btn" onclick="clearImage(event, this)">×</button>
+                </div>
+              </div>
+            </div>
+            <div class="step-texts-out">
+              <textarea class="step-textarea" placeholder="スタンバイ手順を自由に入力してください" oninput="autoResizeTextarea(this); updateStandbyVisibility();"></textarea>
+            </div>
+          </div>
+        `;
+        div.querySelector('.step-textarea').value = step.text || "";
+        const box = div.querySelector('.image-upload-box');
+        if (step.imageBlob) {
+          restoreImageHelperOnBox(box, step.imageBlob);
+        }
+        if (step.imgHeight) {
+          box.style.setProperty('height', step.imgHeight, 'important');
+          const img = box.querySelector('img');
+          if (img) {
+            img.style.setProperty('height', '100%', 'important');
+            img.style.setProperty('object-fit', 'contain', 'important');
+          }
+        }
+        standbyContainer.appendChild(div);
+        autoResizeTextarea(div.querySelector('.step-textarea'));
+      });
+    } else {
+      insertBlankStandbyBlock();
+    }
+    updateStandbyBlockNumbers();
+    updateStandbyVisibility();
+
+    updateDBStatusLabel(recipe.menuCode);
+    adjustPreviewScale();
+  }
+
+  function restoreImageHelper(inputId, blob) {
+    const input = document.getElementById(inputId);
+    if (!input) return Promise.resolve();
+    const box = input.closest('.image-upload-box');
+    return restoreImageHelperOnBox(box, blob);
+  }
+
+  async function restoreImageHelperOnBox(box, blob) {
+    if (!box) return;
+    const p = (async () => {
+      const placeholder = box.querySelector('.image-placeholder');
+      const preview = box.querySelector('.image-preview');
+      const img = preview.querySelector('img');
+      const fileInput = box.querySelector('input[type="file"]');
+      
+      if (blob) {
+        // 古い重い画像の場合はここで自動圧縮！
+        const compressedBlob = await compressImageBlob(blob);
+        
+        try {
+          const file = new File([compressedBlob], "image.jpeg", { type: compressedBlob.type || "image/jpeg" });
+          const dt = new DataTransfer();
+          dt.items.add(file);
+          fileInput.files = dt.files;
+          box.fileData = file;
+        } catch (e) {
+          console.error("Failed to restore files list:", e);
+          box.fileData = compressedBlob;
+        }
+        
+        const url = URL.createObjectURL(compressedBlob);
+        if (typeof batchPrintObjectUrls !== 'undefined' && Array.isArray(batchPrintObjectUrls)) {
+          batchPrintObjectUrls.push(url);
+        }
+        await new Promise((resolve) => {
+          img.onload = () => resolve();
+          img.onerror = () => resolve();
+          img.src = url;
+        });
+        placeholder.style.display = 'none';
+        preview.style.display = 'flex';
+      } else {
+        fileInput.value = '';
+        img.removeAttribute('src');
+        box.fileData = null;
+        placeholder.style.display = 'flex';
+        preview.style.display = 'none';
+      }
+    })();
+    box._restorePromise = p;
+    return p;
+  }
+
+  function insertBlankStepBlock() {
+    const container = document.getElementById('outStepsFull');
+    const div = document.createElement('div');
+    div.className = 'step-block';
+    div.setAttribute('data-block-type', 'step');
+    div.innerHTML = `
+      <div class="step-block-header edit-only-row" style="position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; padding-right: 25px;">
+        <button type="button" class="del-btn edit-only-btn" style="position: absolute; top: 2px; right: 2px; width: 24px; height: 24px; padding: 0; font-size: 14px; display: flex; justify-content: center; align-items: center; border-radius: 4px;" onclick="removeStepBlock(this)">✖</button>
+        <span class="block-title" style="color:#e91e63;">手順</span>
+        <label style="font-size: 0.8rem; cursor: pointer; color: #1565c0; font-weight: bold;">
+          <input type="checkbox" class="standby-toggle" onchange="updateBlockNumbers()"> スタンバイ
+        </label>
+        <select class="step-template-select edit-only-btn" onchange="applyStepTemplate(this)" style="font-size: 0.8rem; padding: 2px; width: 100%;">
+          <option value="">-- 定型文挿入 --</option>
+          <option value="format1">① 手洗い・備品確認</option>
+          <option value="format2">② ゴム敷きプレート・熱々提供</option>
+          <option value="format3">③ 皿の淵汚れ確認・熱々提供</option>
+          <option value="format4">④ 木台・丸鉄板（五徳着火）提供</option>
+        </select>
+        <div class="tool-dropdown-container edit-only-btn" style="position: relative; display: inline-block; width: 100%;">
+          <button type="button" class="tool-dropdown-btn" onclick="toggleToolMenu(this)" style="font-size: 0.8rem; padding: 2px; width: 100%;">-- 道具挿入 -- ▼</button>
+          <div class="tool-dropdown-menu" style="display: none; position: absolute; left: 0; top: 100%; z-index: 100; background: white; border: 1px solid #ccc; padding: 5px; box-shadow: 0 2px 5px rgba(0,0,0,0.2); white-space: nowrap; font-size: 0.85rem; max-height: 250px; overflow-y: auto;">
+            <label style="display:block; cursor:pointer;"><input type="checkbox" value="[IH]"> [IH]</label>
+            <label style="display:block; cursor:pointer;"><input type="checkbox" value="[電子レンジ]"> [電子レンジ]</label>
+            <label style="display:block; cursor:pointer;"><input type="checkbox" value="[ブレンダー]"> [ブレンダー]</label>
+            <label style="display:block; cursor:pointer;"><input type="checkbox" value="[片手鍋]"> [片手鍋]</label>
+            <label style="display:block; cursor:pointer;"><input type="checkbox" value="[ボール]"> [ボール]</label>
+            <label style="display:block; cursor:pointer;"><input type="checkbox" value="[コランダー]"> [コランダー]</label>
+            <label style="display:block; cursor:pointer;"><input type="checkbox" value="[ゴムベラ]"> [ゴムベラ]</label>
+            <label style="display:block; cursor:pointer;"><input type="checkbox" value="[トング]"> [トング]</label>
+            <label style="display:block; cursor:pointer;"><input type="checkbox" value="[レードル]"> [レードル]</label>
+            <label style="display:block; cursor:pointer;"><input type="checkbox" value="[ディッシャー]"> [ディッシャー]</label>
+            <label style="display:block; cursor:pointer;"><input type="checkbox" value="[スプーン]"> [スプーン]</label>
+            <button type="button" onclick="insertCheckedTools(this)" style="margin-top: 5px; width: 100%; font-size: 0.85rem; padding: 2px; background: #e0e0e0; cursor: pointer; border: 1px solid #999;">挿入</button>
+          </div>
+        </div>
+      </div>
+      <div class="step-preview-block">
+        <div class="step-img-out">
+          <div class="image-upload-box" onclick="triggerFileInput(this)">
+            <input type="file" class="image-file-input block-img" accept="image/*" onchange="previewImage(this)">
+            <div class="image-placeholder">
+              <span>📷 写真を選択</span>
+            </div>
+            <div class="image-preview" style="display: none;">
+              <img>
+              <button type="button" class="del-image-btn edit-only-btn" onclick="clearImage(event, this)">×</button>
+            </div>
+          </div>
+        </div>
+        <div class="step-texts-out">
+          <div class="print-only-block-title" style="font-weight:bold; margin-bottom:2px; text-align:left;">手順①</div>
+          <textarea class="step-textarea" placeholder="手順を自由に入力してください" oninput="autoResizeTextarea(this)"></textarea>
+        </div>
+      </div>
+    `;
+    container.appendChild(div);
+  }
+
+  function insertBlankStandbyBlock() {
+    const container = document.getElementById('standbyContainer');
+    const div = document.createElement('div');
+    div.className = 'step-block standby-block';
+    div.innerHTML = `
+      <div class="edit-only-row" style="margin-bottom: 2px; display: flex; justify-content: space-between; align-items: center;">
+        <strong class="standby-title" style="color: #0d47a1;">スタンバイ</strong>
+        <button type="button" class="del-btn edit-only-btn" onclick="removeStandbyBlock(this)">削除</button>
+      </div>
+      <div class="step-preview-block">
+        <div class="step-img-out">
+          <div class="image-upload-box" onclick="triggerFileInput(this)">
+            <input type="file" class="image-file-input block-img" accept="image/*" onchange="previewImage(this)">
+            <div class="image-placeholder">
+              <span>📷 写真を選択</span>
+            </div>
+            <div class="image-preview" style="display: none;">
+              <img>
+              <button type="button" class="del-image-btn edit-only-btn" onclick="clearImage(event, this)">×</button>
+            </div>
+          </div>
+        </div>
+        <div class="step-texts-out">
+          <textarea class="step-textarea" placeholder="スタンバイ手順を自由に入力してください" oninput="autoResizeTextarea(this); updateStandbyVisibility();"></textarea>
+        </div>
+      </div>
+    `;
+    container.appendChild(div);
+  }
+
+  // 画面入力項目をリセットして初期状態（白紙）にする
+  function resetFormToDefault(keepMetadata = false) {
+    if (!keepMetadata) {
+      document.getElementById('menuCode').value = '';
+      document.getElementById('productName').value = '';
+    }
+    document.getElementById('periodStart').value = '';
+    document.getElementById('periodEnd').value = '';
+
+    document.getElementById('moldL').value = 0;
+    document.getElementById('moldW').value = 0;
+    document.getElementById('moldH').value = 0;
+    document.getElementById('maxLoad').value = "6";
+
+    document.getElementById('proofL').value = 0;
+    document.getElementById('proofW').value = 0;
+    document.getElementById('proofH').value = 0;
+    document.getElementById('proofTime').value = "40";
+
+    document.getElementById('bakeL').value = 0;
+    document.getElementById('bakeW').value = 0;
+    document.getElementById('bakeH').value = 0;
+    document.getElementById('bakeTime').value = "10";
+
+    if (document.getElementById('servingText')) {
+      document.getElementById('servingText').value = '';
+      autoResizeTextarea(document.getElementById('servingText'));
+    }
+    document.getElementById('ingredientsContainer').innerHTML = '';
+    
+    document.getElementById('outStepsLeft').innerHTML = '';
+    document.getElementById('outStepsRight').innerHTML = '';
+    document.getElementById('outStepsFull').innerHTML = '';
+    insertBlankStepBlock();
+    reorganizeStepBlocks();
+
+    document.getElementById('standbyContainer').innerHTML = '';
+    insertBlankStandbyBlock();
+    updateStandbyBlockNumbers();
+    
+    // 写真リセット
+    restoreImageHelper('mainImage', null);
+    restoreImageHelper('moldImg', null);
+    restoreImageHelper('proofImg', null);
+    restoreImageHelper('bakeImg', null);
+
+    updateStandbyVisibility();
+    updateDBStatusLabel(keepMetadata ? document.getElementById('menuCode').value.trim() : null);
+    adjustPreviewScale();
+  }
+
+  // メニューコード選択時のトリガー処理
+  async function handleMenuCodeSelection(code) {
+    if (!code) return;
+    
+    try {
+      const savedRecipe = await recipeDB.getRecipe(code);
+      if (savedRecipe) {
+        loadRecipeFromDB(savedRecipe);
+        showStatusMessage("💾 保存済みデータを読込", "success");
+      } else {
+        // 保存データがない場合、画面リセットしてマスタ食材のみロード
+        resetFormToDefault(true);
+        if (menuMaster[code]) {
+          const prodInput = document.getElementById('productName');
+          prodInput.value = menuMaster[code].name;
+          prodInput.dataset.masterProductName = menuMaster[code].name || "";
+          populateIngredients(mergeIngredientsWithSaved(menuMaster[code].ingredients, []));
+        }
+        showStatusMessage("✏️ 未保存の新規", "info");
+      }
+    } catch (e) {
+      console.error("Error loading recipe from DB:", e);
+      showStatusMessage("⚠️ DB非対応/読込エラー", "error");
+      
+      // フォールバック: データベースの読み込みに失敗しても、マスタの食材データは正常に表示する
+      resetFormToDefault(true);
+      if (menuMaster[code]) {
+        const prodInput = document.getElementById('productName');
+        prodInput.value = menuMaster[code].name;
+        prodInput.dataset.masterProductName = menuMaster[code].name || "";
+        populateIngredients(mergeIngredientsWithSaved(menuMaster[code].ingredients, []));
+      }
+    }
+  }
+
+  // ユーティリティ操作パネルのアクション
+  async function saveCurrentRecipeToDB() {
+    const code = document.getElementById('menuCode').value.trim();
+    if (!code) {
+      alert("メニューコードを入力してください。");
+      return;
+    }
+    
+    showStatusMessage("保存中...", "info");
+    try {
+      const recipe = await serializeCurrentRecipe();
+      if (!recipe) {
+        showStatusMessage("保存失敗", "error");
+        return;
+      }
+      await recipeDB.saveRecipe(recipe);
+      savedMenuCodes.add(code);
+      updateDBStatusLabel(code);
+      updateSavedCount();
+      showStatusMessage("💾 保存完了", "success");
+      alert("手順書データをデータベースに保存しました。");
+    } catch (e) {
+      console.error(e);
+      showStatusMessage("保存エラー", "error");
+      alert("保存エラーが発生しました: " + e.message);
+    }
+  }
+
+  async function deleteCurrentRecipeFromDB() {
+    const code = document.getElementById('menuCode').value.trim();
+    if (!code) {
+      alert("メニューコードを入力してください。");
+      return;
+    }
+    
+    if (!savedMenuCodes.has(code)) {
+      alert("この手順書はデータベースに保存されていません。");
+      return;
+    }
+
+    if (!confirm(`メニューコード 「${code}」 の手順書データをデータベースから削除しますか？`)) {
+      return;
+    }
+
+    showStatusMessage("削除中...", "info");
+    try {
+      await recipeDB.deleteRecipe(code);
+      savedMenuCodes.delete(code);
+      updateSavedCount();
+      resetFormToDefault(true);
+      showStatusMessage("🗑️ 削除完了", "success");
+      alert("手順書データをデータベースから削除しました。");
+    } catch (e) {
+      console.error(e);
+      showStatusMessage("削除エラー", "error");
+      alert("削除エラーが発生しました: " + e.message);
+    }
+  }
+
+  // バックアップのエクスポート・インポート
+  async function exportDBtoJSON() {
+    showStatusMessage("エクスポート中...", "info");
+    try {
+      const recipes = await recipeDB.getAllRecipes();
+      if (recipes.length === 0) {
+        alert("データベースに保存された手順書データがありません。");
+        showStatusMessage("データ空", "info");
+        return;
+      }
+
+      const serializedList = [];
+      for (let r of recipes) {
+        const sr = { ...r };
+        sr.mainImageBlob = await blobToBase64(r.mainImageBlob);
+        sr.moldImageBlob = await blobToBase64(r.moldImageBlob);
+        sr.proofImageBlob = await blobToBase64(r.proofImageBlob);
+        sr.bakeImageBlob = await blobToBase64(r.bakeImageBlob);
+
+        sr.manualSteps = [];
+        if (r.manualSteps) {
+          for (let step of r.manualSteps) {
+            sr.manualSteps.push({
+              text: step.text,
+              imageBlob: await blobToBase64(step.imageBlob)
+            });
+          }
+        }
+
+        sr.standbySteps = [];
+        if (r.standbySteps) {
+          for (let step of r.standbySteps) {
+            sr.standbySteps.push({
+              text: step.text,
+              imageBlob: await blobToBase64(step.imageBlob)
+            });
+          }
+        }
+        serializedList.push(sr);
+      }
+
+      const jsonStr = JSON.stringify(serializedList, null, 2);
+      const blob = new Blob([jsonStr], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+      a.href = url;
+      a.download = `standby_recipe_db_backup_${dateStr}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      
+      showStatusMessage("📤 バックアップ出力完了", "success");
+    } catch (e) {
+      console.error(e);
+      showStatusMessage("出力エラー", "error");
+      alert("バックアップ作成エラー: " + e.message);
+    }
+  }
+
+  function triggerDBRestore() {
+    const fileInput = document.getElementById('dbRestoreInput');
+    if (fileInput) fileInput.click();
+  }
+
+  function importDBfromJSON(input) {
+    const file = input.files[0];
+    if (!file) return;
+
+    showStatusMessage("リストア中...", "info");
+    const reader = new FileReader();
+    reader.onload = async function(e) {
+      try {
+        const list = JSON.parse(e.target.result);
+        if (!Array.isArray(list)) {
+          throw new Error("JSONファイルの形式が正しくありません（レシピ配列である必要があります）");
+        }
+
+        let importCount = 0;
+        for (let sr of list) {
+          const r = { ...sr };
+          r.mainImageBlob = base64ToBlob(sr.mainImageBlob);
+          r.moldImageBlob = base64ToBlob(sr.moldImageBlob);
+          r.proofImageBlob = base64ToBlob(sr.proofImageBlob);
+          r.bakeImageBlob = base64ToBlob(sr.bakeImageBlob);
+
+          r.manualSteps = [];
+          if (sr.manualSteps) {
+            for (let step of sr.manualSteps) {
+              r.manualSteps.push({
+                text: step.text,
+                imageBlob: base64ToBlob(step.imageBlob)
+              });
+            }
+          }
+
+          r.standbySteps = [];
+          if (sr.standbySteps) {
+            for (let step of sr.standbySteps) {
+              r.standbySteps.push({
+                text: step.text,
+                imageBlob: base64ToBlob(step.imageBlob)
+              });
+            }
+          }
+
+          await recipeDB.saveRecipe(r);
+          savedMenuCodes.add(r.menuCode);
+          importCount++;
+        }
+        updateSavedCount();
+
+        // 現在読み込み中のコードがあれば再読込
+        const currentCode = document.getElementById('menuCode').value.trim();
+        if (currentCode) {
+          handleMenuCodeSelection(currentCode);
+        } else {
+          updateDBStatusLabel(null);
+        }
+        
+        showStatusMessage(`📥 リストア完了 (${importCount}件)`, "success");
+        alert(`バックアップから ${importCount} 件の手順書データを正常に復元しました。`);
+      } catch (err) {
+        console.error(err);
+        showStatusMessage("リストアエラー", "error");
+        alert("リストアエラー: " + err.message);
+      } finally {
+        input.value = '';
+      }
+    };
+    reader.readAsText(file, "utf-8");
+  }
+
+  // Base64 相互変換ユーティリティ
+  function base64ToBlob(base64Str) {
+    if (!base64Str) return null;
+    try {
+      const parts = base64Str.split(';base64,');
+      const contentType = parts[0].split(':')[1];
+      const raw = window.atob(parts[1]);
+      const rawLength = raw.length;
+      const uInt8Array = new Uint8Array(rawLength);
+      for (let i = 0; i < rawLength; ++i) {
+        uInt8Array[i] = raw.charCodeAt(i);
+      }
+      return new Blob([uInt8Array], { type: contentType });
+    } catch (e) {
+      console.error("base64ToBlob conversion error:", e);
+      return null;
+    }
+  }
+
+  function blobToBase64(blob) {
+    return new Promise((resolve, reject) => {
+      if (!blob) {
+        resolve(null);
+        return;
+      }
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  }
+
+  // --- 3.7.1 Saved Recipes List Modal Management ---
+  let modalObjectUrls = [];
+  let batchPrintObjectUrls = [];
+
+  function updateSavedCount() {
+    const savedCountSpan = document.getElementById('savedCount');
+    const modalSavedCountSpan = document.getElementById('modalSavedCount');
+    if (savedCountSpan) {
+      savedCountSpan.innerText = savedMenuCodes.size;
+    }
+    if (modalSavedCountSpan) {
+      modalSavedCountSpan.innerText = savedMenuCodes.size;
+    }
+  }
+
+  async function openRecipeListModal() {
+    const modal = document.getElementById('recipeListModal');
+    const grid = document.getElementById('modalRecipeGrid');
+    const searchInput = document.getElementById('modalSearchInput');
+    const modeFilter = document.getElementById('modalModeFilter');
+    if (!modal || !grid) return;
+
+    if (searchInput) searchInput.value = '';
+    if (modeFilter) modeFilter.value = currentMode || 'all';
+
+    showStatusMessage("一覧を読み込んでいます...", "info");
+    
+    modalObjectUrls.forEach(url => URL.revokeObjectURL(url));
+    modalObjectUrls = [];
+
+    try {
+      const recipes = await recipeDB.getAllRecipes();
+      
+      recipes.sort((a, b) => {
+        const numA = parseInt(a.menuCode, 10);
+        const numB = parseInt(b.menuCode, 10);
+        if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
+        return String(a.menuCode).localeCompare(String(b.menuCode));
+      });
+
+      grid.innerHTML = '';
+      if (recipes.length === 0) {
+        grid.innerHTML = '<div style="text-align: center; color: #64748b; padding: 20px; font-size: 0.85rem;">保存された手順書がありません。</div>';
+      } else {
+        recipes.forEach(r => {
+          const rMode = r.mode || 'standby';
+          const card = document.createElement('div');
+          card.className = 'recipe-card';
+          card.setAttribute('data-code', r.menuCode);
+          card.setAttribute('data-name', r.productName || '');
+          card.setAttribute('data-brand', r.brandCategory || '');
+          card.setAttribute('data-category', r.menuCategory || '');
+          card.setAttribute('data-mode', rMode);
+
+          const modeEmoji = rMode === 'standby' ? '🥣' : (rMode === 'cooking' ? '🍳' : (rMode === 'drink' ? '🥤' : '🍞'));
+          const modeLabel = rMode === 'standby' ? 'スタンバイ' : (rMode === 'cooking' ? '料理' : (rMode === 'drink' ? 'ドリンク' : 'パン'));
+          let thumbHTML = `<div class="recipe-card-thumb">${modeEmoji}</div>`;
+          if (r.mainImageBlob) {
+            const url = URL.createObjectURL(r.mainImageBlob);
+            modalObjectUrls.push(url);
+            thumbHTML = `<div class="recipe-card-thumb"><img src="${url}" alt="縮小版"></div>`;
+          }
+
+          let dateStr = '不明';
+          if (r.lastUpdated) {
+            const d = new Date(r.lastUpdated);
+            const y = d.getFullYear();
+            const m = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            const h = String(d.getHours()).padStart(2, '0');
+            const min = String(d.getMinutes()).padStart(2, '0');
+            dateStr = `${y}/${m}/${day} ${h}:${min}`;
+          }
+
+          let tagsHTML = `<span style="display:inline-block; border: 1px solid #cbd5e1; background: #f1f5f9; color: #334155; padding: 1px 6px; border-radius: 4px; font-size: 0.72rem; font-weight: bold; margin-right: 5px;">${modeEmoji} ${modeLabel}</span>`;
+          if (r.brandCategory) {
+             tagsHTML += `<span style="display:inline-block; border: 1px solid #cbd5e1; background: #f8fafc; color: #475569; padding: 1px 6px; border-radius: 4px; font-size: 0.75rem; margin-right: 5px;">${r.brandCategory}</span>`;
+          }
+          if (r.menuCategory) {
+             tagsHTML += `<span style="display:inline-block; border: 1px solid #93c5fd; background: #eff6ff; color: #2563eb; padding: 1px 6px; border-radius: 4px; font-size: 0.75rem;">${r.menuCategory}</span>`;
+          }
+
+          card.innerHTML = `
+            <div class="recipe-card-check" onclick="toggleBatchCardCheckFromWrapper(this, event)">
+              <input type="checkbox" class="batch-recipe-checkbox" value="${r.menuCode}" data-mode="${rMode}" onclick="event.stopPropagation();" onchange="onBatchCheckboxChange(this)">
+            </div>
+            ${thumbHTML}
+            <div class="recipe-card-info">
+              <h4 class="recipe-card-title">${r.menuCode} : ${r.productName || '無題の商品'}</h4>
+              <div style="margin: 4px 0 6px 0;">${tagsHTML}</div>
+              <p class="recipe-card-meta">
+                <span>📅 更新: ${dateStr}</span>
+                <span>📋 原料: ${(r.ingredients || []).length}件</span>
+              </p>
+            </div>
+            <div class="recipe-card-actions">
+              <button type="button" style="background-color: #2196F3;" onclick="loadRecipeFromList('${r.menuCode}', event)">編集</button>
+              <button type="button" style="background-color: #ef4444;" onclick="deleteRecipeFromList('${r.menuCode}', event)">🗑️</button>
+            </div>
+          `;
+
+          card.addEventListener('click', (e) => {
+            if (e.target.closest('.recipe-card-check') || e.target.closest('.recipe-card-actions')) return;
+            loadRecipeFromList(r.menuCode);
+          });
+
+          grid.appendChild(card);
+        });
+      }
+
+      updateSavedCount();
+      filterModalRecipes();
+      updateBatchSelectionUI();
+      modal.style.display = 'flex';
+      showStatusMessage("一覧表示中", "success");
+    } catch (e) {
+      console.error(e);
+      showStatusMessage("一覧取得エラー", "error");
+      alert("一覧の読み込み中にエラーが発生しました: " + e.message);
+    }
+  }
+
+  function closeRecipeListModal() {
+    const modal = document.getElementById('recipeListModal');
+    if (modal) modal.style.display = 'none';
+
+    modalObjectUrls.forEach(url => URL.revokeObjectURL(url));
+    modalObjectUrls = [];
+    
+    const currentCode = document.getElementById('menuCode').value.trim();
+    updateDBStatusLabel(currentCode);
+  }
+
+  function closeRecipeListModalOnOverlay(e) {
+    if (e.target.id === 'recipeListModal') {
+      closeRecipeListModal();
+    }
+  }
+
+  function filterModalRecipes() {
+    const searchInput = document.getElementById('modalSearchInput');
+    const query = searchInput ? searchInput.value.trim().toLowerCase() : '';
+    const brandFilter = document.getElementById('modalBrandFilter') ? document.getElementById('modalBrandFilter').value : '';
+    const categoryFilter = document.getElementById('modalCategoryFilter') ? document.getElementById('modalCategoryFilter').value : '';
+    const selectedMode = document.getElementById('modalModeFilter') ? document.getElementById('modalModeFilter').value : '';
+    const cards = document.querySelectorAll('#modalRecipeGrid .recipe-card');
+    
+    cards.forEach(card => {
+      const code = (card.getAttribute('data-code') || '').toLowerCase();
+      const name = (card.getAttribute('data-name') || '').toLowerCase();
+      const brand = card.getAttribute('data-brand') || '';
+      const category = card.getAttribute('data-category') || '';
+      const cardMode = card.getAttribute('data-mode') || 'bread';
+      
+      const matchesQuery = !query || code.includes(query) || name.includes(query);
+      const matchesBrand = !brandFilter || brandFilter === '--選択--' || brand === brandFilter;
+      const matchesCategory = !categoryFilter || categoryFilter === '--選択--' || category === categoryFilter;
+      const matchesMode = !selectedMode || selectedMode === 'all' || cardMode === selectedMode;
+
+      if (matchesQuery && matchesBrand && matchesCategory && matchesMode) {
+        card.style.display = 'flex';
+      } else {
+        card.style.display = 'none';
+      }
+    });
+
+    updateBatchSelectionUI();
+  }
+
+  function toggleBatchCardCheckFromWrapper(wrapperEl, event) {
+    if (event) {
+      event.stopPropagation();
+    }
+    const cb = wrapperEl.querySelector('.batch-recipe-checkbox');
+    if (!cb) return;
+    if (event && event.target === cb) return;
+    cb.checked = !cb.checked;
+    onBatchCheckboxChange(cb);
+  }
+
+  function onBatchCheckboxChange(cb) {
+    const card = cb.closest('.recipe-card');
+    if (card) {
+      card.classList.toggle('selected-for-batch', cb.checked);
+    }
+    updateBatchSelectionUI();
+  }
+
+  function toggleBatchSelectAll(checked) {
+    const cards = document.querySelectorAll('#modalRecipeGrid .recipe-card');
+    cards.forEach(card => {
+      if (card.style.display !== 'none') {
+        const cb = card.querySelector('.batch-recipe-checkbox');
+        if (cb) {
+          cb.checked = checked;
+          card.classList.toggle('selected-for-batch', checked);
+        }
+      }
+    });
+    updateBatchSelectionUI();
+  }
+
+  function updateBatchSelectionUI() {
+    const allCheckboxes = Array.from(document.querySelectorAll('#modalRecipeGrid .batch-recipe-checkbox'));
+    const checkedBoxes = allCheckboxes.filter(cb => cb.checked);
+    const visibleCards = Array.from(document.querySelectorAll('#modalRecipeGrid .recipe-card')).filter(c => c.style.display !== 'none');
+    const visibleCheckboxes = visibleCards.map(c => c.querySelector('.batch-recipe-checkbox')).filter(Boolean);
+
+    const badge = document.getElementById('batchSelectedCountBadge');
+    const execBtn = document.getElementById('batchPrintExecBtn');
+    const selectAllCb = document.getElementById('batchSelectAllCheckbox');
+
+    if (badge) {
+      badge.textContent = `${checkedBoxes.length}件選択中`;
+    }
+    if (execBtn) {
+      execBtn.disabled = checkedBoxes.length === 0;
+    }
+    if (selectAllCb) {
+      if (visibleCheckboxes.length === 0) {
+        selectAllCb.checked = false;
+        selectAllCb.indeterminate = false;
+      } else {
+        const visibleCheckedCount = visibleCheckboxes.filter(cb => cb.checked).length;
+        selectAllCb.checked = visibleCheckedCount === visibleCheckboxes.length;
+        selectAllCb.indeterminate = visibleCheckedCount > 0 && visibleCheckedCount < visibleCheckboxes.length;
+      }
+    }
+  }
+
+  async function executeBatchPrintFromModal() {
+    const checkedBoxes = Array.from(document.querySelectorAll('#modalRecipeGrid .batch-recipe-checkbox:checked'));
+    if (checkedBoxes.length === 0) {
+      alert('一括出力する手順書を選択してください。');
+      return;
+    }
+
+    const selectedItems = checkedBoxes.map(cb => ({
+      code: cb.value,
+      mode: cb.getAttribute('data-mode') || 'bread'
+    }));
+
+    // モードが混在しているかチェック
+    const modes = Array.from(new Set(selectedItems.map(item => item.mode)));
+    let targetMode = currentMode;
+    let targetCodes = selectedItems.map(item => item.code);
+
+    if (modes.length > 1) {
+      const modeNameMap = { bread: '🍞 パン', cooking: '🍳 料理・デザート', drink: '🥤 ドリンク' };
+      const currentModeItems = selectedItems.filter(item => item.mode === currentMode);
+      if (currentModeItems.length > 0) {
+        const msg = `異なる区分（パン／料理／ドリンク）の手順書が同時に選択されています。\n用紙の向きやレイアウトが異なるため、まずは現在のモード（${modeNameMap[currentMode]}：${currentModeItems.length}件）のみを一括出力しますか？\n（※区分フィルタを使うとモード別に一括選択できます）`;
+        if (!confirm(msg)) return;
+        targetMode = currentMode;
+        targetCodes = currentModeItems.map(item => item.code);
+      } else {
+        targetMode = modes[0];
+        const firstModeItems = selectedItems.filter(item => item.mode === targetMode);
+        const msg = `異なる区分（パン／料理／ドリンク）の手順書が同時に選択されています。\nまずは「${modeNameMap[targetMode]}」（${firstModeItems.length}件）画面へ移動して一括出力しますか？`;
+        if (!confirm(msg)) return;
+        targetCodes = firstModeItems.map(item => item.code);
+      }
+    } else {
+      targetMode = modes[0];
+    }
+
+    if (targetMode !== currentMode) {
+      safeStorage.setItem('pendingBatchPrintStandbyCodes', JSON.stringify(targetCodes));
+      if (targetMode === 'cooking') {
+        window.location.href = 'cooking.html';
+      } else if (targetMode === 'drink') {
+        window.location.href = 'drink.html';
+      } else {
+        window.location.href = 'index.html';
+      }
+      return;
+    }
+
+    closeRecipeListModal();
+    await executeBatchPrintByCodes(targetCodes);
+  }
+
+  async function executeBatchPrintByCodes(codes) {
+    if (!Array.isArray(codes) || codes.length === 0) return;
+
+    const currentEditingCode = document.getElementById('menuCode') ? document.getElementById('menuCode').value.trim() : '';
+
+    // ローディングオーバーレイを表示
+    let overlay = document.getElementById('batchPrintLoadingOverlay');
+    if (!overlay) {
+      overlay = document.createElement('div');
+      overlay.id = 'batchPrintLoadingOverlay';
+      overlay.innerHTML = `
+        <div class="batch-loading-spinner"></div>
+        <div class="batch-loading-text" id="batchPrintLoadingText">一括印刷データを準備中...</div>
+        <div class="batch-loading-sub" id="batchPrintLoadingSub">画像を読み込んでレイアウトを最適化しています</div>
+      `;
+      document.body.appendChild(overlay);
+    }
+    const loadingText = document.getElementById('batchPrintLoadingText');
+    overlay.style.display = 'flex';
+
+    // 印刷用コンテナの準備
+    let batchContainer = document.getElementById('batchPrintContainer');
+    if (!batchContainer) {
+      batchContainer = document.createElement('div');
+      batchContainer.id = 'batchPrintContainer';
+      const wrapper = document.getElementById('editorWrapper');
+      if (wrapper) {
+        wrapper.appendChild(batchContainer);
+      } else {
+        document.body.appendChild(batchContainer);
+      }
+    }
+    batchContainer.innerHTML = '';
+
+    batchPrintObjectUrls.forEach(url => URL.revokeObjectURL(url));
+    batchPrintObjectUrls = [];
+
+    try {
+      const outputArea = document.querySelector('#editorWrapper > #outputArea:not(.batch-print-page)') || document.getElementById('outputArea');
+      if (!outputArea) throw new Error('出力エリアが見つかりません。');
+
+      const pageClones = [];
+
+      for (let i = 0; i < codes.length; i++) {
+        const code = String(codes[i]);
+        if (loadingText) {
+          loadingText.textContent = `一括出力データを準備中... (${i + 1} / ${codes.length} 件)`;
+        }
+
+        const recipe = await recipeDB.getRecipe(code);
+        if (!recipe) continue;
+
+        document.getElementById('menuCode').value = code;
+        await loadRecipeFromDB(recipe, true);
+
+        // 画像の非同期読み込み完了を待機
+        const boxes = Array.from(outputArea.querySelectorAll('.image-upload-box'));
+        const promises = boxes.map(b => b._restorePromise).filter(Boolean);
+        await Promise.all(promises);
+
+        // beforeprint相当のテキスト・高さ・列幅の同期を実行
+        outputArea.querySelectorAll('textarea').forEach(ta => {
+          if (typeof autoResizeTextarea === 'function') autoResizeTextarea(ta);
+          if (typeof syncStepPrintText === 'function') syncStepPrintText(ta);
+        });
+        const slipInput = document.getElementById('manufacturingSlip');
+        const slipPrint = outputArea.querySelector('.slip-title-print');
+        if (slipInput && slipPrint) {
+          slipPrint.innerText = slipInput.value;
+        }
+        outputArea.querySelectorAll('#ingredientsContainer .ing-row').forEach(row => {
+          if (typeof syncIngRowPrintStyles === 'function') syncIngRowPrintStyles(row);
+        });
+
+        // レイアウト反映のため1フレーム待機
+        await new Promise(r => requestAnimationFrame(() => setTimeout(r, 40)));
+
+        // outputAreaを丸ごとクローンし、フォーム入力値を転写（ループ中はDOMに追加せずメモリ配列に保持）
+        const clone = outputArea.cloneNode(true);
+        clone.classList.add('batch-print-page');
+        clone.style.transform = 'none';
+
+        const origInputs = outputArea.querySelectorAll('input, textarea, select');
+        const cloneInputs = clone.querySelectorAll('input, textarea, select');
+        origInputs.forEach((origEl, idx) => {
+          const cloneEl = cloneInputs[idx];
+          if (!cloneEl) return;
+          if (origEl.tagName === 'TEXTAREA') {
+            cloneEl.value = origEl.value;
+            cloneEl.textContent = origEl.value;
+            cloneEl.style.height = origEl.style.height;
+          } else if (origEl.tagName === 'SELECT') {
+            cloneEl.value = origEl.value;
+            Array.from(cloneEl.options).forEach((opt, optIdx) => {
+              if (origEl.options[optIdx] && origEl.options[optIdx].selected) {
+                opt.setAttribute('selected', 'selected');
+              } else {
+                opt.removeAttribute('selected');
+              }
+            });
+          } else if (origEl.type === 'checkbox' || origEl.type === 'radio') {
+            cloneEl.checked = origEl.checked;
+            if (origEl.checked) cloneEl.setAttribute('checked', 'checked');
+            else cloneEl.removeAttribute('checked');
+          } else if (origEl.type !== 'file') {
+            cloneEl.value = origEl.value;
+            cloneEl.setAttribute('value', origEl.value);
+          }
+        });
+
+        pageClones.push(clone);
+      }
+
+      // 全レシピの読み込み・クローン作成が完了してから一括でコンテナへ追加（ID競合や要素移動を完全防止）
+      pageClones.forEach(c => batchContainer.appendChild(c));
+
+      const wrapper = document.getElementById('editorWrapper');
+      if (wrapper) wrapper.style.height = 'auto';
+
+      overlay.style.display = 'none';
+      document.body.classList.add('is-batch-printing');
+
+      // 少し待ってからブラウザの印刷・PDF保存ダイアログを起動
+      await new Promise(r => setTimeout(r, 120));
+
+      const cleanup = async () => {
+        window.removeEventListener('afterprint', cleanup);
+        await cleanupBatchPrint(currentEditingCode, codes[codes.length - 1]);
+      };
+      window.addEventListener('afterprint', cleanup, { once: true });
+
+      window.print();
+    } catch (err) {
+      console.error('Batch print error:', err);
+      if (overlay) overlay.style.display = 'none';
+      document.body.classList.remove('is-batch-printing');
+      alert('一括出力の準備中にエラーが発生しました: ' + err.message);
+    }
+  }
+
+  async function cleanupBatchPrint(previousCode, lastLoadedCode) {
+    document.body.classList.remove('is-batch-printing');
+    const batchContainer = document.getElementById('batchPrintContainer');
+    if (batchContainer) {
+      batchContainer.innerHTML = '';
+    }
+    batchPrintObjectUrls.forEach(url => URL.revokeObjectURL(url));
+    batchPrintObjectUrls = [];
+
+    const codeToRestore = previousCode || lastLoadedCode || '';
+    if (codeToRestore) {
+      document.getElementById('menuCode').value = codeToRestore;
+      const savedRecipe = await recipeDB.getRecipe(codeToRestore);
+      if (savedRecipe) {
+        await loadRecipeFromDB(savedRecipe, true);
+      }
+    }
+    showStatusMessage("一括印刷・PDF出力が完了しました", "success");
+  }
+
+  async function loadRecipeFromList(code, event) {
+    if (event) {
+      event.stopPropagation();
+      event.preventDefault();
+    }
+    
+    closeRecipeListModal();
+    document.getElementById('menuCode').value = code;
+    await handleMenuCodeSelection(code);
+  }
+
+  async function deleteRecipeFromList(code, event) {
+    if (event) {
+      event.stopPropagation();
+      event.preventDefault();
+    }
+
+    if (!confirm(`メニューコード 「${code}」 の手順書データをデータベースから削除しますか？`)) {
+      return;
+    }
+
+    try {
+      await recipeDB.deleteRecipe(code);
+      savedMenuCodes.delete(code);
+      
+      const card = document.querySelector(`#modalRecipeGrid .recipe-card[data-code="${code}"]`);
+      if (card) card.remove();
+      
+      updateSavedCount();
+      updateBatchSelectionUI();
+      
+      const currentCode = document.getElementById('menuCode').value.trim();
+      if (currentCode === code) {
+        resetFormToDefault(true);
+      }
+      
+      const grid = document.getElementById('modalRecipeGrid');
+      if (grid && grid.querySelectorAll('.recipe-card').length === 0) {
+        grid.innerHTML = '<div style="text-align: center; color: #64748b; padding: 20px; font-size: 0.85rem;">保存された手順書がありません。</div>';
+      }
+
+      alert("手順書データをデータベースから削除しました。");
+    } catch (e) {
+      console.error(e);
+      alert("削除中にエラーが発生しました: " + e.message);
+    }
+  }
+
+  // --- 3.8 Drag and Drop Photo Upload Support ---
+  // ドラッグ＆ドロップによる画像アップロードのイベントデリゲーション
+  document.addEventListener('dragenter', (e) => {
+    const box = e.target.closest('.image-upload-box');
+    if (box) {
+      e.preventDefault();
+      box.classList.add('dragover');
+    }
+  });
+
+  document.addEventListener('dragover', (e) => {
+    const box = e.target.closest('.image-upload-box');
+    if (box) {
+      e.preventDefault();
+      box.classList.add('dragover');
+    }
+  });
+
+  document.addEventListener('dragleave', (e) => {
+    const box = e.target.closest('.image-upload-box');
+    if (box && (!e.relatedTarget || !box.contains(e.relatedTarget))) {
+      box.classList.remove('dragover');
+    }
+  });
+
+  document.addEventListener('drop', (e) => {
+    const box = e.target.closest('.image-upload-box');
+    if (box) {
+      e.preventDefault();
+      box.classList.remove('dragover');
+      const files = e.dataTransfer.files;
+      if (files && files.length > 0) {
+        const fileInput = box.querySelector('input[type="file"]');
+        if (fileInput) {
+          fileInput.files = files;
+          const event = new Event('change', { bubbles: true });
+          fileInput.dispatchEvent(event);
+        }
+      }
+    }
+  });
+
+
+  // ==========================
+  // モード切替UI制御
+  // ==========================
+  function toggleSidebar() {
+    const sidebar = document.getElementById('sidebarMenu');
+    const overlay = document.getElementById('sidebarOverlay');
+    if (!sidebar || !overlay) return;
+    if (sidebar.style.left === '0px') {
+      sidebar.style.left = '-300px';
+      overlay.style.display = 'none';
+    } else {
+      sidebar.style.left = '0px';
+      overlay.style.display = 'block';
+    }
+  }
+
+  function switchMode(mode) {
+    currentMode = "standby";
+    const body = document.body;
+    const badge = document.getElementById("modeBadge");
+    body.classList.add("mode-cooking", "mode-standby");
+    if (badge) {
+      badge.innerText = "スタンバイモード";
+      badge.style.backgroundColor = "#8b5cf6";
+    }
+    if (typeof reorganizeStepBlocks === "function") {
+      reorganizeStepBlocks();
+    }
+  }

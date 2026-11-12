@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>スタンバイ手順書作成ツール</title>
+<!-- SheetJS -->
+<script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+<!-- SortableJS -->
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
+  <link rel="stylesheet" href="css/standby.css?v=1001">
+</head>
+<body class="mode-cooking mode-standby">
+
+  <!-- 🍳 サイドバー（モード切替） -->
+  <div id="sidebarOverlay" onclick="toggleSidebar()" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 9999;"></div>
+  <div id="sidebarMenu" style="position: fixed; top: 0; left: -300px; width: 250px; height: 100%; background: #ffffff; box-shadow: 2px 0 5px rgba(0,0,0,0.2); z-index: 10000; transition: left 0.3s ease; display: flex; flex-direction: column;">
+    <div style="padding: 20px; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center;">
+      <h3 style="margin: 0; font-size: 1.1rem; color: #1e293b;">モード選択</h3>
+      <button onclick="toggleSidebar()" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #64748b; padding: 0;">×</button>
+    </div>
+    <div style="padding: 20px; display: flex; flex-direction: column; gap: 15px;">
+      <button onclick="window.location.href='index.html'" class="mode-btn" style="padding: 12px; background-color: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 8px; cursor: pointer; text-align: left; font-size: 1rem; color: #334155; font-weight: bold;">🍞 パン手順書ツール</button>
+      <button onclick="window.location.href='cooking.html'" class="mode-btn" style="padding: 12px; background-color: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 8px; cursor: pointer; text-align: left; font-size: 1rem; color: #334155; font-weight: bold;">🍳 料理・デザート手順書</button>
+      <button onclick="window.location.href='drink.html'" class="mode-btn" style="padding: 12px; background-color: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 8px; cursor: pointer; text-align: left; font-size: 1rem; color: #334155; font-weight: bold;">🥤 ドリンク手順書</button>
+      <button onclick="window.location.href='standby.html'" class="mode-btn active" style="padding: 12px; background-color: #ede9fe; border: 1px solid #8b5cf6; border-radius: 8px; cursor: pointer; text-align: left; font-size: 1rem; color: #5b21b6; font-weight: bold;">🥣 スタンバイ手順書</button>
+    </div>
+  </div>
+
+<!-- ==========================================================================
+     ■ SECTION 2: HTML STRUCTURE
+     ========================================================================== -->
+
+<div class="utility-bar">
+  <div class="utility-left">
+    <div style="display: flex; align-items: center; gap: 12px;">
+      <button id="hamburgerMenuBtn" onclick="toggleSidebar()" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #1e293b; padding: 0;">≡</button>
+      <h1 style="margin: 0; font-size: 1.25rem;">🥣 手順書作成ツール <span id="modeBadge" style="font-size: 0.8rem; background-color: #8b5cf6; color: white; padding: 2px 8px; border-radius: 12px; margin-left: 8px; vertical-align: middle;">スタンバイモード</span></h1>
+    </div>
+    <div id="masterStatus">スタンバイレシピシート（_Data.xls等）を選択してください</div>
+    <div id="dbStatus" style="font-size: 0.75rem; font-weight: bold; padding: 3px 8px; border-radius: 4px; background-color: #e2e8f0; color: #475569; display: inline-block; margin-left: 8px;">✏️ 新規手順書</div>
+  </div>
+  <div class="utility-right">
+    <div class="file-input-wrapper">
+      <span style="font-weight: bold; color: #5b21b6;">📁 スタンバイシート連携:</span>
+      <input type="file" id="masterFileInput" accept=".xlsx, .xls, .csv">
+    </div>
+    <button type="button" class="print-btn" onclick="window.print()">PDF保存・印刷</button>
+    <button type="button" class="excel-btn" onclick="downloadExcel()">ExcelでDL</button>
+    <button type="button" style="background-color: #f59e0b;" onclick="openRecipeListModal()">📂 保存済み一覧 (<span id="savedCount">0</span>)</button>
+    <button type="button" style="background-color: #2e7d32;" onclick="saveCurrentRecipeToDB()">💾 保存・更新</button>
+    <button type="button" style="background-color: #c62828;" onclick="deleteCurrentRecipeFromDB()">🗑️ 削除</button>
+    <button type="button" style="background-color: #455a64;" onclick="exportDBtoJSON()">📤 バックアップ</button>
+    <button type="button" style="background-color: #37474f;" onclick="triggerDBRestore()">📥 リストア</button>
+    <input type="file" id="dbRestoreInput" accept=".json" style="display: none;" onchange="importDBfromJSON(this)">
+  </div>
+</div>
+
+<div id="editorWrapper">
+  <div id="outputArea">
+    <div class="editor-container">
+      <div id="layoutTopLeft" style="width: 100%;">
+    <!-- ヘッダーエリア -->
+    <div class="preview-header">
+      <div class="preview-left">
+        <div class="preview-title-area">
+          <div style="display: flex; gap: 5px; align-items: center; font-size: 10px;">
+            <strong>実施期間:</strong>
+            <input type="date" id="periodStart" style="width: 105px; font-size: 10px; padding: 1px 2px;"> ～ 
+            <input type="date" id="periodEnd" style="width: 105px; font-size: 10px; padding: 1px 2px;">
+          </div>
+          <div class="manufacturing-slip-row" style="display: flex; gap: 5px; align-items: center; margin-bottom: 3px;">
+            <span style="white-space: nowrap; font-size: 11px;">製造指示伝票の名称:</span>
+            <input type="text" id="manufacturingSlipName" autocomplete="off" placeholder="例: カポナータ(ビストロ)" style="font-size: 11px; font-weight: bold; flex: 1; padding: 1px 2px;">
+          </div>
+          <div class="product-title-row">
+            <span style="white-space: nowrap; font-size: 11px;">商品名称:</span>
+            <div class="autocomplete-wrapper" style="flex: 1; min-width: 0;">
+              <input type="text" id="productName" autocomplete="off" placeholder="例: ♦カポナータ(ビストロ)" style="font-size: 11px; font-weight: bold; width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 1px 2px;">
+              <span class="dropdown-arrow">▼</span>
+            </div>
+          </div>
+          </div>
+
+          <!-- 第3行：メニューコード・ブランド区分・メニュー区分 -->
+          <div class="category-title-row edit-only-row" style="display: flex; gap: 15px; margin-bottom: 5px; align-items: baseline; flex-wrap: wrap;">
+            <div class="edit-only-row" style="display: flex; align-items: center; gap: 5px;">
+              <span style="font-weight: bold; font-size: 0.85rem; color: #334155;">スタンバイコード:</span>
+              <div class="autocomplete-wrapper" style="width: 80px;">
+                <input type="text" id="menuCode" autocomplete="off" placeholder="例: 00003" style="font-size: 11px; font-weight: bold; text-align: center; width: 100%; padding: 1px 2px;">
+                <span class="dropdown-arrow">▼</span>
+              </div>
+            </div>
+            <div class="edit-only-row" style="display: flex; align-items: baseline; gap: 5px;">
+              <span style="font-weight: bold; font-size: 0.85rem; color: #334155;">ブランド区分:</span>
+              <select id="brandCategory" class="edit-only-btn" style="font-size: 0.85rem; padding: 2px 4px; border: 1px dashed #94a3b8; background: transparent; cursor: pointer;" onchange="document.querySelector('.brand-print').innerText = this.value === '--選択--' ? '' : this.value;">
+                <option value="--選択--">--選択--</option>
+                <option value="BAQET">BAQET</option>
+                <option value="BAKERY RESTAURANT C">BAKERY RESTAURANT C</option>
+                <option value="BAKERY CAFE C">BAKERY CAFE C</option>
+              </select>
+              <span class="print-text brand-print" style="font-size: 0.85rem; color: #333;"></span>
+            </div>
+            <div class="edit-only-row" style="display: flex; align-items: baseline; gap: 5px;">
+              <span style="font-weight: bold; font-size: 0.85rem; color: #334155;">メニュー区分:</span>
+              <select id="menuCategory" class="edit-only-btn" style="font-size: 0.85rem; padding: 2px 4px; border: 1px dashed #94a3b8; background: transparent; cursor: pointer;" onchange="document.querySelector('.category-print').innerText = this.value === '--選択--' ? '' : this.value;">
+                <option value="--選択--">--選択--</option>
+                <option value="期間限定">期間限定</option>
+                <option value="グランド">グランド</option>
+                <option value="個店販促">個店販促</option>
+              </select>
+              <span class="print-text category-print" style="font-size: 0.85rem; color: #333;"></span>
+            </div>
+            <div class="edit-only-row" style="display: flex; align-items: baseline; gap: 5px;">
+              <span style="font-weight: bold; font-size: 0.85rem; color: #334155;">手順書区分:</span>
+              <select id="recipeModeSelect" class="edit-only-btn" style="font-size: 0.85rem; padding: 2px 4px; border: 1px dashed #94a3b8; background: transparent; cursor: pointer;">
+                <option value="standby" selected>スタンバイ</option>
+              </select>
+            </div>
+          </div>
+
+      <!-- 完成写真 -->
+      <div class="preview-right main-image-container" style="margin-bottom: 5px;">
+        <div style="font-weight:bold; font-size:0.8rem; margin-bottom:2px; background:#e8f5e9; width:100%; text-align:center; border: 1px solid #333;">完成写真</div>
+        <div class="image-upload-box" onclick="triggerFileInput(this)" style="width: 100%; min-height: 120px;">
+          <input type="file" id="mainImage" class="image-file-input" accept="image/*" onchange="previewImage(this)">
+          <div class="image-placeholder">
+            <span>📷 写真を選択</span>
+          </div>
+          <div class="image-preview" style="display: none;">
+            <img>
+            <button type="button" class="del-image-btn edit-only-btn" onclick="clearImage(event, this)">×</button>
+          </div>
+        </div>
+      </div>
+
+          <!-- テーブル（食材リスト） -->
+        <table class="output-table">
+          <thead>
+            <tr>
+              <th style="width: 15%;">食材コード</th>
+              <th style="width: 35%;">食材名</th>
+              <th style="width: 18%; text-align: center;">使用量</th>
+              <th style="width: 15%; text-align: center;">単位</th>
+              <th style="width: 12%; text-align: center;">スタンバイ</th>
+              <th style="width: 5%; text-align: center;" class="edit-only-col">削除</th>
+            </tr>
+          </thead>
+          <tbody id="ingredientsContainer">
+            <tr class="ing-row">
+              <td>
+                <input type="text" class="ing-code" placeholder="コード">
+                <span class="print-text ing-code-print"></span>
+              </td>
+              <td>
+                <input type="text" class="ing-name" placeholder="品名">
+                <span class="print-text ing-name-print"></span>
+              </td>
+              <td>
+                <input type="text" class="ing-amount" placeholder="使用量">
+                <span class="print-text ing-amount-print"></span>
+              </td>
+              <td>
+                <select class="ing-unit">
+                  <option value="g">g</option>
+                  <option value="kg">kg</option>
+                  <option value="ml">ml</option>
+                  <option value="cc">cc</option>
+                  <option value="L">L</option>
+                  <option value="個">個</option>
+                  <option value="枚">枚</option>
+                  <option value="本">本</option>
+                  <option value="尾">尾</option>
+                  <option value="杯">杯</option>
+                  <option value="種">種</option>
+                  <option value="人前">人前</option>
+                  <option value="円">円</option>
+                  <option value="適量">適量</option>
+                </select>
+              </td>
+              <td style="text-align: center; position: relative;">
+                <select class="ing-standby">
+                  <option value=""></option>
+                  <option value="スタンバイ">スタンバイ</option>
+                </select>
+                <span class="print-standby-check">✔</span>
+              </td>
+              <td class="edit-only-col" style="text-align: center;">
+                <button type="button" class="del-btn edit-only-btn" onclick="removeRow(this, 'ing')">🗑️</button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        <button type="button" class="add-btn edit-only-btn" onclick="addIngredient()">＋ 食材の行を追加</button>
+      </div>
+      
+
+    </div>
+
+    <!-- 規格・工程条件 -->
+    <div class="specs-container bread-only">
+      <div class="spec-box">
+        <h4>成形：最大のせ数 
+          <select id="maxLoad" style="width: auto; padding: 1px; font-size: 11px;">
+            <option value="1">1</option>
+            <option value="2">2</option>
+            <option value="3">3</option>
+            <option value="4">4</option>
+            <option value="5">5</option>
+            <option value="6" selected>6</option>
+            <option value="7">7</option>
+            <option value="8">8</option>
+            <option value="9">9</option>
+            <option value="10">10</option>
+            <option value="11">11</option>
+            <option value="12">12</option>
+            <option value="13">13</option>
+            <option value="14">14</option>
+            <option value="15">15</option>
+            <option value="16">16</option>
+            <option value="17">17</option>
+            <option value="18">18</option>
+            <option value="19">19</option>
+            <option value="20">20</option>
+          </select> 個</h4>
+        <div class="spec-info">
+          <div class="spec-dimension-row">
+            寸法: 縦<input type="number" id="moldL" value="0" min="0">×横<input type="number" id="moldW" value="0" min="0">×高さ<input type="number" id="moldH" value="0" min="0">cm
+          </div>
+        </div>
+        <div class="image-upload-box" onclick="triggerFileInput(this)">
+          <input type="file" id="moldImg" class="image-file-input" accept="image/*" onchange="previewImage(this)">
+          <div class="image-placeholder">
+            <span>📷 写真を選択</span>
+          </div>
+          <div class="image-preview" style="display: none;">
+            <img>
+            <button type="button" class="del-image-btn edit-only-btn" onclick="clearImage(event, this)">×</button>
+          </div>
+        </div>
+      </div>
+      
+
+      <div class="spec-box">
+        <h4>ホイロ：
+          <select id="proofTime" style="width: auto; padding: 1px; font-size: 11px;">
+            <option value="0">0</option>
+            <option value="5">5</option>
+            <option value="10">10</option>
+            <option value="15">15</option>
+            <option value="20">20</option>
+            <option value="25">25</option>
+            <option value="30">30</option>
+            <option value="35">35</option>
+            <option value="40" selected>40</option>
+            <option value="45">45</option>
+            <option value="50">50</option>
+            <option value="55">55</option>
+            <option value="60">60</option>
+            <option value="70">70</option>
+            <option value="80">80</option>
+            <option value="90">90</option>
+          </select> 分</h4>
+        <div class="spec-info">
+          <div class="spec-dimension-row">
+            寸法: 縦<input type="number" id="proofL" value="0" min="0">×横<input type="number" id="proofW" value="0" min="0">×高さ<input type="number" id="proofH" value="0" min="0">cm
+          </div>
+        </div>
+        <div class="image-upload-box" onclick="triggerFileInput(this)">
+          <input type="file" id="proofImg" class="image-file-input" accept="image/*" onchange="previewImage(this)">
+          <div class="image-placeholder">
+            <span>📷 写真を選択</span>
+          </div>
+          <div class="image-preview" style="display: none;">
+            <img>
+            <button type="button" class="del-image-btn edit-only-btn" onclick="clearImage(event, this)">×</button>
+          </div>
+        </div>
+      </div>
+      
+      <div class="spec-box">
+        <h4>焼成：
+          <select id="bakeTime" style="width: auto; padding: 1px; font-size: 11px;">
+            <option value="1">1</option>
+            <option value="2">2</option>
+            <option value="3">3</option>
+            <option value="4">4</option>
+            <option value="5">5</option>
+            <option value="6">6</option>
+            <option value="7">7</option>
+            <option value="8">8</option>
+            <option value="9">9</option>
+            <option value="10" selected>10</option>
+            <option value="11">11</option>
+            <option value="12">12</option>
+            <option value="13">13</option>
+            <option value="14">14</option>
+            <option value="15">15</option>
+            <option value="16">16</option>
+            <option value="17">17</option>
+            <option value="18">18</option>
+            <option value="19">19</option>
+            <option value="20">20</option>
+            <option value="25">25</option>
+            <option value="30">30</option>
+            <option value="35">35</option>
+            <option value="40">40</option>
+            <option value="45">45</option>
+            <option value="50">50</option>
+            <option value="60">60</option>
+          </select> 分</h4>
+        <div class="spec-info">
+          <div class="spec-dimension-row">
+            寸法: 縦<input type="number" id="bakeL" value="0" min="0">×横<input type="number" id="bakeW" value="0" min="0">×高さ<input type="number" id="bakeH" value="0" min="0">cm
+          </div>
+        </div>
+        <div class="image-upload-box" onclick="triggerFileInput(this)">
+          <input type="file" id="bakeImg" class="image-file-input" accept="image/*" onchange="previewImage(this)">
+          <div class="image-placeholder">
+            <span>📷 写真を選択</span>
+          </div>
+          <div class="image-preview" style="display: none;">
+            <img>
+            <button type="button" class="del-image-btn edit-only-btn" onclick="clearImage(event, this)">×</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+
+
+        <!-- 🍽️ プレート・提供方法セクション -->
+        <div id="plateSection" class="plate-section" style="margin-top: 10px; padding: 10px; border: 1px solid #cbd5e1; border-radius: 4px; background-color: #f8fafc;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+            <h4 style="margin: 0; color: #e11d48; font-size: 1rem;">【プレート】</h4>
+            <select id="plateTemplateSelect" class="edit-only-btn" onchange="applyPlateTemplate()" style="font-size: 0.8rem; padding: 2px 4px; border: 1px dashed #94a3b8; background: transparent; cursor: pointer;">
+              <option value="">-- プレートテンプレ --</option>
+              <option value="商品は重ねずに向きをそろえて提供します。">重ならないように提供</option>
+              <option value="ソースは別添えで提供します。">ソース別添え</option>
+              <option value="熱いので火傷に注意して提供してください。">火傷注意</option>
+            </select>
+          </div>
+          <textarea id="plateText" class="step-textarea" placeholder="保管方法・消費期限・使用時の注意点等" rows="3" oninput="autoResizeTextarea(this)" style="font-size: 0.85rem; padding: 4px;"></textarea>
+        </div>
+      </div> <!-- /layoutTopLeft -->
+      
+      <div id="layoutBottomRight" style="width: 100%;">
+    <!-- 作業手順の2カラム化コンテナ -->
+    <div class="steps-grid">
+      <div id="outStepsLeft" class="steps-col">
+        <!-- Steps 1-4 elements go here -->
+      </div>
+      <div id="outStepsRight" class="steps-col">
+        <!-- Steps 5-8 elements go here -->
+      </div>
+    </div>
+    <div id="outStepsFull" class="steps-full">
+      <!-- Steps 9+ elements go here -->
+      
+      <!-- Initial block on load -->
+      <div class="step-block" data-block-type="step">
+        <div class="step-block-header edit-only-row" style="position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; padding-right: 25px;">
+          <button type="button" class="del-btn edit-only-btn" style="position: absolute; top: 2px; right: 2px; width: 24px; height: 24px; padding: 0; font-size: 14px; display: flex; justify-content: center; align-items: center; border-radius: 4px;" onclick="removeStepBlock(this)">✖</button>
+          <span class="block-title" style="color:#e91e63;">手順①</span>
+          <label style="font-size: 0.8rem; cursor: pointer; color: #1565c0; font-weight: bold;">
+            <input type="checkbox" class="standby-toggle" onchange="updateBlockNumbers()"> スタンバイ
+          </label>
+          <select class="step-template-select edit-only-btn" onchange="applyStepTemplate(this)" style="font-size: 0.8rem; padding: 2px; width: 100%;">
+            <option value="">-- 定型文挿入 --</option>
+            <option value="format1">① 手洗い・備品確認</option>
+            <option value="format2">② ゴム敷きプレート・熱々提供</option>
+            <option value="format3">③ 皿の淵汚れ確認・熱々提供</option>
+            <option value="format4">④ 木台・丸鉄板（五徳着火）提供</option>
+          </select>
+          <div class="tool-dropdown-container edit-only-btn" style="position: relative; display: inline-block; width: 100%;">
+            <button type="button" class="tool-dropdown-btn" onclick="toggleToolMenu(this)" style="font-size: 0.8rem; padding: 2px; width: 100%;">-- 道具挿入 -- ▼</button>
+            <div class="tool-dropdown-menu" style="display: none; position: absolute; left: 0; top: 100%; z-index: 100; background: white; border: 1px solid #ccc; padding: 5px; box-shadow: 0 2px 5px rgba(0,0,0,0.2); white-space: nowrap; font-size: 0.85rem; max-height: 250px; overflow-y: auto;">
+              <label style="display:block; cursor:pointer;"><input type="checkbox" value="[IH]"> [IH]</label>
+              <label style="display:block; cursor:pointer;"><input type="checkbox" value="[電子レンジ]"> [電子レンジ]</label>
+              <label style="display:block; cursor:pointer;"><input type="checkbox" value="[ブレンダー]"> [ブレンダー]</label>
+              <label style="display:block; cursor:pointer;"><input type="checkbox" value="[片手鍋]"> [片手鍋]</label>
+              <label style="display:block; cursor:pointer;"><input type="checkbox" value="[ボール]"> [ボール]</label>
+              <label style="display:block; cursor:pointer;"><input type="checkbox" value="[コランダー]"> [コランダー]</label>
+              <label style="display:block; cursor:pointer;"><input type="checkbox" value="[ゴムベラ]"> [ゴムベラ]</label>
+              <label style="display:block; cursor:pointer;"><input type="checkbox" value="[トング]"> [トング]</label>
+              <label style="display:block; cursor:pointer;"><input type="checkbox" value="[レードル]"> [レードル]</label>
+              <label style="display:block; cursor:pointer;"><input type="checkbox" value="[ディッシャー]"> [ディッシャー]</label>
+              <label style="display:block; cursor:pointer;"><input type="checkbox" value="[スプーン]"> [スプーン]</label>
+              <button type="button" onclick="insertCheckedTools(this)" style="margin-top: 5px; width: 100%; font-size: 0.85rem; padding: 2px; background: #e0e0e0; cursor: pointer; border: 1px solid #999;">挿入</button>
+            </div>
+          </div>
+        </div>
+        <div class="step-preview-block">
+          <div class="step-img-out">
+            <div class="image-upload-box" onclick="triggerFileInput(this)">
+              <input type="file" class="image-file-input block-img" accept="image/*" onchange="previewImage(this)">
+              <div class="image-placeholder">
+                <span>📷 写真を選択</span>
+              </div>
+              <div class="image-preview" style="display: none;">
+                <img>
+                <button type="button" class="del-image-btn edit-only-btn" onclick="clearImage(event, this)">×</button>
+              </div>
+            </div>
+          </div>
+          <div class="step-texts-out">
+            <div class="print-only-block-title" style="font-weight:bold; margin-bottom:2px; text-align:left;">手順①</div>
+            <textarea class="step-textarea" placeholder="手順を自由に入力してください" oninput="autoResizeTextarea(this)"></textarea>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 提供方法セクション -->
+    <div style="display: flex; justify-content: flex-end; margin-bottom: 4px;">
+      <div style="width: calc(50% - 4px);">
+        <div id="servingMethodSection" class="step-block" style="padding: 2px 4px; margin-bottom: 0;">
+          <div style="font-weight:bold; font-size:10px; margin-bottom:2px; display:flex; justify-content:space-between; align-items:center;">
+            <span style="color:#e91e63;">■ 提供方法</span>
+            <select id="servingTemplate" class="edit-only-btn" style="font-size: 9px; padding: 1px 4px;" onchange="document.getElementById('servingText').value = this.value; autoResizeTextarea(document.getElementById('servingText'));">
+              <option value="">-- 提供方法テンプレ --</option>
+              <option value="商品の向きをそろえて、焼きたてを提供します。">① 焼きたて</option>
+              <option value="チョコが完全に固まってから、商品の向きをそろえて提供します。">② チョコ固め</option>
+              <option value="粗熱が取れてから、商品の向きをそろえて提供します。">③ 粗熱取り</option>
+              <option value="商品は重ねずに向きをそろえて提供します。">④ 重ねない</option>
+            </select>
+          </div>
+          <textarea id="servingText" class="step-textarea" placeholder="提供方法" rows="1" oninput="autoResizeTextarea(this)" style="min-height: 18px; height: 18px; padding: 2px;"></textarea>
+        </div>
+      </div>
+    </div>
+
+    <div style="margin-top: 10px; display: flex; gap: 10px;" class="edit-only-row">
+      <button type="button" class="add-btn" style="background:#e91e63;" onclick="addStepBlock()">＋ 手順ブロックを追加</button>
+      <button type="button" class="add-btn" style="background:#2196f3;" onclick="addStandbyBlock()">＋ スタンバイブロックを追加</button>
+    </div>
+
+    <!-- スタンバイセクション -->
+    <div id="standbySection">
+      <div style="font-weight:bold; font-size:0.8rem; margin-bottom:3px; color:#1565c0; border-bottom: 1px solid #1565c0; padding-bottom: 2px;">
+        ■ スタンバイ
+      </div>
+      <div id="standbyContainer">
+        <!-- スタンバイブロックがここに追加される -->
+      </div>
+    </div>
+    </div> <!-- /layoutBottomRight -->
+    </div> <!-- /editor-container -->
+  </div> <!-- /outputArea -->
+</div> <!-- /editorWrapper -->
+
+  <script src="js/standby.js?v=1001"></script>
+<!-- ==========================================================================
+     ■ SECTION 2.1: DIALOGS & MODALS
+     ========================================================================== -->
+<div id="recipeListModal" class="modal-overlay" style="display: none;" onclick="closeRecipeListModalOnOverlay(event)">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h3>📂 保存済みスタンバイ手順書一覧 (<span id="modalSavedCount">0</span>)</h3>
+      <button type="button" class="close-modal-btn" onclick="closeRecipeListModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="search-wrapper" style="margin-bottom: 10px; position: relative;">
+        <input type="text" id="modalSearchInput" placeholder="スタンバイコードまたは商品名称で検索..." oninput="filterModalRecipes()" style="width: 100%; padding: 6px 12px; font-size: 0.85rem; border: 1px solid #cbd5e1; border-radius: 6px; box-sizing: border-box; margin-bottom: 8px;">
+        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+          <div style="flex: 1; min-width: 140px; display: flex; align-items: center; gap: 4px;">
+            <span style="font-size: 0.8rem; color: #475569; white-space: nowrap;">区分:</span>
+            <select id="modalModeFilter" onchange="filterModalRecipes()" style="flex: 1; font-size: 0.8rem; padding: 4px; border: 1px solid #cbd5e1; border-radius: 4px; background: #fff;">
+              <option value="standby" selected>🥣 スタンバイ</option>
+              <option value="">すべて</option>
+            </select>
+          </div>
+          <div style="flex: 1; min-width: 140px; display: flex; align-items: center; gap: 4px;">
+            <span style="font-size: 0.8rem; color: #475569; white-space: nowrap;">ブランド:</span>
+            <select id="modalBrandFilter" onchange="filterModalRecipes()" style="flex: 1; font-size: 0.8rem; padding: 4px; border: 1px solid #cbd5e1; border-radius: 4px; background: #fff;">
+              <option value="">すべて</option>
+              <option value="BAQET">BAQET</option>
+              <option value="BAKERY RESTAURANT C">BAKERY RESTAURANT C</option>
+              <option value="BAKERY CAFE C">BAKERY CAFE C</option>
+            </select>
+          </div>
+          <div style="flex: 1; min-width: 140px; display: flex; align-items: center; gap: 4px;">
+            <span style="font-size: 0.8rem; color: #475569; white-space: nowrap;">メニュー:</span>
+            <select id="modalCategoryFilter" onchange="filterModalRecipes()" style="flex: 1; font-size: 0.8rem; padding: 4px; border: 1px solid #cbd5e1; border-radius: 4px; background: #fff;">
+              <option value="">すべて</option>
+              <option value="期間限定">期間限定</option>
+              <option value="グランド">グランド</option>
+              <option value="個店販促">個店販促</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <div id="batchPrintToolbar" class="batch-print-toolbar">
+        <div class="batch-select-controls">
+          <label class="batch-select-all-label">
+            <input type="checkbox" id="batchSelectAllCheckbox" onchange="toggleBatchSelectAll(this.checked)">
+            <span>表示中をすべて選択</span>
+          </label>
+          <span id="batchSelectedCountBadge" class="batch-selected-badge">0件選択中</span>
+        </div>
+        <button type="button" id="batchPrintExecBtn" class="batch-print-exec-btn" onclick="executeBatchPrintFromModal()" disabled>
+          🖨️ 選択した手順書を一括印刷・PDF保存
+        </button>
+      </div>
+      <div id="modalRecipeGrid" class="modal-recipe-grid">
+        <!-- レシピカードが動的に生成されます -->
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
