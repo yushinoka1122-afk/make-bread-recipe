@@ -1412,3 +1412,377 @@ body.mode-cooking .preview-right {
 }
 
 
+
+
+/* --- 簡易手順書（横6列一覧表）プレビュー＆印刷スタイル --- */
+#quickSheetViewContainer {
+  display: none;
+  width: 100%;
+  box-sizing: border-box;
+}
+body.is-quick-sheet-mode #editorWrapper > #outputArea {
+  display: none !important;
+}
+body.is-quick-sheet-mode #quickSheetViewContainer {
+  display: block !important;
+}
+.quick-sheet-action-bar {
+  position: sticky;
+  top: 52px;
+  z-index: 9000;
+  background: #0f172a;
+  color: #fff;
+  padding: 10px 18px;
+  border-radius: 8px;
+  margin: 0 auto 14px auto;
+  max-width: 285mm;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
+}
+.quick-sheet-action-left {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.quick-sheet-action-title {
+  font-size: 0.95rem;
+  font-weight: bold;
+  color: #38bdf8;
+}
+.quick-sheet-action-sub {
+  font-size: 0.75rem;
+  color: #cbd5e1;
+}
+.quick-sheet-action-buttons {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.quick-sheet-paper {
+  background: #ffffff;
+  width: 285mm;
+  min-height: 190mm;
+  margin: 0 auto 20px auto;
+  padding: 6mm 7mm;
+  box-sizing: border-box;
+  box-shadow: 0 10px 25px -5px rgba(0,0,0,0.12);
+  border: 1px solid #cbd5e1;
+  font-family: "Meiryo", "Yu Gothic", sans-serif;
+}
+.quick-sheet-doc-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 4px;
+  border-bottom: 1.5px solid #1e293b;
+  padding-bottom: 2px;
+}
+.quick-sheet-doc-title {
+  font-size: 12px;
+  font-weight: bold;
+  color: #0f172a;
+  outline: none;
+  padding: 1px 4px;
+  border: 1px dashed transparent;
+}
+.quick-sheet-doc-title:hover,
+.quick-sheet-doc-title:focus {
+  border-color: #3b82f6;
+  background: #f8fafc;
+}
+.quick-sheet-doc-date {
+  font-size: 9px;
+  color: #475569;
+  outline: none;
+}
+.quick-sheet-row-block {
+  margin-bottom: 8px;
+  page-break-inside: avoid;
+  break-inside: avoid;
+}
+.quick-sheet-group-header {
+  font-size: 10.5px;
+  font-weight: bold;
+  color: #0f172a;
+  background: #f1f5f9;
+  border-left: 4px solid #0d9488;
+  padding: 2px 6px;
+  margin-bottom: 3px;
+  outline: none;
+  min-height: 15px;
+}
+.quick-sheet-group-header:empty::before {
+  content: attr(data-placeholder);
+  color: #94a3b8;
+  font-weight: normal;
+  font-size: 9.5px;
+}
+.quick-sheet-grid-6 {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 2.2mm;
+  align-items: start;
+}
+.quick-sheet-card {
+  border: 1px solid #334155;
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  box-sizing: border-box;
+  font-size: 8.5px;
+  line-height: 1.25;
+}
+.quick-sheet-card-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #f8fafc;
+  border-bottom: 1px dashed #cbd5e1;
+  padding: 1px 3px;
+  gap: 2px;
+}
+.quick-sheet-card-toolbar button {
+  background: #e2e8f0;
+  color: #334155;
+  border: none;
+  border-radius: 2px;
+  padding: 1px 4px;
+  font-size: 8px;
+  cursor: pointer;
+  font-weight: bold;
+}
+.quick-sheet-card-toolbar button:hover {
+  background: #cbd5e1;
+}
+.quick-sheet-card-toolbar button.qs-break-active {
+  background: #0d9488;
+  color: #fff;
+}
+.quick-sheet-card-toolbar button.qs-del-btn {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+.quick-sheet-card-toolbar button.qs-del-btn:hover {
+  background: #fecaca;
+}
+.quick-sheet-card-title {
+  font-size: 9.5px;
+  font-weight: bold;
+  text-align: center;
+  background: #f8fafc;
+  border-bottom: 1px solid #334155;
+  padding: 3px 2px;
+  min-height: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  word-break: break-all;
+  outline: none;
+}
+.quick-sheet-card-photo {
+  width: 100%;
+  height: 25mm;
+  border-bottom: 1px solid #334155;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #fff;
+  overflow: hidden;
+}
+.quick-sheet-card-photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+.quick-sheet-card-photo-empty {
+  color: #94a3b8;
+  font-size: 8px;
+}
+.quick-sheet-ing-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+.quick-sheet-ing-table tr.qs-flow-row {
+  border-bottom: 1px solid #e2e8f0;
+  position: relative;
+  transition: background-color 0.1s ease;
+}
+.quick-sheet-ing-table tr.qs-flow-row:last-child {
+  border-bottom: none;
+}
+.quick-sheet-ing-table tr.qs-flow-row.qs-drag-over {
+  border-top: 2px solid #0d9488 !important;
+}
+.quick-sheet-ing-table tr.qs-type-proof {
+  background: #eff6ff;
+  border-top: 1px solid #93c5fd;
+  border-bottom: 1px solid #93c5fd;
+}
+.quick-sheet-ing-table tr.qs-type-bake {
+  background: #fef2f2;
+  border-top: 1px solid #fca5a5;
+  border-bottom: 1px solid #fca5a5;
+}
+.quick-sheet-ing-table td {
+  padding: 1.5px 3px;
+  font-size: 8px;
+  vertical-align: middle;
+  outline: none;
+}
+.quick-sheet-ing-table td.qs-ing-name {
+  width: 68%;
+  word-break: break-all;
+  color: #0f172a;
+}
+.quick-sheet-ing-table td.qs-ing-amt {
+  width: 32%;
+  text-align: right;
+  white-space: nowrap;
+  font-weight: bold;
+  color: #0f172a;
+  position: relative;
+}
+.quick-sheet-ing-table td.qs-process-cell {
+  padding: 2px 3px;
+  position: relative;
+}
+.qs-proof-main {
+  font-weight: bold;
+  color: #1e3a8a;
+  font-size: 8.3px;
+  outline: none;
+}
+.qs-proof-spec {
+  font-size: 7.4px;
+  color: #334155;
+  font-weight: normal;
+  outline: none;
+  margin-top: 0.5px;
+}
+.qs-bake-main {
+  font-weight: bold;
+  color: #991b1b;
+  font-size: 8.3px;
+  outline: none;
+}
+.qs-drag-handle {
+  cursor: grab;
+  color: #94a3b8;
+  font-size: 8px;
+  margin-right: 2px;
+  user-select: none;
+  display: inline-block;
+}
+.qs-drag-handle:active {
+  cursor: grabbing;
+}
+.qs-row-actions {
+  display: none;
+  position: absolute;
+  right: 1px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid #cbd5e1;
+  border-radius: 3px;
+  padding: 0 1px;
+  gap: 1px;
+  align-items: center;
+  z-index: 10;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+}
+.quick-sheet-ing-table tr.qs-flow-row:hover .qs-row-actions {
+  display: inline-flex;
+}
+.qs-row-btn {
+  background: #f1f5f9 !important;
+  color: #334155 !important;
+  border: none !important;
+  border-radius: 2px !important;
+  font-size: 7px !important;
+  padding: 1px 3px !important;
+  line-height: 1.1 !important;
+  cursor: pointer !important;
+  font-weight: bold !important;
+}
+.qs-row-btn:hover {
+  background: #cbd5e1 !important;
+  color: #0f172a !important;
+}
+.qs-row-btn.qs-row-del {
+  background: #fee2e2 !important;
+  color: #dc2626 !important;
+}
+.qs-row-btn.qs-row-del:hover {
+  background: #ef4444 !important;
+  color: #fff !important;
+}
+.quick-sheet-add-bar {
+  display: flex;
+  border-top: 1px dashed #cbd5e1;
+  background: #f8fafc;
+}
+.quick-sheet-add-bar button {
+  flex: 1;
+  background: transparent !important;
+  color: #475569 !important;
+  border: none !important;
+  border-right: 1px dashed #cbd5e1 !important;
+  border-radius: 0 !important;
+  padding: 2px 0 !important;
+  font-size: 7.2px !important;
+  cursor: pointer;
+  font-weight: bold;
+}
+.quick-sheet-add-bar button:last-child {
+  border-right: none !important;
+}
+.quick-sheet-add-bar button:hover {
+  background: #e2e8f0 !important;
+  color: #0f172a !important;
+}
+
+@media print {
+  body.is-quick-sheet-mode .utility-bar,
+  body.is-quick-sheet-mode #sidebar,
+  body.is-quick-sheet-mode #sidebarOverlay,
+  body.is-quick-sheet-mode .quick-sheet-action-bar,
+  body.is-quick-sheet-mode .quick-sheet-card-toolbar,
+  body.is-quick-sheet-mode .quick-sheet-add-bar,
+  body.is-quick-sheet-mode .qs-row-actions,
+  body.is-quick-sheet-mode .qs-drag-handle,
+  body.is-quick-sheet-mode #editorWrapper > #outputArea {
+    display: none !important;
+  }
+  body.is-quick-sheet-mode #editorWrapper {
+    padding: 0 !important;
+    margin: 0 !important;
+    display: block !important;
+    background: #fff !important;
+  }
+  body.is-quick-sheet-mode #quickSheetViewContainer {
+    display: block !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+  body.is-quick-sheet-mode .quick-sheet-paper {
+    width: 100% !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+  }
+  body.is-quick-sheet-mode .quick-sheet-group-header:empty,
+  body.is-quick-sheet-mode .qs-proof-spec:empty {
+    display: none !important;
+  }
+}

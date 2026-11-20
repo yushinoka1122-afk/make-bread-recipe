@@ -8,7 +8,7 @@
 <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
 <!-- SortableJS -->
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
-  <link rel="stylesheet" href="css/standby.css?v=1001">
+  <link rel="stylesheet" href="css/standby.css?v=20261120_qs_order">
 </head>
 <body class="mode-cooking mode-standby">
 
@@ -461,7 +461,7 @@
   </div> <!-- /outputArea -->
 </div> <!-- /editorWrapper -->
 
-  <script src="js/standby.js?v=20261112_brand_multi"></script>
+  <script src="js/standby.js?v=20261120_qs_order"></script>
 <!-- ==========================================================================
      ■ SECTION 2.1: DIALOGS & MODALS
      ========================================================================== -->
@@ -510,9 +510,14 @@
           </label>
           <span id="batchSelectedCountBadge" class="batch-selected-badge">0件選択中</span>
         </div>
-        <button type="button" id="batchPrintExecBtn" class="batch-print-exec-btn" onclick="executeBatchPrintFromModal()" disabled>
-          🖨️ 選択した手順書を一括印刷・PDF保存
-        </button>
+        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+          <button type="button" id="quickSheetExecBtn" class="batch-print-exec-btn" style="background: #0d9488;" onclick="openQuickReferenceSheetFromModal()" disabled>
+            📋 簡易手順書（横6列）出力
+          </button>
+          <button type="button" id="batchPrintExecBtn" class="batch-print-exec-btn" onclick="executeBatchPrintFromModal()" disabled>
+            🖨️ 選択した手順書を一括印刷・PDF保存
+          </button>
+        </div>
       </div>
       <div id="modalRecipeGrid" class="modal-recipe-grid">
         <!-- レシピカードが動的に生成されます -->

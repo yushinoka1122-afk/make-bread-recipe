@@ -3198,6 +3198,10 @@
     if (execBtn) {
       execBtn.disabled = checkedBoxes.length === 0;
     }
+    const quickSheetBtn = document.getElementById('quickSheetExecBtn');
+    if (quickSheetBtn) {
+      quickSheetBtn.disabled = checkedBoxes.length === 0;
+    }
     if (selectAllCb) {
       if (visibleCheckboxes.length === 0) {
         selectAllCb.checked = false;
@@ -3600,3 +3604,463 @@
       }
     }
   });
+
+
+  // --- 簡易手順書（横6列一覧表）自動生成・プレビュー・印刷機能（工程順・使う順並び替え対応） ---
+  let quickSheetItems = [];
+  let quickSheetObjectUrls = [];
+  let quickSheetGroupTitles = {};
+  let qsDragState = null;
+
+  function loadSavedQuickSheetCustomMap() {
+    try {
+      const raw = safeStorage.getItem('quickSheetCustomFlowMap_v1');
+      return raw ? JSON.parse(raw) : {};
+    } catch (e) {
+      return {};
+    }
+  }
+
+  function saveQuickSheetCustomForItem(item) {
+    if (!item || !item.menuCode) return;
+    try {
+      const map = loadSavedQuickSheetCustomMap();
+      map[item.menuCode] = {
+        productName: item.productName,
+        breakBefore: !!item.breakBefore,
+        flowRows: item.flowRows
+      };
+      safeStorage.setItem('quickSheetCustomFlowMap_v1', JSON.stringify(map));
+    } catch (e) {
+      console.warn('Failed to save quickSheetCustomFlowMap_v1:', e);
+    }
+  }
+
+  // マスタやレシピデータから初期の工程順リスト（ホイロ前食材 → ホイロ → 焼成前食材 → 焼成 → 焼成後食材）を構築・同期
+  function buildChronologicalFlowRows(r, ings, savedCustom) {
+    const proofTimeStr = (r.proofTime !== undefined && r.proofTime !== '') ? `${r.proofTime}分` : '40分';
+    const bakeTimeStr = (r.bakeTime !== undefined && r.bakeTime !== '') ? `${r.bakeTime}分` : '10分';
+    const pL = r.proofL || 0;
+    const pW = r.proofW || 0;
+    const pH = r.proofH || 0;
+    const maxLoad = r.maxLoad || 6;
+    const defaultProofText = `ホイロ　${proofTimeStr}`;
+    const defaultProofSpec = `規格: 縦${pL}×横${pW}×高${pH}cm / のせ数${maxLoad}個`;
+    const defaultBakeText = `焼成　${bakeTimeStr}`;
+
+    const latestIngRows = ings.map(ing => ({
+      type: 'ing',
+      code: ing.code || '',
+      name: ing.name || '',
+      amountUnit: `${ing.amount || ''}${ing.unit || ''}`
+    }));
+
+    // 過去に並び替えた順序が保存されている場合は、その順番（ホイロ前・焼成前・焼成後）を維持しつつ最新の原価シート使用量を反映
+    if (savedCustom && Array.isArray(savedCustom.flowRows) && savedCustom.flowRows.length > 0) {
+      const usedLatestIdx = new Set();
+      const mergedRows = [];
+
+      savedCustom.flowRows.forEach(sRow => {
+        if (sRow.type === 'proof' || sRow.type === 'bake') {
+          mergedRows.push({ ...sRow });
+        } else {
+          // 対応する最新食材があれば使用量を最新化
+          let matchIdx = -1;
+          if (sRow.code) {
+            matchIdx = latestIngRows.findIndex((l, idx) => !usedLatestIdx.has(idx) && l.code && l.code === sRow.code);
+          }
+          if (matchIdx === -1 && sRow.name) {
+            matchIdx = latestIngRows.findIndex((l, idx) => !usedLatestIdx.has(idx) && l.name === sRow.name);
+          }
+          if (matchIdx !== -1) {
+            usedLatestIdx.add(matchIdx);
+            mergedRows.push({
+              type: 'ing',
+              code: latestIngRows[matchIdx].code,
+              name: sRow.name || latestIngRows[matchIdx].name,
+              amountUnit: latestIngRows[matchIdx].amountUnit
+            });
+          } else {
+            mergedRows.push({ ...sRow });
+          }
+        }
+      });
+
+      // 新たに原価シートで追加された食材があれば焼成の前に差し込む
+      latestIngRows.forEach((lRow, idx) => {
+        if (!usedLatestIdx.has(idx)) {
+          const bakePos = mergedRows.findIndex(r => r.type === 'bake');
+          if (bakePos !== -1) {
+            mergedRows.splice(bakePos, 0, lRow);
+          } else {
+            mergedRows.push(lRow);
+          }
+        }
+      });
+
+      return mergedRows;
+    }
+
+    // 初回生成時：
+    // 1行目の生地（または最初の食材）→ 【ホイロ】 → 残りの食材 → 【焼成】 の順に自動配置（画面上で▲▼やドラッグでいつでも自由に移動可能）
+    const rows = [];
+    if (latestIngRows.length > 0) {
+      rows.push(latestIngRows[0]);
+      rows.push({
+        type: 'proof',
+        text: defaultProofText,
+        specText: defaultProofSpec
+      });
+      for (let i = 1; i < latestIngRows.length; i++) {
+        rows.push(latestIngRows[i]);
+      }
+      rows.push({
+        type: 'bake',
+        text: defaultBakeText
+      });
+    } else {
+      rows.push({
+        type: 'proof',
+        text: defaultProofText,
+        specText: defaultProofSpec
+      });
+      rows.push({
+        type: 'bake',
+        text: defaultBakeText
+      });
+    }
+    return rows;
+  }
+
+  window.openQuickReferenceSheetFromModal = async function() {
+    const checkedBoxes = Array.from(document.querySelectorAll('#modalRecipeGrid .batch-recipe-checkbox:checked'));
+    if (checkedBoxes.length === 0) {
+      alert('簡易手順書に出力する商品にチェックを入れてください。');
+      return;
+    }
+
+    const codes = checkedBoxes.map(cb => String(cb.value));
+    closeRecipeListModal();
+    await buildQuickReferenceSheetByCodes(codes);
+  };
+
+  async function buildQuickReferenceSheetByCodes(codes) {
+    quickSheetObjectUrls.forEach(url => URL.revokeObjectURL(url));
+    quickSheetObjectUrls = [];
+    quickSheetItems = [];
+    const customMap = loadSavedQuickSheetCustomMap();
+
+    for (const code of codes) {
+      const r = await recipeDB.getRecipe(code);
+      if (!r) continue;
+
+      let ings = Array.isArray(r.ingredients) ? r.ingredients : [];
+      if (r.menuCode && window.menuMaster && window.menuMaster[r.menuCode] && Array.isArray(window.menuMaster[r.menuCode].ingredients) && window.menuMaster[r.menuCode].ingredients.length > 0 && typeof mergeIngredientsWithSaved === 'function') {
+        ings = mergeIngredientsWithSaved(window.menuMaster[r.menuCode].ingredients, ings);
+      }
+
+      let imgUrl = '';
+      if (r.mainImageBlob) {
+        imgUrl = URL.createObjectURL(r.mainImageBlob);
+        quickSheetObjectUrls.push(imgUrl);
+      }
+
+      const savedCustom = customMap[r.menuCode] || null;
+      const flowRows = buildChronologicalFlowRows(r, ings, savedCustom);
+
+      quickSheetItems.push({
+        menuCode: r.menuCode,
+        productName: (savedCustom && savedCustom.productName) ? savedCustom.productName : (r.productName || '無題の商品'),
+        brandCategory: r.brandCategory || '',
+        imgUrl,
+        breakBefore: savedCustom ? !!savedCustom.breakBefore : false,
+        flowRows
+      });
+    }
+
+    if (quickSheetItems.length === 0) {
+      alert('選択された手順書データが見つかりませんでした。');
+      return;
+    }
+
+    let pageStyle = document.getElementById('quickSheetPrintPageStyle');
+    if (!pageStyle) {
+      pageStyle = document.createElement('style');
+      pageStyle.id = 'quickSheetPrintPageStyle';
+      pageStyle.textContent = '@media print { @page { size: A4 landscape; margin: 6mm 7mm; } }';
+      document.head.appendChild(pageStyle);
+    }
+
+    document.body.classList.add('is-quick-sheet-mode');
+    renderQuickReferenceSheet();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  window.renderQuickReferenceSheet = function() {
+    let container = document.getElementById('quickSheetViewContainer');
+    if (!container) {
+      container = document.createElement('div');
+      container.id = 'quickSheetViewContainer';
+      const wrapper = document.getElementById('editorWrapper');
+      if (wrapper) {
+        wrapper.appendChild(container);
+      } else {
+        document.body.appendChild(container);
+      }
+    }
+
+    const rows = [];
+    let currentRow = [];
+    quickSheetItems.forEach((item, idx) => {
+      if (idx > 0 && (item.breakBefore || currentRow.length === 6)) {
+        rows.push(currentRow);
+        currentRow = [];
+      }
+      currentRow.push({ item, index: idx });
+    });
+    if (currentRow.length > 0) {
+      rows.push(currentRow);
+    }
+
+    const today = new Date();
+    const dateLabel = `更新日: ${today.getFullYear()}/${String(today.getMonth() + 1).padStart(2, '0')}/${String(today.getDate()).padStart(2, '0')}`;
+
+    let rowsHtml = '';
+    rows.forEach((rowEntries, rIdx) => {
+      const savedGroupTitle = quickSheetGroupTitles[rIdx] || '';
+      let cardsHtml = '';
+
+      rowEntries.forEach(({ item, index }) => {
+        const photoHtml = item.imgUrl
+          ? `<img src="${item.imgUrl}" alt="${item.productName}">`
+          : `<span class="quick-sheet-card-photo-empty">写真なし</span>`;
+
+        let flowRowsHtml = '';
+        item.flowRows.forEach((row, rowIdx) => {
+          const actionBtnsHtml = `
+            <span class="qs-row-actions">
+              <button type="button" class="qs-row-btn" title="1つ上へ移動" onclick="moveQuickSheetFlowRow(${index}, ${rowIdx}, -1)" ${rowIdx === 0 ? 'disabled style="opacity:0.35;"' : ''}>▲</button>
+              <button type="button" class="qs-row-btn" title="1つ下へ移動" onclick="moveQuickSheetFlowRow(${index}, ${rowIdx}, 1)" ${rowIdx === item.flowRows.length - 1 ? 'disabled style="opacity:0.35;"' : ''}>▼</button>
+              <button type="button" class="qs-row-btn qs-row-del" title="この行を削除" onclick="removeQuickSheetFlowRow(${index}, ${rowIdx})">×</button>
+            </span>`;
+
+          const dragAttrs = `draggable="true" ondragstart="onQsRowDragStart(event, ${index}, ${rowIdx})" ondragover="onQsRowDragOver(event)" ondragleave="onQsRowDragLeave(event)" ondrop="onQsRowDrop(event, ${index}, ${rowIdx})"`;
+
+          if (row.type === 'proof') {
+            flowRowsHtml += `
+              <tr class="qs-flow-row qs-type-proof" ${dragAttrs}>
+                <td colspan="2" class="qs-process-cell">
+                  <div style="display:flex; align-items:center;">
+                    <span class="qs-drag-handle" title="ドラッグして順番移動">⠿</span>
+                    <div style="flex:1;">
+                      <div class="qs-proof-main" contenteditable="true" onblur="onQuickSheetFlowEdit(${index}, ${rowIdx}, 'text', this.innerText)">${row.text || 'ホイロ　40分'}</div>
+                      <div class="qs-proof-spec" contenteditable="true" onblur="onQuickSheetFlowEdit(${index}, ${rowIdx}, 'specText', this.innerText)">${row.specText ?? ''}</div>
+                    </div>
+                  </div>
+                  ${actionBtnsHtml}
+                </td>
+              </tr>`;
+          } else if (row.type === 'bake') {
+            flowRowsHtml += `
+              <tr class="qs-flow-row qs-type-bake" ${dragAttrs}>
+                <td colspan="2" class="qs-process-cell">
+                  <div style="display:flex; align-items:center;">
+                    <span class="qs-drag-handle" title="ドラッグして順番移動">⠿</span>
+                    <div class="qs-bake-main" style="flex:1;" contenteditable="true" onblur="onQuickSheetFlowEdit(${index}, ${rowIdx}, 'text', this.innerText)">${row.text || '焼成　10分'}</div>
+                  </div>
+                  ${actionBtnsHtml}
+                </td>
+              </tr>`;
+          } else {
+            flowRowsHtml += `
+              <tr class="qs-flow-row qs-type-ing" ${dragAttrs}>
+                <td class="qs-ing-name">
+                  <span class="qs-drag-handle" title="ドラッグして順番移動">⠿</span>
+                  <span contenteditable="true" onblur="onQuickSheetFlowEdit(${index}, ${rowIdx}, 'name', this.innerText)">${row.name || ''}</span>
+                </td>
+                <td class="qs-ing-amt">
+                  <span contenteditable="true" onblur="onQuickSheetFlowEdit(${index}, ${rowIdx}, 'amountUnit', this.innerText)">${row.amountUnit || ''}</span>
+                  ${actionBtnsHtml}
+                </td>
+              </tr>`;
+          }
+        });
+
+        cardsHtml += `
+          <div class="quick-sheet-card">
+            <div class="quick-sheet-card-toolbar">
+              <div>
+                <button type="button" title="カードを左へ移動" onclick="moveQuickSheetItem(${index}, -1)" ${index === 0 ? 'disabled style="opacity:0.4;"' : ''}>◀</button>
+                <button type="button" title="カードを右へ移動" onclick="moveQuickSheetItem(${index}, 1)" ${index === quickSheetItems.length - 1 ? 'disabled style="opacity:0.4;"' : ''}>▶</button>
+                <button type="button" class="${item.breakBefore ? 'qs-break-active' : ''}" title="この商品から次の段（新しい見出し行）へ改行" onclick="toggleQuickSheetRowBreak(${index})" ${index === 0 ? 'disabled style="opacity:0.4;"' : ''}>⤵改行</button>
+              </div>
+              <button type="button" class="qs-del-btn" title="一覧から除外" onclick="removeQuickSheetItem(${index})">✖</button>
+            </div>
+            <div class="quick-sheet-card-title" contenteditable="true" onblur="quickSheetItems[${index}].productName = this.innerText.trim(); saveQuickSheetCustomForItem(quickSheetItems[${index}]);">${item.productName}</div>
+            <div class="quick-sheet-card-photo">${photoHtml}</div>
+            <table class="quick-sheet-ing-table">
+              <tbody>
+                ${flowRowsHtml}
+              </tbody>
+            </table>
+            <div class="quick-sheet-add-bar">
+              <button type="button" onclick="addQuickSheetFlowRow(${index}, 'ing')" title="食材や注記の行を追加">＋食材・注記</button>
+              <button type="button" onclick="addQuickSheetFlowRow(${index}, 'proof')" title="ホイロ・解凍の行を追加">＋ホイロ</button>
+              <button type="button" onclick="addQuickSheetFlowRow(${index}, 'bake')" title="2次焼成などの焼成行を追加">＋焼成</button>
+            </div>
+          </div>`;
+      });
+
+      rowsHtml += `
+        <div class="quick-sheet-row-block">
+          <div class="quick-sheet-group-header" contenteditable="true" data-placeholder="【生地名・カテゴリー見出しを入力（例：【キューブ】【ホテル生地】 ※空欄なら印刷時非表示）】" onblur="onQuickSheetGroupTitleEdit(${rIdx}, this.innerText)">${savedGroupTitle}</div>
+          <div class="quick-sheet-grid-6">
+            ${cardsHtml}
+          </div>
+        </div>`;
+    });
+
+    container.innerHTML = `
+      <div class="quick-sheet-action-bar">
+        <div class="quick-sheet-action-left">
+          <div class="quick-sheet-action-title">📋 簡易手順書（横6列一覧・${quickSheetItems.length}商品）プレビュー</div>
+          <div class="quick-sheet-action-sub">💡 「⠿」をドラッグ または 行右側の「▲▼」ボタンで、【ホイロまでの食材 → ホイロ → 焼成までの食材 → 焼成 → 焼成後の食材】の順に自由に並び替えられます（並び順は自動保存されます）</div>
+        </div>
+        <div class="quick-sheet-action-buttons">
+          <button type="button" style="background: #334155; color: #fff;" onclick="reopenModalFromQuickSheet()">📂 商品を選び直す</button>
+          <button type="button" style="background: #0d9488; color: #fff; font-size: 0.88rem; padding: 7px 16px;" onclick="window.print()">🖨️ この簡易手順書を印刷・PDF保存（A4横）</button>
+          <button type="button" style="background: #ef4444; color: #fff;" onclick="closeQuickReferenceSheet()">✖ 通常の編集画面に戻る</button>
+        </div>
+      </div>
+      <div class="quick-sheet-paper">
+        <div class="quick-sheet-doc-header">
+          <div class="quick-sheet-doc-title" contenteditable="true">BRC・BCC 簡易手順書一覧</div>
+          <div class="quick-sheet-doc-date" contenteditable="true">${dateLabel}</div>
+        </div>
+        ${rowsHtml}
+      </div>
+    `;
+  };
+
+  window.onQuickSheetGroupTitleEdit = function(rowIdx, text) {
+    quickSheetGroupTitles[rowIdx] = text.trim();
+  };
+
+  window.onQuickSheetFlowEdit = function(itemIdx, rowIdx, field, val) {
+    const item = quickSheetItems[itemIdx];
+    if (item && item.flowRows[rowIdx]) {
+      item.flowRows[rowIdx][field] = val.trim();
+      saveQuickSheetCustomForItem(item);
+    }
+  };
+
+  window.moveQuickSheetFlowRow = function(itemIdx, rowIdx, dir) {
+    const item = quickSheetItems[itemIdx];
+    if (!item) return;
+    const target = rowIdx + dir;
+    if (target < 0 || target >= item.flowRows.length) return;
+    const temp = item.flowRows[rowIdx];
+    item.flowRows[rowIdx] = item.flowRows[target];
+    item.flowRows[target] = temp;
+    saveQuickSheetCustomForItem(item);
+    renderQuickReferenceSheet();
+  };
+
+  window.onQsRowDragStart = function(e, itemIdx, rowIdx) {
+    qsDragState = { itemIdx, rowIdx };
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  window.onQsRowDragOver = function(e) {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    const tr = e.target.closest('tr.qs-flow-row');
+    if (tr) tr.classList.add('qs-drag-over');
+  };
+
+  window.onQsRowDragLeave = function(e) {
+    const tr = e.target.closest('tr.qs-flow-row');
+    if (tr) tr.classList.remove('qs-drag-over');
+  };
+
+  window.onQsRowDrop = function(e, targetItemIdx, targetRowIdx) {
+    e.preventDefault();
+    const tr = e.target.closest('tr.qs-flow-row');
+    if (tr) tr.classList.remove('qs-drag-over');
+    if (!qsDragState || qsDragState.itemIdx !== targetItemIdx) return;
+    const fromIdx = qsDragState.rowIdx;
+    qsDragState = null;
+    if (fromIdx === targetRowIdx) return;
+    const item = quickSheetItems[targetItemIdx];
+    if (!item) return;
+    const [moved] = item.flowRows.splice(fromIdx, 1);
+    item.flowRows.splice(targetRowIdx, 0, moved);
+    saveQuickSheetCustomForItem(item);
+    renderQuickReferenceSheet();
+  };
+
+  window.addQuickSheetFlowRow = function(itemIdx, type) {
+    const item = quickSheetItems[itemIdx];
+    if (!item) return;
+    if (type === 'proof') {
+      item.flowRows.push({ type: 'proof', text: 'ホイロ　40分', specText: '' });
+    } else if (type === 'bake') {
+      item.flowRows.push({ type: 'bake', text: '焼成　5分' });
+    } else {
+      item.flowRows.push({ type: 'ing', name: '食材・注記', amountUnit: '' });
+    }
+    saveQuickSheetCustomForItem(item);
+    renderQuickReferenceSheet();
+  };
+
+  window.removeQuickSheetFlowRow = function(itemIdx, rowIdx) {
+    const item = quickSheetItems[itemIdx];
+    if (!item) return;
+    item.flowRows.splice(rowIdx, 1);
+    saveQuickSheetCustomForItem(item);
+    renderQuickReferenceSheet();
+  };
+
+  window.moveQuickSheetItem = function(index, dir) {
+    const target = index + dir;
+    if (target < 0 || target >= quickSheetItems.length) return;
+    const temp = quickSheetItems[index];
+    quickSheetItems[index] = quickSheetItems[target];
+    quickSheetItems[target] = temp;
+    renderQuickReferenceSheet();
+  };
+
+  window.toggleQuickSheetRowBreak = function(index) {
+    if (index <= 0 || index >= quickSheetItems.length) return;
+    quickSheetItems[index].breakBefore = !quickSheetItems[index].breakBefore;
+    saveQuickSheetCustomForItem(quickSheetItems[index]);
+    renderQuickReferenceSheet();
+  };
+
+  window.removeQuickSheetItem = function(index) {
+    quickSheetItems.splice(index, 1);
+    if (quickSheetItems.length === 0) {
+      closeQuickReferenceSheet();
+      return;
+    }
+    renderQuickReferenceSheet();
+  };
+
+  window.reopenModalFromQuickSheet = function() {
+    const modal = document.getElementById('recipeListModal');
+    if (modal) {
+      modal.style.display = 'flex';
+    } else {
+      openRecipeListModal();
+    }
+  };
+
+  window.closeQuickReferenceSheet = function() {
+    document.body.classList.remove('is-quick-sheet-mode');
+    const pageStyle = document.getElementById('quickSheetPrintPageStyle');
+    if (pageStyle) pageStyle.remove();
+    const container = document.getElementById('quickSheetViewContainer');
+    if (container) container.innerHTML = '';
+    quickSheetObjectUrls.forEach(url => URL.revokeObjectURL(url));
+    quickSheetObjectUrls = [];
+  };
