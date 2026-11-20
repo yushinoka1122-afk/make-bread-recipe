@@ -833,8 +833,9 @@
         <span class="block-title" style="color:#e91e63;">手順</span>
         <select class="step-template-select edit-only-btn" onchange="applyStepTemplate(this)" style="margin-left: 10px; font-size: 0.8rem; padding: 2px;">
               <option value="">-- 定型文挿入 --</option>
-              <option value="drink_prep">準備・アルコール・カップ確認</option>
+              <option value="drink_prep">手洗い・アルコール・カップ確認</option>
               <option value="espuma">エスプーマ生クリーム</option>
+              <option value="steamer">スチーマー</option>
             </select>
         <button type="button" class="del-btn edit-only-btn" style="width:auto; padding:2px 5px;" onclick="removeStepBlock(this)">ブロック削除</button>
       </div>
@@ -1158,16 +1159,18 @@
     const textarea = block.querySelector('.step-textarea');
     let lines = [];
     if (tempKey === 'drink_prep') {
-      lines.push("手洗い・アルコール・カップ確認");
+      lines.push("手を洗いアルコールをします。使用するカップに汚れが付いていないことを確認します。");
     } else if (tempKey === 'espuma') {
       lines.push("エスプーマを使用して、生クリーム（25g）をカップの淵に着けて一周し、その後、中も隙間なく搾ります。");
+    } else if (tempKey === 'steamer') {
+      lines.push("スチーマーを使用して沸かします。");
     }
     
     if (textarea) {
       if (textarea.value) {
-        textarea.value = textarea.value + '\\n' + lines.join('\\n');
+        textarea.value = textarea.value + '\n' + lines.join('\n');
       } else {
-        textarea.value = lines.join('\\n');
+        textarea.value = lines.join('\n');
       }
       autoResizeTextarea(textarea);
     }
@@ -2189,8 +2192,9 @@
             <span class="block-title" style="color:#e91e63;">手順</span>
             <select class="step-template-select edit-only-btn" onchange="applyStepTemplate(this)" style="margin-left: 10px; font-size: 0.8rem; padding: 2px;">
               <option value="">-- 定型文挿入 --</option>
-              <option value="drink_prep">準備・アルコール・カップ確認</option>
+              <option value="drink_prep">手洗い・アルコール・カップ確認</option>
               <option value="espuma">エスプーマ生クリーム</option>
+              <option value="steamer">スチーマー</option>
             </select>
             <button type="button" class="del-btn edit-only-btn" style="width:auto; padding:2px 5px;" onclick="removeStepBlock(this)">ブロック削除</button>
           </div>
@@ -2338,8 +2342,9 @@
         <span class="block-title" style="color:#e91e63;">手順①</span>
         <select class="step-template-select edit-only-btn" onchange="applyStepTemplate(this)" style="margin-left: 10px; font-size: 0.8rem; padding: 2px;">
               <option value="">-- 定型文挿入 --</option>
-              <option value="drink_prep">準備・アルコール・カップ確認</option>
+              <option value="drink_prep">手洗い・アルコール・カップ確認</option>
               <option value="espuma">エスプーマ生クリーム</option>
+              <option value="steamer">スチーマー</option>
             </select>
         <button type="button" class="del-btn edit-only-btn" style="width:auto; padding:2px 5px;" onclick="removeStepBlock(this)">ブロック削除</button>
       </div>
