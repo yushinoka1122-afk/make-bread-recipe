@@ -3991,3 +3991,576 @@
     quickSheetObjectUrls.forEach(url => URL.revokeObjectURL(url));
     quickSheetObjectUrls = [];
   };
+
+
+  // --- J〜Q列 情報抽出 ＆ 黄色塗りつぶしデザイン付きExcel出力機能 ---
+  let jqWorkbookCache = null;
+  let jqExtractedRows = [];
+  let jqSourceFileName = '原価レシピ抽出';
+
+  window.openJqExtractModal = function() {
+    let modal = document.getElementById('jqExtractModal');
+    if (!modal) {
+      modal = document.createElement('div');
+      modal.id = 'jqExtractModal';
+      modal.className = 'modal-overlay';
+      modal.onclick = function(e) {
+        if (e.target.id === 'jqExtractModal') closeJqExtractModal();
+      };
+      modal.innerHTML = `
+        <div class="modal-content">
+          <div class="modal-header" style="background: linear-gradient(90deg, #1e293b, #334155); color: #fff;">
+            <h3 style="margin:0; color:#fef08a;">📊 原価シート抽出 ＆ Excel出力</h3>
+            <button type="button" class="close-modal-btn" style="color:#fff;" onclick="closeJqExtractModal()">×</button>
+          </div>
+          <div class="modal-body" style="display:flex; flex-direction:column; flex:1; overflow:hidden;">
+            <div class="jq-toolbar">
+              <div class="jq-toolbar-group">
+                <label style="font-weight:bold; font-size:0.82rem; color:#1e293b;">① 元ファイル選択:</label>
+                <input type="file" id="jqFileInput" accept=".xlsx,.xls,.csv" onchange="handleJqFileSelect(this)" style="font-size:0.8rem; max-width:230px;">
+                <span id="jqSheetSelectWrap" style="display:none; align-items:center; gap:4px;">
+                  <label style="font-size:0.78rem; color:#475569;">シート:</label>
+                  <select id="jqSheetSelect" onchange="reparseJqCurrentSheet()" style="font-size:0.8rem; padding:3px 6px; border:1px solid #cbd5e1; border-radius:4px;"></select>
+                </span>
+                <span style="display:inline-flex; align-items:center; gap:4px;">
+                  <label style="font-size:0.78rem; color:#475569;">抽出列:</label>
+                  <select id="jqColModeSelect" onchange="reparseJqCurrentSheet()" style="font-size:0.8rem; padding:3px 6px; border:1px solid #cbd5e1; border-radius:4px;">
+                    <option value="auto">自動判定（J〜Q列 / 先頭列）</option>
+                    <option value="jq">J〜Q列固定（10〜17列目）</option>
+                    <option value="ah">A〜H列固定（1〜8列目）</option>
+                  </select>
+                </span>
+                <span style="display:inline-flex; align-items:center; gap:4px;">
+                  <label style="font-size:0.78rem; color:#475569;">親行の黄色:</label>
+                  <select id="jqYellowColorSelect" onchange="renderJqPreviewTable()" style="font-size:0.8rem; padding:3px 6px; border:1px solid #cbd5e1; border-radius:4px; background:#FFF176; font-weight:bold;">
+                    <option value="FFF176" style="background:#FFF176;">標準イエロー（見やすい黄色）</option>
+                    <option value="FFFF00" style="background:#FFFF00;">鮮やかな黄色（エクセル標準黄）</option>
+                    <option value="FFF9C4" style="background:#FFF9C4;">パステルイエロー（淡い黄色）</option>
+                  </select>
+                </span>
+              </div>
+              <div class="jq-toolbar-group">
+                <span id="jqStatBadge" class="jq-stat-badge">未読込</span>
+                <button type="button" id="jqSyncMasterBtn" onclick="importJqToToolMaster()" disabled style="background:#0284c7; color:#fff; font-size:0.8rem; padding:6px 10px;" title="抽出したメニューと食材を手順書ツールの検索マスタにも反映します">
+                  🔄 ツールの原価マスタにも反映
+                </button>
+                <button type="button" id="jqExportExcelBtn" onclick="exportJqStyledExcel()" disabled style="background:#eab308; color:#0f172a; font-size:0.85rem; font-weight:bold; padding:7px 14px; box-shadow:0 2px 4px rgba(0,0,0,0.12);">
+                  📥 黄色塗りつぶしExcel(.xlsx)を出力
+                </button>
+              </div>
+            </div>
+            <div style="margin-bottom:8px; display:flex; gap:8px; align-items:center;">
+              <input type="text" id="jqFilterInput" placeholder="🔍 メニューコード・商品名・食材名で絞り込み（空欄で全件出力）..." oninput="renderJqPreviewTable()" style="flex:1; padding:5px 10px; font-size:0.8rem; border:1px solid #cbd5e1; border-radius:5px;">
+              <label style="font-size:0.78rem; color:#334155; display:inline-flex; align-items:center; gap:4px; cursor:pointer; user-select:none;">
+                <input type="checkbox" id="jqIncludeHeaderCb" checked onchange="renderJqPreviewTable()"> 1行目に見出し行をつける
+              </label>
+            </div>
+            <div id="jqPreviewContainer" class="jq-preview-wrap">
+              <div style="text-align:center; color:#64748b; padding:45px 20px; font-size:0.88rem;">
+                上の <b>「① 元ファイル選択」</b> からExcelファイル（.xlsx / .xls）またはCSVファイルを選択してください。<br>
+                <span style="font-size:0.78rem; color:#94a3b8;">J〜Q列（メニューコード・メニュー名/食材コード・食材名・使用量・単位・売価/単価・原価/金額・原価率）を自動抽出し、<br>メニュー親行を黄色塗りつぶし＋罫線・桁区切り付きで綺麗に装飾したExcelファイルを作成します。</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(modal);
+    }
+    modal.style.display = 'flex';
+  };
+
+  window.closeJqExtractModal = function() {
+    const modal = document.getElementById('jqExtractModal');
+    if (modal) modal.style.display = 'none';
+  };
+
+  window.handleJqFileSelect = function(input) {
+    const file = input.files && input.files[0];
+    if (!file) return;
+    jqSourceFileName = file.name.replace(/\.[^.]+$/, '');
+    const isCSV = file.name.toLowerCase().endsWith('.csv');
+    const reader = new FileReader();
+
+    if (isCSV) {
+      reader.onload = function(evt) {
+        try {
+          const text = evt.target.result;
+          const lines = text.split(/\r?\n/);
+          const rows = [];
+          for (let i = 0; i < lines.length; i++) {
+            if (lines[i].trim()) rows.push(parseCSVLine(lines[i]));
+          }
+          jqWorkbookCache = { SheetNames: ['CSV'], Sheets: { CSV: rows }, isRawRows: true };
+          document.getElementById('jqSheetSelectWrap').style.display = 'none';
+          parseJqRowsFromGrid(rows);
+        } catch (err) {
+          alert('CSVの読み込みに失敗しました: ' + err.message);
+        }
+      };
+      reader.readAsText(file, 'Shift_JIS');
+    } else {
+      reader.onload = function(evt) {
+        try {
+          const data = new Uint8Array(evt.target.result);
+          const wb = XLSX.read(data, { type: 'array' });
+          jqWorkbookCache = wb;
+          const sheetSelect = document.getElementById('jqSheetSelect');
+          const sheetWrap = document.getElementById('jqSheetSelectWrap');
+          sheetSelect.innerHTML = '';
+          wb.SheetNames.forEach(name => {
+            const opt = document.createElement('option');
+            opt.value = name;
+            opt.textContent = name;
+            sheetSelect.appendChild(opt);
+          });
+          sheetWrap.style.display = wb.SheetNames.length > 1 ? 'inline-flex' : 'none';
+          reparseJqCurrentSheet();
+        } catch (err) {
+          alert('Excelファイルの解析に失敗しました: ' + err.message);
+        }
+      };
+      reader.readAsArrayBuffer(file);
+    }
+  };
+
+  window.reparseJqCurrentSheet = function() {
+    if (!jqWorkbookCache) return;
+    if (jqWorkbookCache.isRawRows) {
+      parseJqRowsFromGrid(jqWorkbookCache.Sheets.CSV);
+      return;
+    }
+    const sheetSelect = document.getElementById('jqSheetSelect');
+    const sheetName = (sheetSelect && sheetSelect.value) ? sheetSelect.value : jqWorkbookCache.SheetNames[0];
+    const ws = jqWorkbookCache.Sheets[sheetName];
+    if (!ws) return;
+    const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+    parseJqRowsFromGrid(rows);
+  };
+
+  function detectJqStartColumn(rows, mode) {
+    if (mode === 'jq') return 9; // J列 (0-indexed = 9)
+    if (mode === 'ah') return 0; // A列 (0-indexed = 0)
+
+    // 自動判定: J列(9)とA列(0)のどちらに親子構造（またはメニューコード）があるかスコア判定
+    let scoreJ = 0;
+    let scoreA = 0;
+    const sampleLimit = Math.min(rows.length, 120);
+
+    for (let i = 0; i < sampleLimit; i++) {
+      const r = rows[i];
+      if (!r) continue;
+      // J列(9)〜Q列(16)のチェック
+      if (r.length >= 14) {
+        const c9 = String(r[9] ?? '').trim();
+        const c10 = String(r[10] ?? '').trim();
+        const c11 = String(r[11] ?? '').trim();
+        const c12 = String(r[12] ?? '').trim();
+        if (/^\d{3,8}$/.test(c9) && c10 && !c11) scoreJ += 3;
+        if (!c9 && /^[0-9A-Za-z]{4,16}$/.test(c10) && c11 && c12 !== '') scoreJ += 2;
+      }
+      // A列(0)〜H列(7)のチェック
+      if (r.length >= 5) {
+        const c0 = String(r[0] ?? '').trim();
+        const c1 = String(r[1] ?? '').trim();
+        const c2 = String(r[2] ?? '').trim();
+        const c3 = String(r[3] ?? '').trim();
+        if (/^\d{3,8}$/.test(c0) && c1 && !c2) scoreA += 3;
+        if (!c0 && /^[0-9A-Za-z]{4,16}$/.test(c1) && c2 && c3 !== '') scoreA += 2;
+      }
+    }
+
+    return scoreJ >= scoreA && scoreJ > 0 ? 9 : 0;
+  }
+
+  function parseJqRowsFromGrid(rows) {
+    const colModeEl = document.getElementById('jqColModeSelect');
+    const colMode = colModeEl ? colModeEl.value : 'auto';
+    const baseCol = detectJqStartColumn(rows, colMode);
+
+    const extracted = [];
+    let currentMenu = null;
+
+    for (let i = 0; i < rows.length; i++) {
+      const r = rows[i];
+      if (!r || r.length <= baseCol) continue;
+
+      const cJ = String(r[baseCol] ?? '').trim();
+      const cK = String(r[baseCol + 1] ?? '').trim();
+      const cL = String(r[baseCol + 2] ?? '').trim();
+      const cM = String(r[baseCol + 3] ?? '').trim();
+      const cN = String(r[baseCol + 4] ?? '').trim();
+      const cO = String(r[baseCol + 5] ?? '').trim();
+      const cP = String(r[baseCol + 6] ?? '').trim();
+      const cQ = String(r[baseCol + 7] ?? '').trim();
+
+      // 空行スキップ
+      if (!cJ && !cK && !cL && !cM && !cN && !cO && !cP && !cQ) continue;
+
+      // 見出し行スキップ
+      if (cJ === 'メニューコード' || cJ === 'ﾒﾆｭｰｺｰﾄﾞ' || cK === '商品コード' || cK === 'メニュー名称') continue;
+
+      // 親行（メニュー行）判定: J列にメニューコードがあり、K列にメニュー名があり、L列・M列が空欄（または数値コード＋名称）
+      const isMenuParentRow = (cJ !== '' && cK !== '' && cL === '' && cM === '');
+
+      if (isMenuParentRow) {
+        currentMenu = {
+          rowType: 'menu',
+          menuCode: cJ,
+          menuName: cK,
+          colJ: cJ,
+          colK: cK,
+          colL: '',
+          colM: '',
+          colN: '',
+          colO: cO,
+          colP: cP,
+          colQ: cQ,
+          children: []
+        };
+        extracted.push(currentMenu);
+      } else if (cK !== '' || cL !== '') {
+        // 子行（食材行）: J列が空欄で、K列（食材コード）またはL列（食材名）がある行
+        const ingRow = {
+          rowType: 'ing',
+          parentCode: currentMenu ? currentMenu.menuCode : '',
+          parentName: currentMenu ? currentMenu.menuName : '',
+          colJ: cJ,
+          colK: cK,
+          colL: cL,
+          colM: cM,
+          colN: cN,
+          colO: cO,
+          colP: cP,
+          colQ: cQ
+        };
+        if (currentMenu) {
+          currentMenu.children.push(ingRow);
+        } else {
+          // 親行なしで始まった場合も保持
+          currentMenu = {
+            rowType: 'menu',
+            menuCode: cJ || '未設定',
+            menuName: '（メニュー行なし）',
+            colJ: cJ,
+            colK: '',
+            colL: '',
+            colM: '',
+            colN: '',
+            colO: '',
+            colP: '',
+            colQ: '',
+            children: [ingRow]
+          };
+          extracted.push(currentMenu);
+        }
+      }
+    }
+
+    jqExtractedRows = extracted;
+    renderJqPreviewTable();
+  }
+
+  function getFilteredJqMenuBlocks() {
+    const qEl = document.getElementById('jqFilterInput');
+    const q = qEl ? qEl.value.trim().toLowerCase() : '';
+    if (!q) return jqExtractedRows;
+
+    return jqExtractedRows.filter(menu => {
+      if ((menu.menuCode || '').toLowerCase().includes(q)) return true;
+      if ((menu.menuName || '').toLowerCase().includes(q)) return true;
+      return menu.children.some(ing =>
+        (ing.colK || '').toLowerCase().includes(q) ||
+        (ing.colL || '').toLowerCase().includes(q)
+      );
+    });
+  }
+
+  window.renderJqPreviewTable = function() {
+    const container = document.getElementById('jqPreviewContainer');
+    const badge = document.getElementById('jqStatBadge');
+    const exportBtn = document.getElementById('jqExportExcelBtn');
+    const syncBtn = document.getElementById('jqSyncMasterBtn');
+    const colorSelect = document.getElementById('jqYellowColorSelect');
+    const yellowHex = colorSelect ? colorSelect.value : 'FFF176';
+    if (colorSelect) {
+      colorSelect.style.backgroundColor = '#' + yellowHex;
+    }
+
+    const blocks = getFilteredJqMenuBlocks();
+    let totalIngCount = 0;
+    blocks.forEach(b => { totalIngCount += b.children.length; });
+
+    if (badge) {
+      badge.textContent = `抽出: ${blocks.length}メニュー / 食材 ${totalIngCount}行`;
+    }
+    if (exportBtn) exportBtn.disabled = blocks.length === 0;
+    if (syncBtn) syncBtn.disabled = blocks.length === 0;
+
+    if (!container) return;
+    if (blocks.length === 0) {
+      container.innerHTML = '<div style="text-align:center; color:#64748b; padding:40px 20px; font-size:0.85rem;">該当するJ〜Q列データが見つかりませんでした。抽出列の設定（自動判定 / J〜Q列 / A〜H列）を切り替えてみてください。</div>';
+      return;
+    }
+
+    const includeHeader = document.getElementById('jqIncludeHeaderCb') ? document.getElementById('jqIncludeHeaderCb').checked : true;
+
+    let html = '<table class="jq-preview-table">';
+    if (includeHeader) {
+      html += `
+        <thead>
+          <tr>
+            <th>J列: メニューコード</th>
+            <th>K列: メニュー名 / 食材コード</th>
+            <th>L列: 食材名</th>
+            <th>M列: 使用量</th>
+            <th>N列: 単位</th>
+            <th>O列: 売価 / 単価</th>
+            <th>P列: 原価 / 金額</th>
+            <th>Q列: 原価率(%)</th>
+          </tr>
+        </thead>`;
+    }
+    html += '<tbody>';
+
+    blocks.forEach(menu => {
+      html += `
+        <tr class="jq-row-menu" style="background-color: #${yellowHex};">
+          <td style="text-align:center; background-color: #${yellowHex};">${menu.colJ}</td>
+          <td style="background-color: #${yellowHex};">${menu.colK}</td>
+          <td style="background-color: #${yellowHex};">${menu.colL}</td>
+          <td style="background-color: #${yellowHex};">${menu.colM}</td>
+          <td style="background-color: #${yellowHex};">${menu.colN}</td>
+          <td style="text-align:right; background-color: #${yellowHex};">${menu.colO}</td>
+          <td style="text-align:right; background-color: #${yellowHex};">${menu.colP}</td>
+          <td style="text-align:right; background-color: #${yellowHex};">${menu.colQ}</td>
+        </tr>`;
+
+      menu.children.forEach(ing => {
+        html += `
+          <tr class="jq-row-ing">
+            <td style="text-align:center; color:#94a3b8;">${ing.colJ}</td>
+            <td style="font-family:monospace; color:#334155;">${ing.colK}</td>
+            <td>${ing.colL}</td>
+            <td style="text-align:right; font-weight:bold;">${ing.colM}</td>
+            <td style="text-align:center;">${ing.colN}</td>
+            <td style="text-align:right;">${ing.colO}</td>
+            <td style="text-align:right;">${ing.colP}</td>
+            <td style="text-align:right;">${ing.colQ}</td>
+          </tr>`;
+      });
+    });
+
+    html += '</tbody></table>';
+    container.innerHTML = html;
+  };
+
+  function toNumOrStr(val) {
+    if (val === undefined || val === null || val === '') return '';
+    const s = String(val).replace(/,/g, '').trim();
+    if (s === '') return '';
+    // 先頭が0で始まる2桁以上の整数コード（06017や0039013000304など）は文字列として保持
+    if (/^0\d+$/.test(s)) return s;
+    const n = Number(s);
+    return !isNaN(n) && isFinite(n) ? n : String(val);
+  }
+
+  window.exportJqStyledExcel = function() {
+    const blocks = getFilteredJqMenuBlocks();
+    if (blocks.length === 0) {
+      alert('出力するデータがありません。');
+      return;
+    }
+
+    const colorSelect = document.getElementById('jqYellowColorSelect');
+    const yellowHex = colorSelect ? colorSelect.value : 'FFF176';
+    const includeHeader = document.getElementById('jqIncludeHeaderCb') ? document.getElementById('jqIncludeHeaderCb').checked : true;
+
+    const aoa = [];
+    const rowTypes = []; // 'header' | 'menu' | 'ing'
+
+    if (includeHeader) {
+      aoa.push([
+        'メニューコード',
+        'メニュー名 / 食材コード',
+        '食材名称',
+        '使用量',
+        '単位',
+        '売価 / 単価',
+        '原価 / 金額',
+        '原価率(%)'
+      ]);
+      rowTypes.push('header');
+    }
+
+    blocks.forEach(menu => {
+      aoa.push([
+        String(menu.colJ ?? ''),
+        String(menu.colK ?? ''),
+        '',
+        '',
+        '',
+        toNumOrStr(menu.colO),
+        toNumOrStr(menu.colP),
+        toNumOrStr(menu.colQ)
+      ]);
+      rowTypes.push('menu');
+
+      menu.children.forEach(ing => {
+        aoa.push([
+          String(ing.colJ ?? ''),
+          String(ing.colK ?? ''), // 食材コードは0落ち防止のため文字列固定
+          String(ing.colL ?? ''),
+          toNumOrStr(ing.colM),
+          String(ing.colN ?? ''),
+          toNumOrStr(ing.colO),
+          toNumOrStr(ing.colP),
+          toNumOrStr(ing.colQ)
+        ]);
+        rowTypes.push('ing');
+      });
+    });
+
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+
+    // 列幅の設定
+    ws['!cols'] = [
+      { wch: 13 }, // J: メニューコード
+      { wch: 30 }, // K: メニュー名 / 食材コード
+      { wch: 38 }, // L: 食材名称
+      { wch: 10 }, // M: 使用量
+      { wch: 8 },  // N: 単位
+      { wch: 12 }, // O: 売価 / 単価
+      { wch: 12 }, // P: 原価 / 金額
+      { wch: 12 }  // Q: 原価率(%)
+    ];
+
+    // 行の高さ設定
+    ws['!rows'] = rowTypes.map(t => {
+      if (t === 'header') return { hpt: 24 };
+      if (t === 'menu') return { hpt: 20 };
+      return { hpt: 17 };
+    });
+
+    // 各セルへのスタイル適用（黄色塗りつぶし・罫線・フォント・配置・数値フォーマット）
+    const totalRows = aoa.length;
+    const totalCols = 8;
+
+    for (let r = 0; r < totalRows; r++) {
+      const rType = rowTypes[r];
+      for (let c = 0; c < totalCols; c++) {
+        const cellAddr = XLSX.utils.encode_cell({ r, c });
+        if (!ws[cellAddr]) {
+          ws[cellAddr] = { t: 's', v: '' };
+        }
+        const cell = ws[cellAddr];
+
+        // K列（食材コード）は先頭0が消えないよう文字列型に強制
+        if (rType === 'ing' && c === 1 && cell.v !== '') {
+          cell.t = 's';
+          cell.v = String(cell.v);
+        }
+
+        if (rType === 'header') {
+          cell.s = {
+            fill: { patternType: 'solid', fgColor: { rgb: '1E293B' } },
+            font: { name: 'Meiryo UI', sz: 10, bold: true, color: { rgb: 'FFFFFF' } },
+            alignment: { horizontal: 'center', vertical: 'center' },
+            border: {
+              top: { style: 'thin', color: { rgb: '0F172A' } },
+              bottom: { style: 'medium', color: { rgb: '0F172A' } },
+              left: { style: 'thin', color: { rgb: '334155' } },
+              right: { style: 'thin', color: { rgb: '334155' } }
+            }
+          };
+        } else if (rType === 'menu') {
+          // メニュー親行：黄色塗りつぶし＋太字＋上部区切り線
+          const alignH = (c === 0) ? 'center' : (c >= 5 ? 'right' : 'left');
+          const styleObj = {
+            fill: { patternType: 'solid', fgColor: { rgb: yellowHex } },
+            font: { name: 'Meiryo UI', sz: 10, bold: true, color: { rgb: '000000' } },
+            alignment: { horizontal: alignH, vertical: 'center' },
+            border: {
+              top: { style: 'medium', color: { rgb: '64748B' } },
+              bottom: { style: 'thin', color: { rgb: '94A3B8' } },
+              left: { style: 'thin', color: { rgb: 'CBD5E1' } },
+              right: { style: 'thin', color: { rgb: 'CBD5E1' } }
+            }
+          };
+          if (typeof cell.v === 'number') {
+            if (c === 5) styleObj.numFmt = '#,##0';
+            else if (c === 6 || c === 7) styleObj.numFmt = '#,##0.00';
+          }
+          cell.s = styleObj;
+        } else {
+          // 食材子行：白背景＋細罫線＋見やすい整列
+          let alignH = 'left';
+          if (c === 0 || c === 4) alignH = 'center';
+          else if (c === 3 || c >= 5) alignH = 'right';
+
+          const styleObj = {
+            fill: { patternType: 'solid', fgColor: { rgb: 'FFFFFF' } },
+            font: { name: 'Meiryo UI', sz: 9.5, bold: (c === 3), color: { rgb: '1E293B' } },
+            alignment: { horizontal: alignH, vertical: 'center' },
+            border: {
+              top: { style: 'thin', color: { rgb: 'E2E8F0' } },
+              bottom: { style: 'thin', color: { rgb: 'E2E8F0' } },
+              left: { style: 'thin', color: { rgb: 'E2E8F0' } },
+              right: { style: 'thin', color: { rgb: 'E2E8F0' } }
+            }
+          };
+          if (typeof cell.v === 'number') {
+            if (c === 3) styleObj.numFmt = '#,##0.##';
+            else if (c === 5 || c === 6) styleObj.numFmt = '#,##0.00';
+          }
+          cell.s = styleObj;
+        }
+      }
+    }
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, '原価シート抽出');
+
+    const today = new Date();
+    const dStr = `${today.getFullYear()}${String(today.getMonth() + 1).padStart(2, '0')}${String(today.getDate()).padStart(2, '0')}`;
+    XLSX.writeFile(wb, `${jqSourceFileName}_原価シート抽出_${dStr}.xlsx`);
+  };
+
+  window.importJqToToolMaster = function() {
+    const blocks = getFilteredJqMenuBlocks();
+    if (blocks.length === 0) return;
+
+    if (!window.menuMaster) window.menuMaster = {};
+    let addedCount = 0;
+
+    blocks.forEach(menu => {
+      if (!menu.menuCode) return;
+      window.menuMaster[menu.menuCode] = {
+        name: menu.menuName || '',
+        ingredients: menu.children.map(ing => ({
+          code: ing.colK || '',
+          name: ing.colL || '',
+          amount: ing.colM || '',
+          unit: ing.colN || 'g'
+        }))
+      };
+      addedCount++;
+    });
+
+    menuMaster = window.menuMaster;
+    const totalCount = Object.keys(menuMaster).length;
+    const sourceLabel = `Excel: ${jqSourceFileName} (原価シート抽出)`;
+
+    safeStorage.setItem('cachedMenuMaster', JSON.stringify(menuMaster));
+    safeStorage.setItem('cachedMenuCount', totalCount);
+    safeStorage.setItem('cachedSourceLabel', sourceLabel);
+    safeStorage.setItem('cachedVersion', 'v4');
+
+    const statusDiv = document.getElementById('masterStatus');
+    if (statusDiv) {
+      statusDiv.innerText = `マスタデータ読込完了 (${totalCount}件のメニュー) (${sourceLabel})`;
+      statusDiv.style.backgroundColor = '#e8f5e9';
+      statusDiv.style.color = '#2e7d32';
+    }
+
+    alert(`抽出した ${addedCount} 件のメニューを手順書ツールの原価マスタに反映しました！\nメニューコードや商品名からすぐに呼び出せます。`);
+  };

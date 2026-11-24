@@ -1825,3 +1825,83 @@ body.is-quick-sheet-mode #quickSheetViewContainer {
     display: none !important;
   }
 }
+
+
+/* --- J〜Q列 原価レシピ抽出＆黄色塗りつぶしExcel出力モーダル --- */
+#jqExtractModal .modal-content {
+  max-width: 960px;
+  width: 94%;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+}
+.jq-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin-bottom: 10px;
+}
+.jq-toolbar-group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.jq-preview-wrap {
+  flex: 1;
+  overflow: auto;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #fff;
+  max-height: 55vh;
+}
+.jq-preview-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+  font-family: "Meiryo UI", "Meiryo", sans-serif;
+}
+.jq-preview-table thead th {
+  position: sticky;
+  top: 0;
+  background: #1e293b;
+  color: #ffffff;
+  font-weight: bold;
+  padding: 7px 8px;
+  text-align: center;
+  border: 1px solid #334155;
+  white-space: nowrap;
+  z-index: 2;
+}
+.jq-preview-table tbody td {
+  padding: 5px 8px;
+  border: 1px solid #cbd5e1;
+  color: #0f172a;
+}
+.jq-preview-table tbody tr.jq-row-menu td {
+  font-weight: bold;
+  border-top: 2px solid #64748b;
+  border-bottom: 1px solid #94a3b8;
+}
+.jq-preview-table tbody tr.jq-row-ing td {
+  background: #ffffff;
+}
+.jq-preview-table tbody tr.jq-row-ing:hover td {
+  background: #f8fafc;
+}
+.jq-stat-badge {
+  display: inline-block;
+  background: #fef9c3;
+  border: 1px solid #facc15;
+  color: #854d0e;
+  font-weight: bold;
+  font-size: 0.78rem;
+  padding: 3px 10px;
+  border-radius: 999px;
+}

@@ -6,9 +6,11 @@
 <title>ドリンク手順書作成ツール</title>
 <!-- SheetJS -->
 <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+<!-- SheetJS Style Extension for colored Excel export -->
+<script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
 <!-- SortableJS -->
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
-  <link rel="stylesheet" href="css/drink.css?v=20261120_qs_order">
+  <link rel="stylesheet" href="css/drink.css?v=20261124_jq_excel">
 </head>
 <body>
 
@@ -48,6 +50,7 @@
     <button type="button" style="background-color: #1976d2;" onclick="loadMasterData()">☁️ スプシから同期</button>
     <button type="button" class="print-btn" onclick="window.print()">PDF保存・印刷</button>
     <button type="button" class="excel-btn" onclick="downloadExcel()">ExcelでDL</button>
+    <button type="button" style="background-color: #eab308; color: #0f172a; font-weight: bold;" onclick="openJqExtractModal()">📊 原価シート抽出</button>
     <button type="button" style="background-color: #f59e0b;" onclick="openRecipeListModal()">📂 保存済み一覧 (<span id="savedCount">0</span>)</button>
     <button type="button" style="background-color: #2e7d32;" onclick="saveCurrentRecipeToDB()">💾 保存・更新</button>
     <button type="button" style="background-color: #c62828;" onclick="deleteCurrentRecipeFromDB()">🗑️ 削除</button>
@@ -305,7 +308,7 @@
   </div> <!-- /outputArea -->
 </div> <!-- /editorWrapper -->
 
-  <script src="js/drink.js?v=20261120_keep_edits"></script>
+  <script src="js/drink.js?v=20261124_cost_extract"></script>
 <!-- ==========================================================================
      ■ SECTION 2.1: DIALOGS & MODALS
      ========================================================================== -->
