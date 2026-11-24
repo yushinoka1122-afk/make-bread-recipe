@@ -2108,3 +2108,28 @@ body.is-quick-sheet-mode #quickSheetViewContainer {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+
+
+/* --- サイドバーを常に最前面に表示 ＆ 4枠アップロード欄の1行コンパクト化 --- */
+#sidebarOverlay {
+  z-index: 20000 !important;
+}
+#sidebarMenu {
+  z-index: 20001 !important;
+  overflow-y: auto;
+}
+.master-slots-row {
+  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  gap: 6px !important;
+  padding-top: 3px !important;
+}
+.master-slot-box {
+  padding: 3px 6px !important;
+  gap: 2px !important;
+}
+.master-slot-title {
+  font-size: 0.7rem !important;
+}
+.master-slot-input {
+  font-size: 0.68rem !important;
+}
