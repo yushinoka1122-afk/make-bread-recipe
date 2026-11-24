@@ -3727,10 +3727,41 @@
   };
 
 
-  // --- J〜Q列 情報抽出 ＆ 黄色塗りつぶしデザイン付きExcel出力機能 ---
+  // --- 原価シート抽出 ＆ 黄色塗りつぶしデザイン付きExcel出力機能（チェック選択・店舗セット保存・コード一括貼付対応） ---
   let jqWorkbookCache = null;
   let jqExtractedRows = [];
-  let jqSourceFileName = '原価レシピ抽出';
+  let jqSelectedCodes = new Set();
+  let jqSourceFileName = '原価シート抽出';
+
+  function loadJqPresetsMap() {
+    try {
+      const raw = safeStorage.getItem('jqSelectionPresets_v1');
+      return raw ? JSON.parse(raw) : {};
+    } catch (e) {
+      return {};
+    }
+  }
+
+  function saveJqPresetsMap(map) {
+    try {
+      safeStorage.setItem('jqSelectionPresets_v1', JSON.stringify(map));
+    } catch (e) {}
+  }
+
+  function refreshJqPresetSelectUI() {
+    const sel = document.getElementById('jqPresetSelect');
+    if (!sel) return;
+    const map = loadJqPresetsMap();
+    const names = Object.keys(map);
+    sel.innerHTML = '<option value="">-- 店舗・ラインナップ保存セット呼出 --</option>';
+    names.forEach(name => {
+      const codes = Array.isArray(map[name]) ? map[name] : [];
+      const opt = document.createElement('option');
+      opt.value = name;
+      opt.textContent = `${name} (${codes.length}品)`;
+      sel.appendChild(opt);
+    });
+  }
 
   window.openJqExtractModal = function() {
     let modal = document.getElementById('jqExtractModal');
@@ -3744,55 +3775,99 @@
       modal.innerHTML = `
         <div class="modal-content">
           <div class="modal-header" style="background: linear-gradient(90deg, #1e293b, #334155); color: #fff;">
-            <h3 style="margin:0; color:#fef08a;">📊 原価シート抽出 ＆ Excel出力</h3>
+            <h3 style="margin:0; color:#fef08a;">📊 原価シート抽出 ＆ Excel出力（対象商品の選択・店舗プリセット対応）</h3>
             <button type="button" class="close-modal-btn" style="color:#fff;" onclick="closeJqExtractModal()">×</button>
           </div>
           <div class="modal-body" style="display:flex; flex-direction:column; flex:1; overflow:hidden;">
+            <!-- 上段：ファイル選択＆出力ボタン -->
             <div class="jq-toolbar">
               <div class="jq-toolbar-group">
-                <label style="font-weight:bold; font-size:0.82rem; color:#1e293b;">① 元ファイル選択:</label>
-                <input type="file" id="jqFileInput" accept=".xlsx,.xls,.csv" onchange="handleJqFileSelect(this)" style="font-size:0.8rem; max-width:230px;">
+                <label style="font-weight:bold; font-size:0.82rem; color:#1e293b;">① 元ファイル:</label>
+                <input type="file" id="jqFileInput" accept=".xlsx,.xls,.csv" onchange="handleJqFileSelect(this)" style="font-size:0.8rem; max-width:210px;">
                 <span id="jqSheetSelectWrap" style="display:none; align-items:center; gap:4px;">
                   <label style="font-size:0.78rem; color:#475569;">シート:</label>
-                  <select id="jqSheetSelect" onchange="reparseJqCurrentSheet()" style="font-size:0.8rem; padding:3px 6px; border:1px solid #cbd5e1; border-radius:4px;"></select>
+                  <select id="jqSheetSelect" onchange="reparseJqCurrentSheet()" style="font-size:0.78rem; padding:3px 6px; border:1px solid #cbd5e1; border-radius:4px;"></select>
                 </span>
                 <span style="display:inline-flex; align-items:center; gap:4px;">
                   <label style="font-size:0.78rem; color:#475569;">抽出列:</label>
-                  <select id="jqColModeSelect" onchange="reparseJqCurrentSheet()" style="font-size:0.8rem; padding:3px 6px; border:1px solid #cbd5e1; border-radius:4px;">
+                  <select id="jqColModeSelect" onchange="reparseJqCurrentSheet()" style="font-size:0.78rem; padding:3px 6px; border:1px solid #cbd5e1; border-radius:4px;">
                     <option value="auto">自動判定（J〜Q列 / 先頭列）</option>
                     <option value="jq">J〜Q列固定（10〜17列目）</option>
                     <option value="ah">A〜H列固定（1〜8列目）</option>
                   </select>
                 </span>
                 <span style="display:inline-flex; align-items:center; gap:4px;">
-                  <label style="font-size:0.78rem; color:#475569;">親行の黄色:</label>
-                  <select id="jqYellowColorSelect" onchange="renderJqPreviewTable()" style="font-size:0.8rem; padding:3px 6px; border:1px solid #cbd5e1; border-radius:4px; background:#FFF176; font-weight:bold;">
-                    <option value="FFF176" style="background:#FFF176;">標準イエロー（見やすい黄色）</option>
-                    <option value="FFFF00" style="background:#FFFF00;">鮮やかな黄色（エクセル標準黄）</option>
-                    <option value="FFF9C4" style="background:#FFF9C4;">パステルイエロー（淡い黄色）</option>
+                  <label style="font-size:0.78rem; color:#475569;">黄色:</label>
+                  <select id="jqYellowColorSelect" onchange="renderJqPreviewTable()" style="font-size:0.78rem; padding:3px 6px; border:1px solid #cbd5e1; border-radius:4px; background:#FFF176; font-weight:bold;">
+                    <option value="FFF176" style="background:#FFF176;">標準イエロー</option>
+                    <option value="FFFF00" style="background:#FFFF00;">鮮やかな黄色</option>
+                    <option value="FFF9C4" style="background:#FFF9C4;">パステルイエロー</option>
                   </select>
                 </span>
               </div>
               <div class="jq-toolbar-group">
-                <span id="jqStatBadge" class="jq-stat-badge">未読込</span>
-                <button type="button" id="jqSyncMasterBtn" onclick="importJqToToolMaster()" disabled style="background:#0284c7; color:#fff; font-size:0.8rem; padding:6px 10px;" title="抽出したメニューと食材を手順書ツールの検索マスタにも反映します">
-                  🔄 ツールの原価マスタにも反映
+                <span id="jqStatBadge" class="jq-stat-badge">0 / 0 メニュー選択中</span>
+                <button type="button" id="jqSyncMasterBtn" onclick="importJqToToolMaster()" disabled style="background:#0284c7; color:#fff; font-size:0.78rem; padding:6px 10px;" title="チェックしたメニューを手順書ツールの原価マスタにも反映します">
+                  🔄 選択分をツールマスタに反映
                 </button>
-                <button type="button" id="jqExportExcelBtn" onclick="exportJqStyledExcel()" disabled style="background:#eab308; color:#0f172a; font-size:0.85rem; font-weight:bold; padding:7px 14px; box-shadow:0 2px 4px rgba(0,0,0,0.12);">
-                  📥 黄色塗りつぶしExcel(.xlsx)を出力
+                <button type="button" id="jqExportExcelBtn" onclick="exportJqStyledExcel()" disabled style="background:#eab308; color:#0f172a; font-size:0.84rem; font-weight:bold; padding:7px 14px; box-shadow:0 2px 4px rgba(0,0,0,0.12);">
+                  📥 チェックした商品をExcel(.xlsx)出力
                 </button>
               </div>
             </div>
-            <div style="margin-bottom:8px; display:flex; gap:8px; align-items:center;">
-              <input type="text" id="jqFilterInput" placeholder="🔍 メニューコード・商品名・食材名で絞り込み（空欄で全件出力）..." oninput="renderJqPreviewTable()" style="flex:1; padding:5px 10px; font-size:0.8rem; border:1px solid #cbd5e1; border-radius:5px;">
-              <label style="font-size:0.78rem; color:#334155; display:inline-flex; align-items:center; gap:4px; cursor:pointer; user-select:none;">
-                <input type="checkbox" id="jqIncludeHeaderCb" checked onchange="renderJqPreviewTable()"> 1行目に見出し行をつける
-              </label>
+
+            <!-- 中段：多品種ラインナップを瞬時に選ぶスマート選択バー -->
+            <div class="jq-smart-bar">
+              <div class="jq-toolbar-group">
+                <span style="font-weight:bold; color:#1e40af;">⚡ 店舗・一括選択:</span>
+                <select id="jqPresetSelect" onchange="applyJqPreset(this.value)" style="font-size:0.78rem; padding:3px 6px; border:1px solid #93c5fd; border-radius:4px; background:#fff; min-width:210px;"></select>
+                <button type="button" class="jq-mini-btn" onclick="saveCurrentJqPreset()" title="現在チェックしている商品リストに名前（例：BRC標準店、BCC○○店）をつけて保存します">💾 現在の選択をセット保存</button>
+                <button type="button" class="jq-mini-btn" onclick="deleteSelectedJqPreset()" title="選択中の保存セットを削除">🗑️</button>
+              </div>
+              <div class="jq-toolbar-group">
+                <button type="button" class="jq-mini-btn" onclick="openJqPasteCodesPrompt()" style="background:#fef9c3 !important; border-color:#eab308 !important; color:#854d0e !important;" title="Excelやリストから複数のメニューコードや商品名を貼り付けて一発チェックします">
+                  📋 コード・商品名を一括貼付で選択
+                </button>
+                <select id="jqDbBrandQuickSelect" onchange="selectJqBySavedDBBrand(this.value); this.value='';" style="font-size:0.75rem; padding:3px 6px; border:1px solid #93c5fd; border-radius:4px; background:#fff;">
+                  <option value="">🏪 保存済み手順書から自動チェック...</option>
+                  <option value="__ALL_SAVED__">保存済み手順書がある全商品</option>
+                  <option value="BAQET">ブランド：BAQET の保存済み商品</option>
+                  <option value="BAKERY RESTAURANT C">ブランド：BAKERY RESTAURANT C の保存済み商品</option>
+                  <option value="BAKERY CAFE C">ブランド：BAKERY CAFE C の保存済み商品</option>
+                </select>
+                <label style="font-size:0.76rem; color:#334155; display:inline-flex; align-items:center; gap:3px; cursor:pointer; user-select:none;">
+                  <input type="checkbox" id="jqIncludeHeaderCb" checked onchange="renderJqPreviewTable()"> 見出し行あり
+                </label>
+              </div>
             </div>
-            <div id="jqPreviewContainer" class="jq-preview-wrap">
-              <div style="text-align:center; color:#64748b; padding:45px 20px; font-size:0.88rem;">
-                上の <b>「① 元ファイル選択」</b> からExcelファイル（.xlsx / .xls）またはCSVファイルを選択してください。<br>
-                <span style="font-size:0.78rem; color:#94a3b8;">J〜Q列（メニューコード・メニュー名/食材コード・食材名・使用量・単位・売価/単価・原価/金額・原価率）を自動抽出し、<br>メニュー親行を黄色塗りつぶし＋罫線・桁区切り付きで綺麗に装飾したExcelファイルを作成します。</span>
+
+            <!-- 下段：2ペイン（左＝チェックボックス選択リスト、右＝抽出プレビュー表） -->
+            <div class="jq-workspace">
+              <div class="jq-left-panel">
+                <div class="jq-left-header">
+                  <input type="text" id="jqFilterInput" placeholder="🔍 コード・商品名・食材名で検索（例: キューブ）" oninput="renderJqChecklistAndPreview()" style="width:100%; padding:5px 8px; font-size:0.78rem; border:1px solid #cbd5e1; border-radius:4px; box-sizing:border-box;">
+                  <div style="display:flex; gap:4px; flex-wrap:wrap; justify-content:space-between;">
+                    <button type="button" class="jq-mini-btn" style="flex:1;" onclick="toggleJqVisibleChecks(true)" title="検索で表示されている商品をすべてチェック追加します">☑ 表示中をすべて選択</button>
+                    <button type="button" class="jq-mini-btn" style="flex:1;" onclick="toggleJqVisibleChecks(false)" title="検索で表示されている商品のチェックを外します">☐ 表示中を解除</button>
+                    <button type="button" class="jq-mini-btn" onclick="clearAllJqChecks()" title="すべてのチェックをクリア">全クリア</button>
+                  </div>
+                </div>
+                <div id="jqMenuChecklist" class="jq-menu-checklist">
+                  <div style="text-align:center; color:#94a3b8; padding:30px 10px; font-size:0.78rem;">ファイルを選択するとここにメニュー一覧が表示されます</div>
+                </div>
+              </div>
+
+              <div id="jqPreviewContainer" class="jq-preview-wrap">
+                <div style="text-align:center; color:#64748b; padding:45px 20px; font-size:0.86rem;">
+                  上の <b>「① 元ファイル」</b> からExcel（.xlsx / .xls）またはCSVを選択してください。<br><br>
+                  <span style="font-size:0.78rem; color:#475569; display:inline-block; text-align:left; background:#f8fafc; padding:10px 14px; border-radius:6px; border:1px solid #e2e8f0;">
+                    <b>💡 多品種ラインナップでも簡単に抽出できる4つの方法：</b><br>
+                    1. <b>左のリストでポチポチ選択</b>（初期状態は全選択／「全クリア」から必要なものだけチェックも可）<br>
+                    2. <b>キーワード検索＋「☑ 表示中をすべて選択」</b>（例：「キューブ」で検索して一括選択 → 「クロワッサン」で検索して追加選択）<br>
+                    3. <b>「📋 コード・商品名を一括貼付で選択」</b>（別シートのメニューコード列をコピー＆ペーストして50品でも一発チェック）<br>
+                    4. <b>「💾 現在の選択をセット保存」</b>（店舗や業態ごとに保存しておけば、次回からワンクリックで同じ商品を抽出！）
+                  </span>
+                </div>
               </div>
             </div>
           </div>
@@ -3800,6 +3875,7 @@
       `;
       document.body.appendChild(modal);
     }
+    refreshJqPresetSelectUI();
     modal.style.display = 'flex';
   };
 
@@ -3872,10 +3948,9 @@
   };
 
   function detectJqStartColumn(rows, mode) {
-    if (mode === 'jq') return 9; // J列 (0-indexed = 9)
-    if (mode === 'ah') return 0; // A列 (0-indexed = 0)
+    if (mode === 'jq') return 9;
+    if (mode === 'ah') return 0;
 
-    // 自動判定: J列(9)とA列(0)のどちらに親子構造（またはメニューコード）があるかスコア判定
     let scoreJ = 0;
     let scoreA = 0;
     const sampleLimit = Math.min(rows.length, 120);
@@ -3883,7 +3958,6 @@
     for (let i = 0; i < sampleLimit; i++) {
       const r = rows[i];
       if (!r) continue;
-      // J列(9)〜Q列(16)のチェック
       if (r.length >= 14) {
         const c9 = String(r[9] ?? '').trim();
         const c10 = String(r[10] ?? '').trim();
@@ -3892,7 +3966,6 @@
         if (/^\d{3,8}$/.test(c9) && c10 && !c11) scoreJ += 3;
         if (!c9 && /^[0-9A-Za-z]{4,16}$/.test(c10) && c11 && c12 !== '') scoreJ += 2;
       }
-      // A列(0)〜H列(7)のチェック
       if (r.length >= 5) {
         const c0 = String(r[0] ?? '').trim();
         const c1 = String(r[1] ?? '').trim();
@@ -3927,17 +4000,14 @@
       const cP = String(r[baseCol + 6] ?? '').trim();
       const cQ = String(r[baseCol + 7] ?? '').trim();
 
-      // 空行スキップ
       if (!cJ && !cK && !cL && !cM && !cN && !cO && !cP && !cQ) continue;
-
-      // 見出し行スキップ
       if (cJ === 'メニューコード' || cJ === 'ﾒﾆｭｰｺｰﾄﾞ' || cK === '商品コード' || cK === 'メニュー名称') continue;
 
-      // 親行（メニュー行）判定: J列にメニューコードがあり、K列にメニュー名があり、L列・M列が空欄（または数値コード＋名称）
       const isMenuParentRow = (cJ !== '' && cK !== '' && cL === '' && cM === '');
 
       if (isMenuParentRow) {
         currentMenu = {
+          uid: `${cJ}_${extracted.length}`,
           rowType: 'menu',
           menuCode: cJ,
           menuName: cK,
@@ -3953,7 +4023,6 @@
         };
         extracted.push(currentMenu);
       } else if (cK !== '' || cL !== '') {
-        // 子行（食材行）: J列が空欄で、K列（食材コード）またはL列（食材名）がある行
         const ingRow = {
           rowType: 'ing',
           parentCode: currentMenu ? currentMenu.menuCode : '',
@@ -3970,10 +4039,11 @@
         if (currentMenu) {
           currentMenu.children.push(ingRow);
         } else {
-          // 親行なしで始まった場合も保持
+          const fallbackCode = cJ || '未設定';
           currentMenu = {
+            uid: `${fallbackCode}_${extracted.length}`,
             rowType: 'menu',
-            menuCode: cJ || '未設定',
+            menuCode: fallbackCode,
             menuName: '（メニュー行なし）',
             colJ: cJ,
             colK: '',
@@ -3991,10 +4061,12 @@
     }
 
     jqExtractedRows = extracted;
-    renderJqPreviewTable();
+    // 初期状態はすべて選択（すぐに全クリアや絞り込み選択が可能）
+    jqSelectedCodes = new Set(extracted.map(m => m.menuCode));
+    renderJqChecklistAndPreview();
   }
 
-  function getFilteredJqMenuBlocks() {
+  function getVisibleJqMenuBlocksByQuery() {
     const qEl = document.getElementById('jqFilterInput');
     const q = qEl ? qEl.value.trim().toLowerCase() : '';
     if (!q) return jqExtractedRows;
@@ -4009,6 +4081,198 @@
     });
   }
 
+  function getCheckedJqMenuBlocks() {
+    return jqExtractedRows.filter(menu => jqSelectedCodes.has(menu.menuCode));
+  }
+
+  window.renderJqChecklistAndPreview = function() {
+    renderJqChecklist();
+    renderJqPreviewTable();
+  };
+
+  window.renderJqChecklist = function() {
+    const listEl = document.getElementById('jqMenuChecklist');
+    if (!listEl) return;
+
+    if (jqExtractedRows.length === 0) {
+      listEl.innerHTML = '<div style="text-align:center; color:#94a3b8; padding:30px 10px; font-size:0.78rem;">ファイルを選択するとここにメニュー一覧が表示されます</div>';
+      return;
+    }
+
+    const visibleMenus = getVisibleJqMenuBlocksByQuery();
+    if (visibleMenus.length === 0) {
+      listEl.innerHTML = '<div style="text-align:center; color:#94a3b8; padding:20px 10px; font-size:0.78rem;">検索条件に一致するメニューがありません</div>';
+      return;
+    }
+
+    let html = '';
+    visibleMenus.forEach(menu => {
+      const checked = jqSelectedCodes.has(menu.menuCode);
+      const safeCode = String(menu.menuCode).replace(/'/g, "\\'");
+      html += `
+        <label class="jq-check-item ${checked ? 'is-checked' : ''}">
+          <input type="checkbox" ${checked ? 'checked' : ''} onchange="toggleSingleJqMenuCheck('${safeCode}', this.checked)">
+          <span class="jq-check-code">${menu.menuCode}</span>
+          <span class="jq-check-name" title="${menu.menuName}">${menu.menuName}</span>
+          <span class="jq-check-count">(${menu.children.length})</span>
+        </label>`;
+    });
+    listEl.innerHTML = html;
+  };
+
+  window.toggleSingleJqMenuCheck = function(menuCode, checked) {
+    if (checked) {
+      jqSelectedCodes.add(String(menuCode));
+    } else {
+      jqSelectedCodes.delete(String(menuCode));
+    }
+    renderJqChecklistAndPreview();
+  };
+
+  window.toggleJqVisibleChecks = function(shouldCheck) {
+    const visibleMenus = getVisibleJqMenuBlocksByQuery();
+    visibleMenus.forEach(m => {
+      if (shouldCheck) jqSelectedCodes.add(m.menuCode);
+      else jqSelectedCodes.delete(m.menuCode);
+    });
+    renderJqChecklistAndPreview();
+  };
+
+  window.clearAllJqChecks = function() {
+    jqSelectedCodes.clear();
+    renderJqChecklistAndPreview();
+  };
+
+  // Excel等からコピーした複数のメニューコードや商品名を一括貼り付けして選択
+  window.openJqPasteCodesPrompt = function() {
+    if (jqExtractedRows.length === 0) {
+      alert('先に「① 元ファイル」から原価シート（Excel/CSV）を読み込んでください。');
+      return;
+    }
+    const raw = prompt('Excelやリストからコピーした「メニューコード」または「商品名」を貼り付けてください（改行・カンマ・スペース・タブ区切りすべて対応）：');
+    if (!raw || !raw.trim()) return;
+
+    const tokens = raw.split(/[\r\n,\t、 ]+/).map(s => s.trim()).filter(Boolean);
+    if (tokens.length === 0) return;
+
+    const replaceMode = confirm(`貼り付けた条件で選択します。\n\n【OK】：現在の選択をクリアして、貼り付けた商品だけを選択する\n【キャンセル】：現在選択中の商品に、貼り付けた商品を追加する`);
+    if (replaceMode) {
+      jqSelectedCodes.clear();
+    }
+
+    let hitCount = 0;
+    jqExtractedRows.forEach(menu => {
+      const mCode = String(menu.menuCode || '').trim();
+      const mName = String(menu.menuName || '').trim();
+      const matched = tokens.some(t =>
+        mCode === t ||
+        mCode.replace(/^0+/, '') === t.replace(/^0+/, '') ||
+        (t.length >= 2 && mName.includes(t))
+      );
+      if (matched) {
+        jqSelectedCodes.add(menu.menuCode);
+        hitCount++;
+      }
+    });
+
+    renderJqChecklistAndPreview();
+    alert(`${hitCount} 件のメニューが一致し、チェックを選択しました！`);
+  };
+
+  // ツール内の保存済み手順書（または特定ブランド）に該当する商品を一括チェック
+  window.selectJqBySavedDBBrand = async function(brandVal) {
+    if (!brandVal) return;
+    if (jqExtractedRows.length === 0) {
+      alert('先に「① 元ファイル」から原価シート（Excel/CSV）を読み込んでください。');
+      return;
+    }
+    try {
+      const allRecipes = await recipeDB.getAllRecipes();
+      const targetCodes = new Set();
+      allRecipes.forEach(r => {
+        if (!r || !r.menuCode) return;
+        if (brandVal === '__ALL_SAVED__') {
+          targetCodes.add(String(r.menuCode).trim());
+        } else {
+          const bList = String(r.brandCategory || '').split(',').map(s => s.trim());
+          if (bList.includes(brandVal)) {
+            targetCodes.add(String(r.menuCode).trim());
+          }
+        }
+      });
+
+      jqSelectedCodes.clear();
+      let hitCount = 0;
+      jqExtractedRows.forEach(m => {
+        if (targetCodes.has(String(m.menuCode).trim())) {
+          jqSelectedCodes.add(m.menuCode);
+          hitCount++;
+        }
+      });
+      renderJqChecklistAndPreview();
+      alert(`保存済み手順書（${brandVal === '__ALL_SAVED__' ? '全商品' : brandVal}）に該当する ${hitCount} 件のメニューをチェックしました！`);
+    } catch (e) {
+      alert('保存済み手順書の参照中にエラーが発生しました: ' + e.message);
+    }
+  };
+
+  // 店舗別・用途別の選択プリセット保存
+  window.saveCurrentJqPreset = function() {
+    const checked = getCheckedJqMenuBlocks();
+    if (checked.length === 0) {
+      alert('セット保存する商品に1つ以上チェックを入れてください。');
+      return;
+    }
+    const sel = document.getElementById('jqPresetSelect');
+    const defaultName = (sel && sel.value) ? sel.value : '';
+    const name = prompt(`現在チェックしている ${checked.length} 品のラインナップを保存します。\nセット名（例：BRC標準店、BCC○○店、キューブ一式など）を入力してください：`, defaultName);
+    if (!name || !name.trim()) return;
+
+    const cleanName = name.trim();
+    const map = loadJqPresetsMap();
+    map[cleanName] = checked.map(m => m.menuCode);
+    saveJqPresetsMap(map);
+    refreshJqPresetSelectUI();
+    if (sel) sel.value = cleanName;
+    alert(`「${cleanName}」（${checked.length}品）を保存しました！\n次回から上のプルダウンを選ぶだけで同じ商品を一発選択できます。`);
+  };
+
+  window.applyJqPreset = function(presetName) {
+    if (!presetName) return;
+    if (jqExtractedRows.length === 0) {
+      alert('先に「① 元ファイル」から原価シート（Excel/CSV）を読み込んでください。');
+      return;
+    }
+    const map = loadJqPresetsMap();
+    const codes = map[presetName];
+    if (!Array.isArray(codes)) return;
+
+    const codeSet = new Set(codes.map(c => String(c).trim()));
+    jqSelectedCodes.clear();
+    let hitCount = 0;
+    jqExtractedRows.forEach(m => {
+      if (codeSet.has(String(m.menuCode).trim())) {
+        jqSelectedCodes.add(m.menuCode);
+        hitCount++;
+      }
+    });
+    renderJqChecklistAndPreview();
+  };
+
+  window.deleteSelectedJqPreset = function() {
+    const sel = document.getElementById('jqPresetSelect');
+    if (!sel || !sel.value) {
+      alert('削除する保存セットをプルダウンから選択してください。');
+      return;
+    }
+    const name = sel.value;
+    if (!confirm(`保存セット「${name}」を削除しますか？`)) return;
+    const map = loadJqPresetsMap();
+    delete map[name];
+    saveJqPresetsMap(map);
+    refreshJqPresetSelectUI();
+  };
+
   window.renderJqPreviewTable = function() {
     const container = document.getElementById('jqPreviewContainer');
     const badge = document.getElementById('jqStatBadge');
@@ -4020,19 +4284,21 @@
       colorSelect.style.backgroundColor = '#' + yellowHex;
     }
 
-    const blocks = getFilteredJqMenuBlocks();
+    const checkedBlocks = getCheckedJqMenuBlocks();
     let totalIngCount = 0;
-    blocks.forEach(b => { totalIngCount += b.children.length; });
+    checkedBlocks.forEach(b => { totalIngCount += b.children.length; });
 
     if (badge) {
-      badge.textContent = `抽出: ${blocks.length}メニュー / 食材 ${totalIngCount}行`;
+      badge.textContent = `選択中: ${checkedBlocks.length} / 全${jqExtractedRows.length}メニュー（食材 ${totalIngCount}行）`;
     }
-    if (exportBtn) exportBtn.disabled = blocks.length === 0;
-    if (syncBtn) syncBtn.disabled = blocks.length === 0;
+    if (exportBtn) exportBtn.disabled = checkedBlocks.length === 0;
+    if (syncBtn) syncBtn.disabled = checkedBlocks.length === 0;
 
     if (!container) return;
-    if (blocks.length === 0) {
-      container.innerHTML = '<div style="text-align:center; color:#64748b; padding:40px 20px; font-size:0.85rem;">該当するJ〜Q列データが見つかりませんでした。抽出列の設定（自動判定 / J〜Q列 / A〜H列）を切り替えてみてください。</div>';
+    if (jqExtractedRows.length === 0) return;
+
+    if (checkedBlocks.length === 0) {
+      container.innerHTML = '<div style="text-align:center; color:#64748b; padding:50px 20px; font-size:0.88rem;">左のリストから出力したいメニューにチェックを入れてください。<br><span style="font-size:0.78rem; color:#94a3b8;">（キーワード検索して「☑ 表示中をすべて選択」を押すと、カテゴリー単位で素早く追加選択できます）</span></div>';
       return;
     }
 
@@ -4043,6 +4309,7 @@
       html += `
         <thead>
           <tr>
+            <th style="width:36px;">解除</th>
             <th>J列: メニューコード</th>
             <th>K列: メニュー名 / 食材コード</th>
             <th>L列: 食材名</th>
@@ -4056,9 +4323,13 @@
     }
     html += '<tbody>';
 
-    blocks.forEach(menu => {
+    checkedBlocks.forEach(menu => {
+      const safeCode = String(menu.menuCode).replace(/'/g, "\\'");
       html += `
         <tr class="jq-row-menu" style="background-color: #${yellowHex};">
+          <td style="text-align:center; background-color: #${yellowHex};">
+            <button type="button" onclick="toggleSingleJqMenuCheck('${safeCode}', false)" title="このメニューを選択から外す" style="background:#fee2e2; color:#b91c1c; border:1px solid #fca5a5; border-radius:3px; padding:0 5px; font-size:0.72rem; cursor:pointer;">×</button>
+          </td>
           <td style="text-align:center; background-color: #${yellowHex};">${menu.colJ}</td>
           <td style="background-color: #${yellowHex};">${menu.colK}</td>
           <td style="background-color: #${yellowHex};">${menu.colL}</td>
@@ -4072,6 +4343,7 @@
       menu.children.forEach(ing => {
         html += `
           <tr class="jq-row-ing">
+            <td style="background:#f8fafc;"></td>
             <td style="text-align:center; color:#94a3b8;">${ing.colJ}</td>
             <td style="font-family:monospace; color:#334155;">${ing.colK}</td>
             <td>${ing.colL}</td>
@@ -4092,16 +4364,15 @@
     if (val === undefined || val === null || val === '') return '';
     const s = String(val).replace(/,/g, '').trim();
     if (s === '') return '';
-    // 先頭が0で始まる2桁以上の整数コード（06017や0039013000304など）は文字列として保持
     if (/^0\d+$/.test(s)) return s;
     const n = Number(s);
     return !isNaN(n) && isFinite(n) ? n : String(val);
   }
 
   window.exportJqStyledExcel = function() {
-    const blocks = getFilteredJqMenuBlocks();
+    const blocks = getCheckedJqMenuBlocks();
     if (blocks.length === 0) {
-      alert('出力するデータがありません。');
+      alert('出力するメニューにチェックを入れてください。');
       return;
     }
 
@@ -4110,7 +4381,7 @@
     const includeHeader = document.getElementById('jqIncludeHeaderCb') ? document.getElementById('jqIncludeHeaderCb').checked : true;
 
     const aoa = [];
-    const rowTypes = []; // 'header' | 'menu' | 'ing'
+    const rowTypes = [];
 
     if (includeHeader) {
       aoa.push([
@@ -4142,7 +4413,7 @@
       menu.children.forEach(ing => {
         aoa.push([
           String(ing.colJ ?? ''),
-          String(ing.colK ?? ''), // 食材コードは0落ち防止のため文字列固定
+          String(ing.colK ?? ''),
           String(ing.colL ?? ''),
           toNumOrStr(ing.colM),
           String(ing.colN ?? ''),
@@ -4156,26 +4427,23 @@
 
     const ws = XLSX.utils.aoa_to_sheet(aoa);
 
-    // 列幅の設定
     ws['!cols'] = [
-      { wch: 13 }, // J: メニューコード
-      { wch: 30 }, // K: メニュー名 / 食材コード
-      { wch: 38 }, // L: 食材名称
-      { wch: 10 }, // M: 使用量
-      { wch: 8 },  // N: 単位
-      { wch: 12 }, // O: 売価 / 単価
-      { wch: 12 }, // P: 原価 / 金額
-      { wch: 12 }  // Q: 原価率(%)
+      { wch: 13 },
+      { wch: 30 },
+      { wch: 38 },
+      { wch: 10 },
+      { wch: 8 },
+      { wch: 12 },
+      { wch: 12 },
+      { wch: 12 }
     ];
 
-    // 行の高さ設定
     ws['!rows'] = rowTypes.map(t => {
       if (t === 'header') return { hpt: 24 };
       if (t === 'menu') return { hpt: 20 };
       return { hpt: 17 };
     });
 
-    // 各セルへのスタイル適用（黄色塗りつぶし・罫線・フォント・配置・数値フォーマット）
     const totalRows = aoa.length;
     const totalCols = 8;
 
@@ -4188,7 +4456,6 @@
         }
         const cell = ws[cellAddr];
 
-        // K列（食材コード）は先頭0が消えないよう文字列型に強制
         if (rType === 'ing' && c === 1 && cell.v !== '') {
           cell.t = 's';
           cell.v = String(cell.v);
@@ -4207,7 +4474,6 @@
             }
           };
         } else if (rType === 'menu') {
-          // メニュー親行：黄色塗りつぶし＋太字＋上部区切り線
           const alignH = (c === 0) ? 'center' : (c >= 5 ? 'right' : 'left');
           const styleObj = {
             fill: { patternType: 'solid', fgColor: { rgb: yellowHex } },
@@ -4226,7 +4492,6 @@
           }
           cell.s = styleObj;
         } else {
-          // 食材子行：白背景＋細罫線＋見やすい整列
           let alignH = 'left';
           if (c === 0 || c === 4) alignH = 'center';
           else if (c === 3 || c >= 5) alignH = 'right';
@@ -4254,13 +4519,15 @@
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, '原価シート抽出');
 
+    const presetSel = document.getElementById('jqPresetSelect');
+    const presetSuffix = (presetSel && presetSel.value) ? `_${presetSel.value}` : '';
     const today = new Date();
     const dStr = `${today.getFullYear()}${String(today.getMonth() + 1).padStart(2, '0')}${String(today.getDate()).padStart(2, '0')}`;
-    XLSX.writeFile(wb, `${jqSourceFileName}_原価シート抽出_${dStr}.xlsx`);
+    XLSX.writeFile(wb, `${jqSourceFileName}_原価シート抽出${presetSuffix}_${dStr}.xlsx`);
   };
 
   window.importJqToToolMaster = function() {
-    const blocks = getFilteredJqMenuBlocks();
+    const blocks = getCheckedJqMenuBlocks();
     if (blocks.length === 0) return;
 
     if (!window.menuMaster) window.menuMaster = {};
@@ -4296,5 +4563,5 @@
       statusDiv.style.color = '#2e7d32';
     }
 
-    alert(`抽出した ${addedCount} 件のメニューを手順書ツールの原価マスタに反映しました！\nメニューコードや商品名からすぐに呼び出せます。`);
+    alert(`チェックした ${addedCount} 件のメニューを手順書ツールの原価マスタに反映しました！\nメニューコードや商品名からすぐに呼び出せます。`);
   };
