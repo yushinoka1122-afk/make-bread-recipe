@@ -1666,7 +1666,7 @@
 
   // ローカルファイル読込
   const masterFileInput = document.getElementById('masterFileInput');
-  if (masterFileInput) {
+  if (false && masterFileInput) {
     masterFileInput.addEventListener('change', function(e) {
       const file = e.target.files[0];
       if (!file) return;
@@ -4649,3 +4649,383 @@
 
     alert(`チェックした ${addedCount} 件のメニューを手順書ツールの原価マスタに反映しました！\nメニューコードや商品名からすぐに呼び出せます。`);
   };
+
+
+  // --- 4枠メニュー・原価シート連携管理（①バケット・BRC旧 / ②バケット・BRC新 / ③カフェC・ペトリコール旧 / ④カフェC・ペトリコール新） ---
+  const MASTER_SLOT_NAMES = {
+    1: '①バケット・BRC(旧)',
+    2: '②バケット・BRC(新)',
+    3: '③カフェC・ペトリコール(旧)',
+    4: '④カフェC・ペトリコール(新)'
+  };
+
+  function getMasterSlotStoragePrefix() {
+    return (typeof currentMode !== 'undefined' && currentMode === 'standby') ? 'standbyMasterSlot_' : 'commonMasterSlot_';
+  }
+
+  function loadAllMasterSlotsFromStorage() {
+    const prefix = getMasterSlotStoragePrefix();
+    const slots = {};
+    for (let s = 1; s <= 4; s++) {
+      try {
+        const raw = safeStorage.getItem(prefix + s);
+        if (raw) {
+          slots[s] = JSON.parse(raw);
+        }
+      } catch (e) {}
+    }
+    return slots;
+  }
+
+  function saveMasterSlotToStorage(slotNum, slotData) {
+    const prefix = getMasterSlotStoragePrefix();
+    try {
+      if (slotData) {
+        safeStorage.setItem(prefix + slotNum, JSON.stringify(slotData));
+      } else {
+        safeStorage.removeItem(prefix + slotNum);
+      }
+    } catch (e) {
+      console.warn('Failed to save master slot to storage:', e);
+    }
+  }
+
+  // あらゆる原価シート形式（標準フラット形式 / J〜Q親子階層形式 / スタンバイ_Data形式）を自動判別してメニュー辞書に変換
+  function parseAnyMasterRowsToDict(rows, slotLabel) {
+    const dict = {};
+    if (!Array.isArray(rows) || rows.length === 0) return dict;
+
+    // 1. まずヘッダー行がある標準フラット形式またはスタンバイ形式かをチェック
+    let headerIdx = -1;
+    let colMap = {};
+    let isStandbyFormat = false;
+
+    for (let i = 0; i < Math.min(rows.length, 25); i++) {
+      if (!rows[i]) continue;
+      const rowStr = rows[i].map(c => String(c || '')).join('');
+      if (rowStr.includes('ｽﾀﾝﾊﾞｲ商品ｺｰﾄﾞ') || rowStr.includes('スタンバイ商品コード')) {
+        headerIdx = i;
+        isStandbyFormat = true;
+        for (let j = 0; j < rows[i].length; j++) {
+          const hName = String(rows[i][j] || '').trim();
+          if (hName === 'ｽﾀﾝﾊﾞｲ商品ｺｰﾄﾞ' || hName === 'スタンバイ商品コード') colMap.menuCode = j;
+          else if (hName === 'ｽﾀﾝﾊﾞｲ商品名' || hName === 'スタンバイ商品名') colMap.menuName = j;
+          else if (hName === '商品コード' || hName === '商品ｺｰﾄﾞ') colMap.ingCode = j;
+          else if (hName === '商品名' || hName === '商品名称') colMap.ingName = j;
+          else if (hName === '使用量' || hName === '正味使用量') colMap.ingAmount = j;
+          else if (hName === '単位' || hName === '正味単位') colMap.ingUnit = j;
+        }
+        break;
+      } else if (rowStr.includes('メニュー名称') || rowStr.includes('ﾒﾆｭｰ名称') || (rowStr.includes('メニューコード') && rowStr.includes('商品コード')) || (rowStr.includes('ﾒﾆｭｰｺｰﾄﾞ') && rowStr.includes('商品コード'))) {
+        headerIdx = i;
+        for (let j = 0; j < rows[i].length; j++) {
+          const hName = String(rows[i][j] || '').trim();
+          if (hName === 'メニューコード' || hName === 'ﾒﾆｭｰｺｰﾄﾞ') colMap.menuCode = j;
+          else if (hName === 'メニュー名称' || hName === 'ﾒﾆｭｰ名称') colMap.menuName = j;
+          else if (hName === '商品コード') colMap.ingCode = j;
+          else if (hName === '商品名称' || hName === '商品名') colMap.ingName = j;
+          else if (hName === '正味使用量' || hName === '使用量') colMap.ingAmount = j;
+          else if (hName === '正味単位' || hName === '単位') colMap.ingUnit = j;
+        }
+        break;
+      }
+    }
+
+    // 2. 親子階層形式（J〜Q列 または A〜H列：親行にメニューコード＋メニュー名、子行に食材コード＋食材名）かどうかをスコア判定
+    let scoreJQ = 0;
+    let scoreAH = 0;
+    const sampleLimit = Math.min(rows.length, 120);
+    for (let i = 0; i < sampleLimit; i++) {
+      const r = rows[i];
+      if (!r) continue;
+      if (r.length >= 14) {
+        const c9 = String(r[9] ?? '').trim();
+        const c10 = String(r[10] ?? '').trim();
+        const c11 = String(r[11] ?? '').trim();
+        const c12 = String(r[12] ?? '').trim();
+        if (/^\d{3,8}$/.test(c9) && c10 && !c11) scoreJQ += 3;
+        if (!c9 && /^[0-9A-Za-z]{4,16}$/.test(c10) && c11 && c12 !== '') scoreJQ += 2;
+      }
+      if (r.length >= 5) {
+        const c0 = String(r[0] ?? '').trim();
+        const c1 = String(r[1] ?? '').trim();
+        const c2 = String(r[2] ?? '').trim();
+        const c3 = String(r[3] ?? '').trim();
+        if (/^\d{3,8}$/.test(c0) && c1 && !c2) scoreAH += 3;
+        if (!c0 && /^[0-9A-Za-z]{4,16}$/.test(c1) && c2 && c3 !== '') scoreAH += 2;
+      }
+    }
+
+    if (headerIdx === -1 && (scoreJQ >= 5 || scoreAH >= 5)) {
+      const baseCol = scoreJQ >= scoreAH ? 9 : 0;
+      let curCode = '';
+      for (let i = 0; i < rows.length; i++) {
+        const r = rows[i];
+        if (!r || r.length <= baseCol) continue;
+        const cJ = String(r[baseCol] ?? '').trim();
+        const cK = String(r[baseCol + 1] ?? '').trim();
+        const cL = String(r[baseCol + 2] ?? '').trim();
+        const cM = String(r[baseCol + 3] ?? '').trim();
+        const cN = String(r[baseCol + 4] ?? '').trim();
+        if (!cJ && !cK && !cL) continue;
+        if (cJ === 'メニューコード' || cJ === 'ﾒﾆｭｰｺｰﾄﾞ' || cK === '商品コード') continue;
+
+        if (cJ !== '' && cK !== '' && cL === '' && cM === '') {
+          curCode = cJ;
+          dict[curCode] = {
+            name: cK,
+            slotLabel: slotLabel || '',
+            ingredients: []
+          };
+        } else if (curCode && dict[curCode] && (cK !== '' || cL !== '')) {
+          dict[curCode].ingredients.push({
+            code: cK,
+            name: cL,
+            amount: cM,
+            unit: cN || 'g'
+          });
+        }
+      }
+      if (Object.keys(dict).length > 0) return dict;
+    }
+
+    // 3. スタンバイ形式または標準フラット形式の解析
+    if (isStandbyFormat) {
+      if (colMap.menuCode === undefined) {
+        colMap = { menuCode: 1, menuName: 2, ingCode: 9, ingName: 10, ingAmount: 11, ingUnit: 12 };
+      }
+      for (let i = headerIdx + 1; i < rows.length; i++) {
+        const cols = rows[i];
+        if (!cols || cols.length === 0) continue;
+        const menuCode = cols[colMap.menuCode] !== undefined ? String(cols[colMap.menuCode]).trim() : '';
+        const shortName = cols[colMap.menuName] !== undefined ? String(cols[colMap.menuName]).trim() : '';
+        const ingCode = cols[colMap.ingCode] !== undefined ? String(cols[colMap.ingCode]).trim() : '';
+        const ingName = cols[colMap.ingName] !== undefined ? String(cols[colMap.ingName]).trim() : '';
+        const ingAmount = cols[colMap.ingAmount] !== undefined ? String(cols[colMap.ingAmount]).trim() : '';
+        const ingUnit = cols[colMap.ingUnit] !== undefined ? String(cols[colMap.ingUnit]).trim() : '';
+
+        if (!menuCode || menuCode === 'ｽﾀﾝﾊﾞｲ商品ｺｰﾄﾞ' || menuCode === 'スタンバイ商品コード') continue;
+        const isParentRow = (ingCode && ingCode === menuCode) || (!shortName && ingName);
+        if (!dict[menuCode]) {
+          dict[menuCode] = {
+            name: isParentRow && ingName ? ingName : (shortName || ingName || ''),
+            slotLabel: slotLabel || '',
+            ingredients: []
+          };
+        } else if (isParentRow && ingName) {
+          dict[menuCode].name = ingName;
+        }
+        if (isParentRow) continue;
+        if (ingCode || ingName) {
+          if (ingCode !== '商品コード' && ingName !== '商品名' && ingName !== '商品名称') {
+            dict[menuCode].ingredients.push({
+              code: ingCode,
+              name: ingName,
+              amount: ingAmount,
+              unit: ingUnit || 'g'
+            });
+          }
+        }
+      }
+      return dict;
+    }
+
+    // 標準フラット形式（フォールバック含む）
+    if (headerIdx === -1 || colMap.menuCode === undefined) {
+      colMap = { menuCode: 3, menuName: 4, ingCode: 10, ingName: 11, ingAmount: 12, ingUnit: 13 };
+      headerIdx = 0;
+    }
+    for (let i = headerIdx + 1; i < rows.length; i++) {
+      const cols = rows[i];
+      if (!cols || cols.length === 0) continue;
+      const menuCode = cols[colMap.menuCode] ? String(cols[colMap.menuCode]).trim() : '';
+      const menuName = cols[colMap.menuName] ? String(cols[colMap.menuName]).trim() : '';
+      const ingCode = cols[colMap.ingCode] ? String(cols[colMap.ingCode]).trim() : '';
+      const ingName = cols[colMap.ingName] ? String(cols[colMap.ingName]).trim() : '';
+      const ingAmount = cols[colMap.ingAmount] ? String(cols[colMap.ingAmount]).trim() : '';
+      const ingUnit = cols[colMap.ingUnit] ? String(cols[colMap.ingUnit]).trim() : '';
+
+      if (!menuCode || menuCode === 'ﾒﾆｭｰｺｰﾄﾞ' || menuCode === 'メニューコード') continue;
+      if (!dict[menuCode]) {
+        dict[menuCode] = {
+          name: menuName,
+          slotLabel: slotLabel || '',
+          ingredients: []
+        };
+      } else if (!dict[menuCode].name && menuName) {
+        dict[menuCode].name = menuName;
+      }
+      if (ingCode || ingName) {
+        if (ingCode !== '商品コード' && ingName !== '商品名称' && ingName !== '商品名') {
+          dict[menuCode].ingredients.push({
+            code: ingCode,
+            name: ingName,
+            amount: ingAmount,
+            unit: ingUnit || 'g'
+          });
+        }
+      }
+    }
+    return dict;
+  }
+
+  // 4つのスロットのデータを統合して window.menuMaster と画面表示を更新
+  window.rebuildCombinedMasterFromSlots = function() {
+    const slots = loadAllMasterSlotsFromStorage();
+    const combined = {};
+    const activeLabels = [];
+
+    for (let s = 1; s <= 4; s++) {
+      const slotInfo = slots[s];
+      const badgeEl = document.getElementById('masterSlotBadge' + s);
+      const clearBtn = document.getElementById('masterSlotClear' + s);
+      const boxEl = document.querySelector(`.master-slot-box[data-slot="${s}"]`);
+
+      if (slotInfo && slotInfo.data && Object.keys(slotInfo.data).length > 0) {
+        const count = Object.keys(slotInfo.data).length;
+        Object.assign(combined, slotInfo.data);
+        activeLabels.push(`${MASTER_SLOT_NAMES[s]}:${count}件`);
+        if (badgeEl) {
+          badgeEl.textContent = `✓ ${count}件`;
+          badgeEl.title = `読込ファイル: ${slotInfo.fileName || ''}`;
+        }
+        if (clearBtn) clearBtn.style.display = 'inline-block';
+        if (boxEl) boxEl.classList.add('is-loaded');
+      } else {
+        if (badgeEl) {
+          badgeEl.textContent = '未読込';
+          badgeEl.title = '';
+        }
+        if (clearBtn) clearBtn.style.display = 'none';
+        if (boxEl) boxEl.classList.remove('is-loaded');
+      }
+    }
+
+    if (Object.keys(combined).length > 0) {
+      window.menuMaster = combined;
+      menuMaster = window.menuMaster;
+      const totalCount = Object.keys(combined).length;
+      const labelStr = activeLabels.join(' / ');
+
+      const cacheKey = (typeof currentMode !== 'undefined' && currentMode === 'standby') ? 'cachedStandbyMaster' : 'cachedMenuMaster';
+      const countKey = (typeof currentMode !== 'undefined' && currentMode === 'standby') ? 'cachedStandbyCount' : 'cachedMenuCount';
+      const labelKey = (typeof currentMode !== 'undefined' && currentMode === 'standby') ? 'cachedStandbyLabel' : 'cachedSourceLabel';
+
+      safeStorage.setItem(cacheKey, JSON.stringify(combined));
+      safeStorage.setItem(countKey, totalCount);
+      safeStorage.setItem(labelKey, 'Excel: ' + labelStr);
+      safeStorage.setItem('cachedVersion', 'v4');
+
+      const statusDiv = document.getElementById('masterStatus');
+      if (statusDiv) {
+        statusDiv.innerText = `マスタ連携中: 合計 ${totalCount}件 (${labelStr})`;
+        statusDiv.style.backgroundColor = '#e8f5e9';
+        statusDiv.style.color = '#2e7d32';
+      }
+      if (typeof autoSyncAllRecipes === 'function') {
+        autoSyncAllRecipes();
+      }
+    }
+  };
+
+  window.handleMasterSlotFileChange = function(inputEl, slotNum) {
+    const file = inputEl && inputEl.files && inputEl.files[0];
+    if (!file) return;
+
+    const slotTitle = MASTER_SLOT_NAMES[slotNum] || `スロット${slotNum}`;
+    const statusDiv = document.getElementById('masterStatus');
+    const badgeEl = document.getElementById('masterSlotBadge' + slotNum);
+    if (badgeEl) badgeEl.textContent = '解析中...';
+    if (statusDiv) {
+      statusDiv.innerText = `${slotTitle}（${file.name}）を解析しています...`;
+      statusDiv.style.backgroundColor = '#ffe0b2';
+      statusDiv.style.color = '#e65100';
+    }
+
+    const fileName = file.name;
+    const isExcel = fileName.toLowerCase().endsWith('.xlsx') || fileName.toLowerCase().endsWith('.xls');
+    const reader = new FileReader();
+
+    const onRowsReady = (rows) => {
+      const parsedDict = parseAnyMasterRowsToDict(rows, slotTitle);
+      const count = Object.keys(parsedDict).length;
+      if (count === 0) {
+        if (badgeEl) badgeEl.textContent = '0件';
+        alert(`${slotTitle}（${fileName}）からメニューデータが検出できませんでした。シートの形式をご確認ください。`);
+        return;
+      }
+      saveMasterSlotToStorage(slotNum, {
+        slotNum,
+        slotTitle,
+        fileName,
+        updatedAt: Date.now(),
+        data: parsedDict
+      });
+      rebuildCombinedMasterFromSlots();
+    };
+
+    if (isExcel) {
+      reader.onload = function(evt) {
+        try {
+          const data = new Uint8Array(evt.target.result);
+          const workbook = XLSX.read(data, { type: 'array' });
+          // 全シートを走査、または最初の有効なシートから読み込み
+          let combinedRows = [];
+          for (const sName of workbook.SheetNames) {
+            const ws = workbook.Sheets[sName];
+            const sheetRows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+            if (sheetRows && sheetRows.length > 1) {
+              combinedRows = combinedRows.concat(sheetRows);
+            }
+          }
+          onRowsReady(combinedRows);
+        } catch (err) {
+          console.error(err);
+          if (badgeEl) badgeEl.textContent = 'エラー';
+          if (statusDiv) {
+            statusDiv.innerText = 'Excelファイルの解析に失敗しました。';
+            statusDiv.style.backgroundColor = '#ffebee';
+            statusDiv.style.color = '#c62828';
+          }
+        }
+      };
+      reader.readAsArrayBuffer(file);
+    } else {
+      reader.onload = function(evt) {
+        try {
+          const text = evt.target.result;
+          const lines = text.split(/\r?\n/);
+          const rows = [];
+          for (let i = 0; i < lines.length; i++) {
+            if (lines[i].trim()) rows.push(parseCSVLine(lines[i]));
+          }
+          onRowsReady(rows);
+        } catch (err) {
+          console.error(err);
+          if (badgeEl) badgeEl.textContent = 'エラー';
+          if (statusDiv) {
+            statusDiv.innerText = 'CSVファイルの解析に失敗しました。';
+            statusDiv.style.backgroundColor = '#ffebee';
+            statusDiv.style.color = '#c62828';
+          }
+        }
+      };
+      reader.readAsText(file, 'Shift_JIS');
+    }
+  };
+
+  window.clearMasterSlot = function(slotNum) {
+    const slotTitle = MASTER_SLOT_NAMES[slotNum] || `スロット${slotNum}`;
+    if (!confirm(`${slotTitle} の読み込みデータをクリアしますか？`)) return;
+    saveMasterSlotToStorage(slotNum, null);
+    const inputId = slotNum === 1 ? 'masterFileInput' : ('masterFileInput' + slotNum);
+    const inputEl = document.getElementById(inputId);
+    if (inputEl) inputEl.value = '';
+    rebuildCombinedMasterFromSlots();
+  };
+
+  document.addEventListener('DOMContentLoaded', () => {
+    setTimeout(() => {
+      rebuildCombinedMasterFromSlots();
+    }, 50);
+  });

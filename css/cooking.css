@@ -2020,3 +2020,94 @@ body.is-quick-sheet-mode #quickSheetViewContainer {
   border-color: #475569 !important;
 }
 
+
+
+/* --- 4枠横並び メニュー・原価シートアップロード欄（新旧バケット・BRC / 新旧カフェC・ペトリコール） --- */
+.master-slots-row {
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  padding-top: 4px;
+  border-top: 1px dashed #cbd5e1;
+}
+.master-slot-box {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: stretch !important;
+  gap: 3px !important;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  padding: 5px 8px !important;
+  border-radius: 6px;
+  min-width: 0;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+.master-slot-box.is-loaded {
+  background: #f0fdf4;
+  border-color: #86efac;
+}
+.master-slot-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  min-width: 0;
+}
+.master-slot-title {
+  font-weight: bold;
+  font-size: 0.74rem;
+  color: #1e293b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.master-slot-badge {
+  font-size: 0.68rem;
+  font-weight: bold;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: #e2e8f0;
+  color: #475569;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.master-slot-box.is-loaded .master-slot-badge {
+  background: #dcfce7;
+  color: #166534;
+}
+.master-slot-clear {
+  background: #fee2e2 !important;
+  color: #b91c1c !important;
+  border: none !important;
+  border-radius: 3px !important;
+  padding: 0 5px !important;
+  font-size: 0.72rem !important;
+  line-height: 1.3 !important;
+  cursor: pointer !important;
+  flex-shrink: 0;
+}
+.master-slot-clear:hover {
+  background: #fecaca !important;
+}
+.master-slot-input {
+  width: 100% !important;
+  max-width: 100% !important;
+  font-size: 0.72rem !important;
+  padding: 0 !important;
+  border: none !important;
+  background: transparent !important;
+  cursor: pointer;
+}
+.jq-slots-grid {
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
+@media (max-width: 900px) {
+  .master-slots-row,
+  .jq-slots-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

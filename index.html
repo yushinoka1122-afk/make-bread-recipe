@@ -10,7 +10,7 @@
 <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
 <!-- SortableJS -->
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
-  <link rel="stylesheet" href="css/style.css?v=20261124_jq_select">
+  <link rel="stylesheet" href="css/style.css?v=20261124_4slots">
 </head>
 <body>
 
@@ -43,10 +43,6 @@
     <div id="dbStatus" style="font-size: 0.75rem; font-weight: bold; padding: 3px 8px; border-radius: 4px; background-color: #e2e8f0; color: #475569; display: inline-block; margin-left: 8px;">✏️ 新規手順書</div>
   </div>
   <div class="utility-right">
-    <div class="file-input-wrapper">
-      <span style="font-weight: bold; color: #1e293b;">📁 ローカル連携:</span>
-      <input type="file" id="masterFileInput" accept=".xlsx, .xls, .csv">
-    </div>
     <button type="button" style="background-color: #1976d2;" onclick="loadMasterData()">☁️ スプシから同期</button>
     <button type="button" class="print-btn" onclick="window.print()">PDF保存・印刷</button>
     <button type="button" class="excel-btn" onclick="downloadExcel()">ExcelでDL</button>
@@ -57,6 +53,41 @@
     <button type="button" style="background-color: #455a64;" onclick="exportDBtoJSON()">📤 バックアップ</button>
     <button type="button" style="background-color: #37474f;" onclick="triggerDBRestore()">📥 リストア</button>
     <input type="file" id="dbRestoreInput" accept=".json" style="display: none;" onchange="importDBfromJSON(this)">
+  </div>
+
+  <div class="master-slots-row">
+    <div class="file-input-wrapper master-slot-box" data-slot="1">
+      <div class="master-slot-header">
+        <span class="master-slot-title">📁 ①バケット・BRC（旧）</span>
+        <span class="master-slot-badge" id="masterSlotBadge1">未読込</span>
+        <button type="button" class="master-slot-clear" id="masterSlotClear1" onclick="clearMasterSlot(1)" title="このシートの読込をクリア" style="display:none;">×</button>
+      </div>
+      <input type="file" id="masterFileInput" class="master-slot-input" data-slot="1" accept=".xlsx, .xls, .csv" onchange="handleMasterSlotFileChange(this, 1)">
+    </div>
+    <div class="file-input-wrapper master-slot-box" data-slot="2">
+      <div class="master-slot-header">
+        <span class="master-slot-title">📁 ②バケット・BRC（新）</span>
+        <span class="master-slot-badge" id="masterSlotBadge2">未読込</span>
+        <button type="button" class="master-slot-clear" id="masterSlotClear2" onclick="clearMasterSlot(2)" title="このシートの読込をクリア" style="display:none;">×</button>
+      </div>
+      <input type="file" id="masterFileInput2" class="master-slot-input" data-slot="2" accept=".xlsx, .xls, .csv" onchange="handleMasterSlotFileChange(this, 2)">
+    </div>
+    <div class="file-input-wrapper master-slot-box" data-slot="3">
+      <div class="master-slot-header">
+        <span class="master-slot-title">📁 ③カフェC・ペトリコール（旧）</span>
+        <span class="master-slot-badge" id="masterSlotBadge3">未読込</span>
+        <button type="button" class="master-slot-clear" id="masterSlotClear3" onclick="clearMasterSlot(3)" title="このシートの読込をクリア" style="display:none;">×</button>
+      </div>
+      <input type="file" id="masterFileInput3" class="master-slot-input" data-slot="3" accept=".xlsx, .xls, .csv" onchange="handleMasterSlotFileChange(this, 3)">
+    </div>
+    <div class="file-input-wrapper master-slot-box" data-slot="4">
+      <div class="master-slot-header">
+        <span class="master-slot-title">📁 ④カフェC・ペトリコール（新）</span>
+        <span class="master-slot-badge" id="masterSlotBadge4">未読込</span>
+        <button type="button" class="master-slot-clear" id="masterSlotClear4" onclick="clearMasterSlot(4)" title="このシートの読込をクリア" style="display:none;">×</button>
+      </div>
+      <input type="file" id="masterFileInput4" class="master-slot-input" data-slot="4" accept=".xlsx, .xls, .csv" onchange="handleMasterSlotFileChange(this, 4)">
+    </div>
   </div>
 </div>
 
@@ -440,7 +471,7 @@
   </div> <!-- /outputArea -->
 </div> <!-- /editorWrapper -->
 
-  <script src="js/main.js?v=20261124_jq_select"></script>
+  <script src="js/main.js?v=20261124_4slots"></script>
 <!-- ==========================================================================
      ■ SECTION 2.1: DIALOGS & MODALS
      ========================================================================== -->
